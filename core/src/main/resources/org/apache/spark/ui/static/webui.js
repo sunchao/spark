@@ -30,15 +30,15 @@ function setAppBasePath(path) {
 /* eslint-enable no-unused-vars */
 
 function collapseTablePageLoad(name, table){
-  if (window.localStorage.getItem(name) == "true") {
+  if (DB.getItem(name) == "true") {
     // Set it to false so that the click function can revert it
-    window.localStorage.setItem(name, "false");
+    DB.setItem(name, "false");
     collapseTable(name, table);
   }
 }
 
 function collapseTable(thisName, table){
-  var status = window.localStorage.getItem(thisName) == "true";
+  var status = DB.getItem(thisName) == "true";
   status = !status;
 
   var thisClass = '.' + thisName;
@@ -51,7 +51,7 @@ function collapseTable(thisName, table){
   $(thisClass).find('.collapse-table-arrow').toggleClass('arrow-open');
   $(thisClass).find('.collapse-table-arrow').toggleClass('arrow-closed');
 
-  window.localStorage.setItem(thisName, "" + status);
+  DB.setItem(thisName, "" + status);
 }
 
 // Add a call to collapseTablePageLoad() on each collapsible table

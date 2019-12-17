@@ -730,8 +730,8 @@ $(document).ready(function () {
         $("#additionalMetrics").click(function() {
           $("#arrowtoggle-optional-metrics").toggleClass("arrow-open arrow-closed");
           $("#toggle-metrics").toggleClass("d-none");
-          if (window.localStorage) {
-            window.localStorage.setItem("arrowtoggle-optional-metrics-class", $("#arrowtoggle-optional-metrics").attr('class'));
+          if (DB) {
+            DB.setItem("arrowtoggle-optional-metrics-class", $("#arrowtoggle-optional-metrics").attr('class'));
           }
         });
 
@@ -761,9 +761,9 @@ $(document).ready(function () {
           }
         });
 
-        if (window.localStorage) {
-          if (window.localStorage.getItem("arrowtoggle-optional-metrics-class") != null &&
-            window.localStorage.getItem("arrowtoggle-optional-metrics-class").includes("arrow-open")) {
+        if (DB) {
+          if (DB.getItem("arrowtoggle-optional-metrics-class") != null &&
+            DB.getItem("arrowtoggle-optional-metrics-class").includes("arrow-open")) {
             $("#arrowtoggle-optional-metrics").toggleClass("arrow-open arrow-closed");
             $("#toggle-metrics").toggleClass("d-none");
           }

@@ -320,15 +320,15 @@ function drawHistogram(id, values, minY, maxY, unitY, batchInterval) {
 /* eslint-enable no-unused-vars */
 
 $(function() {
-  var status = window.localStorage && window.localStorage.getItem("show-streams-detail") == "true";
+  var status = DB && DB.getItem("show-streams-detail") == "true";
 
   $("span.expand-input-rate").click(function() {
     status = !status;
     $("#inputs-table").toggle('collapsed');
     // Toggle the class of the arrow between open and closed
     $(this).find('.expand-input-rate-arrow').toggleClass('arrow-open').toggleClass('arrow-closed');
-    if (window.localStorage) {
-      window.localStorage.setItem("show-streams-detail", "" + status);
+    if (DB) {
+      DB.setItem("show-streams-detail", "" + status);
     }
   });
 
