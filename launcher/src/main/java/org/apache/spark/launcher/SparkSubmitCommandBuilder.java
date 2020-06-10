@@ -290,6 +290,17 @@ class SparkSubmitCommandBuilder extends AbstractCommandBuilder {
       cmd.add("-Xmx" + memory);
       addOptionString(cmd, driverDefaultJavaOptions);
       addOptionString(cmd, driverExtraJavaOptions);
+      String JDK11_OPTIONS =
+        "-XX:+IgnoreUnrecognizedVMOptions " +
+        "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED " +
+        "--add-opens=java.base/java.nio=ALL-UNNAMED " +
+        "--add-opens=java.base/java.net=ALL-UNNAMED " +
+        "--add-opens=java.base/java.util=ALL-UNNAMED " +
+        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED " +
+        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED " +
+        "--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED " +
+        "-Dio.netty.tryReflectionSetAccessible=true";
+      addOptionString(cmd, JDK11_OPTIONS);
       mergeEnvPathList(env, getLibPathEnvName(),
         config.get(SparkLauncher.DRIVER_EXTRA_LIBRARY_PATH));
     }
