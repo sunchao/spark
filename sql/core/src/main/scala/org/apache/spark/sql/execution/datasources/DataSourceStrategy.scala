@@ -677,6 +677,8 @@ abstract class PushableColumnBase {
         }
       case s: GetStructField if nestedPredicatePushdownEnabled =>
         helper(s.child).map(_ :+ s.childSchema(s.ordinal).name)
+      case c: Cast =>
+        helper(c.child)
       case _ => None
     }
     helper(e).map(_.quoted)

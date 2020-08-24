@@ -61,6 +61,39 @@ class SQLQuerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
     }
   }
 
+  test("pushdown cast short") {
+    withTempPath { path =>
+      Seq(("John", 32: Short), ("David", 25: Short), ("Mike", 18: Short))
+        .toDF("name", "age")
+        .write
+        .parquet(path.getAbsolutePath)
+      val personDS = spark.read.load(path.getAbsolutePath)
+      withTempView("person")  {
+        personDS.createOrReplaceTempView("person")
+        val query = sql("SELECT * FROM person WHERE cast(age as bigint) > cast(30 as bigint)")
+        val numOfRows = query.count()
+        assert(numOfRows == 1)
+      }
+    }
+  }
+
+  test("pushdown cast date") {
+    withTempPath { path =>
+      Seq(("John", new Date(1990, 5, 1)), ("David", new Date(2020, 12, 15)), ("Mike", new Date(1980, 6, 30)))
+        .toDF("name", "birthday")
+        .write
+        .parquet(path.getAbsolutePath)
+      val personDS = spark.read.load(path.getAbsolutePath)
+      withTempView("person")  {
+        personDS.createOrReplaceTempView("person")
+        val query = sql("SELECT * FROM person WHERE cast(birthday as timestamp) > now()")
+        query.explain()
+        val numOfRows = query.count()
+        assert(numOfRows == 1)
+      }
+    }
+  }
+
   test("show functions") {
     def getFunctions(pattern: String): Seq[Row] = {
       StringUtils.filterPattern(
@@ -3175,6 +3208,7 @@ class SQLQuerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
     withTempView("t1") {
       spark.range(1).selectExpr("date '2000-01-01' as d").createOrReplaceTempView("t1")
       val result = Date.valueOf("2000-01-01")
+      val query = sql("select * from t1 where d < '2000'")
       checkAnswer(sql("select * from t1 where d < '2000'"), Nil)
       checkAnswer(sql("select * from t1 where d < '2001'"), Row(result))
       checkAnswer(sql("select * from t1 where d < '2000-01'"), Nil)
