@@ -24,19 +24,40 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.types._
 
 /**
- * Unwrap casts in binary comparison operations with the following pattern:
- *   `BinaryComparison(Cast(fromExp, _), Literal(value, toType))`
- * This rule optimize expressions with this pattern by either replacing the cast with simpler
- * constructs, or moving the cast from the expression side to the literal side, so they can be
- * optimized away and pushed down to data sources.
+ * Unwrap casts in binary comparison operations with patterns like following:
+ *
+ * `BinaryComparison(Cast(fromExp, toType), Literal(value, toType))`
+ *
+ * This rule optimizes expressions with the above pattern by either replacing the cast with simpler
+ * constructs, or moving the cast from the expression side to the literal side, which enables them
+ * to be optimized away later and pushed down to data sources.
  *
  * Currently this only handles the case where `fromType` (of `fromExp`) and `toType` are of
- * integral types (i.e., byte, short, int and long). It checks to see if the literal `value` is
- * within range (min, max) of the `fromType`. If this is true then it means we can safely cast the
- * `value` to the `fromType` and thus able to move the cast to the literal side. Otherwise, it
- * replaces the cast with different simpler constructs, such as
- * `EqualTo(fromExp, Literal(max, fromType)` when input is
- * `GreaterThanOrEqualTo(Cast(fromExp, fromType), Literal(max, toType))`
+ * integral types (i.e., byte, short, int and long). The rule checks to see if the literal `value`
+ * is within range `(min, max)`, where `min` and `max` are the minimum and maximum value of
+ * `fromType`. If this is true then it means we can safely cast `value` to `fromType` and thus able
+ * to move the cast to the literal side.
+ *
+ * If the `value` is not within range `(min, max)`, the rule breaks the scenario into different
+ * cases and try to replace each case with simpler constructs.
+ *
+ * if `value > max`, the cases are of following:
+ *  - `cast(exp, ty) > value` ==> if(isnull(exp), null, false)
+ *  - `cast(exp, ty) >= value` ==> if(isnull(exp), null, false)
+ *  - `cast(exp, ty) === value` ==> if(isnull(exp), null, false)
+ *  - `cast(exp, ty) <=> value` ==> false
+ *  - `cast(exp, ty) <= value` ==> if(isnull(exp), null, true)
+ *  - `cast(exp, ty) < value` ==> if(isnull(exp), null, true)
+ *
+ * if `value == max`, the cases are of following:
+ *  - `cast(exp, ty) > value` ==> if(isnull(exp), null, false)
+ *  - `cast(exp, ty) >= value` ==> exp == max
+ *  - `cast(exp, ty) === value` ==> exp == max
+ *  - `cast(exp, ty) <=> value` ==> exp == max
+ *  - `cast(exp, ty) <= value` ==> if(isnull(exp), null, true)
+ *  - `cast(exp, ty) < value` ==> exp =!= max
+ *
+ * Similarly for the cases when `value == min` and `value < min`.
  */
 object UnwrapCast extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
@@ -56,12 +77,12 @@ object UnwrapCast extends Rule[LogicalPlan] {
         case LessThan(left, right) => GreaterThan(right, left)
         case other => other
       }
+
       swap(unwrapCast(swap(exp)))
 
     case BinaryComparison(Cast(fromExp, _, _), Literal(value, toType)) =>
       val fromType = fromExp.dataType
-      if (!fromType.isInstanceOf[IntegralType] || !toType.isInstanceOf[IntegralType]
-        || !Cast.canUpCast(fromType, toType)) {
+      if (!canImplicitlyCast(fromType, toType)) {
         return exp
       }
 
@@ -138,6 +159,15 @@ object UnwrapCast extends Rule[LogicalPlan] {
     case _ => exp
   }
 
+  private def canImplicitlyCast(fromType: DataType, toType: DataType): Boolean = {
+    fromType.isInstanceOf[IntegralType] && toType.isInstanceOf[IntegralType] &&
+      Cast.canUpCast(fromType, toType)
+  }
+
+  /**
+   * Wraps input expression `e` with `if(isnull(e), null, false)`. The if-clause is represented
+   * with `and(isnull(e), null)` which is semantically equivalent.
+   */
   private[sql] def falseIfNotNull(e: Expression): Expression =
     And(IsNull(e), Literal(null, BooleanType))
 
