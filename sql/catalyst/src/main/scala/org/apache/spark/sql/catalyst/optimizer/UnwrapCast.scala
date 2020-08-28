@@ -75,74 +75,22 @@ object UnwrapCast extends Rule[LogicalPlan] {
         case EqualNullSafe(left, right) => EqualNullSafe(right, left)
         case LessThanOrEqual(left, right) => GreaterThanOrEqual(right, left)
         case LessThan(left, right) => GreaterThan(right, left)
-        case other => other
+        case _ => e
       }
 
       swap(unwrapCast(swap(exp)))
 
-    case BinaryComparison(Cast(fromExp, _, _), Literal(value, toType)) =>
-      val fromType = fromExp.dataType
-      if (!canImplicitlyCast(fromType, toType)) {
-        return exp
-      }
+    case BinaryComparison(Cast(fromExp, _, _), Literal(value, toType))
+      if canImplicitlyCast(fromExp, toType) =>
 
       // Check if the literal value is within the range of the `fromType`, and handle the boundary
       // cases in the following
-      val toIntegralType = toType.asInstanceOf[IntegralType]
-      val (min, max) = getRange(fromType)
-      val (minInToType, maxInToType) =
-        (Cast(Literal(min), toType).eval(), Cast(Literal(max), toType).eval())
+      val fromType = fromExp.dataType
 
-      // Compare upper bounds
-      val maxCmp = toIntegralType.ordering.asInstanceOf[Ordering[Any]].compare(value, maxInToType)
-      if (maxCmp > 0) {
-        exp match {
-          case EqualTo(_, _) | GreaterThan(_, _) | GreaterThanOrEqual(_, _) =>
-            return falseIfNotNull(fromExp)
-          case LessThan(_, _) | LessThanOrEqual(_, _) =>
-            return trueIfNotNull(fromExp)
-          case EqualNullSafe(_, _) =>
-            return FalseLiteral
-          case _ => return exp // impossible but safe guard, same below
-        }
-      } else if (maxCmp == 0) {
-        exp match {
-          case GreaterThan(_, _) =>
-            return falseIfNotNull(fromExp)
-          case LessThanOrEqual(_, _) =>
-            return trueIfNotNull(fromExp)
-          case LessThan(_, _) =>
-            return Not(EqualTo(fromExp, Literal(max, fromType)))
-          case GreaterThanOrEqual(_, _) | EqualTo(_, _) | EqualNullSafe(_, _) =>
-            return EqualTo(fromExp, Literal(max, fromType))
-          case _ => return exp
-        }
-      }
-
-      // Compare lower bounds
-      val minCmp = toIntegralType.ordering.asInstanceOf[Ordering[Any]].compare(value, minInToType)
-      if (minCmp < 0) {
-        exp match {
-          case GreaterThan(_, _) | GreaterThanOrEqual(_, _) =>
-            return trueIfNotNull(fromExp)
-          case LessThan(_, _) | LessThanOrEqual(_, _) | EqualTo(_, _) =>
-            return falseIfNotNull(fromExp)
-          case EqualNullSafe(_, _) =>
-            return FalseLiteral
-          case _ => return exp
-        }
-      } else if (minCmp == 0) {
-        exp match {
-          case LessThan(_, _) =>
-            return falseIfNotNull(fromExp)
-          case GreaterThanOrEqual(_, _) =>
-            return trueIfNotNull(fromExp)
-          case GreaterThan(_, _) =>
-            return Not(EqualTo(fromExp, Literal(min, fromType)))
-          case LessThanOrEqual(_, _) | EqualTo(_, _) | EqualNullSafe(_, _) =>
-            return EqualTo(fromExp, Literal(min, fromType))
-          case _ => return exp
-        }
+      val result = handleIntegralTypeBoundary(exp, fromExp, fromType.asInstanceOf[IntegralType],
+        toType.asInstanceOf[IntegralType], value)
+      if (result.isDefined) {
+        return result.get
       }
 
       // Now we can assume `value` is within the bound of the source type, e.g., min < value < max
@@ -159,18 +107,95 @@ object UnwrapCast extends Rule[LogicalPlan] {
     case _ => exp
   }
 
-  private def canImplicitlyCast(fromType: DataType, toType: DataType): Boolean = {
-    fromType.isInstanceOf[IntegralType] && toType.isInstanceOf[IntegralType] &&
-      Cast.canUpCast(fromType, toType)
+  /**
+   * Check if the input `value` is within range `(min, max)` of the `fromType`, where `min` and
+   * `max` are the minimum and maximum value of the `fromType`. If the above is not true, this
+   * replaces the input binary comparison `exp` with simpler expressions.
+   *
+   * Returns `None` when the input value is within range `(min, max)`. Otherwise, returns the
+   * optimized expression wrapped in `Some`.
+   */
+  private def handleIntegralTypeBoundary(
+      exp: Expression,
+      fromExp: Expression,
+      fromType: IntegralType,
+      toType: IntegralType,
+      value: Any): Option[Expression] = {
+
+    val (min, max) = getRange(fromType)
+    val (minInToType, maxInToType) =
+      (Cast(Literal(min), toType).eval(), Cast(Literal(max), toType).eval())
+
+    // Compare upper bounds
+    val maxCmp = toType.ordering.asInstanceOf[Ordering[Any]].compare(value, maxInToType)
+    val minCmp = toType.ordering.asInstanceOf[Ordering[Any]].compare(value, minInToType)
+
+    if (maxCmp > 0) {
+      Some(exp match {
+        case EqualTo(_, _) | GreaterThan(_, _) | GreaterThanOrEqual(_, _) =>
+          falseIfNotNull(fromExp)
+        case LessThan(_, _) | LessThanOrEqual(_, _) =>
+          trueIfNotNull(fromExp)
+        case EqualNullSafe(_, _) =>
+          FalseLiteral
+        case _ => exp // impossible but safe guard, same below
+      })
+    } else if (maxCmp == 0) {
+      Some(exp match {
+        case GreaterThan(_, _) =>
+          falseIfNotNull(fromExp)
+        case LessThanOrEqual(_, _) =>
+          trueIfNotNull(fromExp)
+        case LessThan(_, _) =>
+          Not(EqualTo(fromExp, Literal(max, fromType)))
+        case GreaterThanOrEqual(_, _) | EqualTo(_, _) | EqualNullSafe(_, _) =>
+          EqualTo(fromExp, Literal(max, fromType))
+        case _ => exp
+      })
+    } else if (minCmp < 0) {
+      Some(exp match {
+        case GreaterThan(_, _) | GreaterThanOrEqual(_, _) =>
+          trueIfNotNull(fromExp)
+        case LessThan(_, _) | LessThanOrEqual(_, _) | EqualTo(_, _) =>
+          falseIfNotNull(fromExp)
+        case EqualNullSafe(_, _) =>
+          FalseLiteral
+        case _ => exp
+      })
+    } else if (minCmp == 0) {
+      Some(exp match {
+        case LessThan(_, _) =>
+          falseIfNotNull(fromExp)
+        case GreaterThanOrEqual(_, _) =>
+          trueIfNotNull(fromExp)
+        case GreaterThan(_, _) =>
+          Not(EqualTo(fromExp, Literal(min, fromType)))
+        case LessThanOrEqual(_, _) | EqualTo(_, _) | EqualNullSafe(_, _) =>
+          EqualTo(fromExp, Literal(min, fromType))
+        case _ => exp
+      })
+    } else {
+      // minCmp > 0 && maxCmp < 0
+      None
+    }
+  }
+
+  private def canImplicitlyCast(fromExp: Expression, toType: DataType): Boolean = {
+    fromExp.dataType.isInstanceOf[IntegralType] && toType.isInstanceOf[IntegralType] &&
+      Cast.canUpCast(fromExp.dataType, toType)
   }
 
   /**
    * Wraps input expression `e` with `if(isnull(e), null, false)`. The if-clause is represented
-   * with `and(isnull(e), null)` which is semantically equivalent.
+   * using `and(isnull(e), null)` which is semantically equivalent.
    */
   private[sql] def falseIfNotNull(e: Expression): Expression =
     And(IsNull(e), Literal(null, BooleanType))
 
+  /**
+   * Wraps input expression `e` with `if(isnull(e), null, true)`. The if-clause is represented
+   * using `or(isnotnull(e), null)` which is semantically equivalent.
+   */
   private[sql] def trueIfNotNull(e: Expression): Expression =
     Or(IsNotNull(e), Literal(null, BooleanType))
 
