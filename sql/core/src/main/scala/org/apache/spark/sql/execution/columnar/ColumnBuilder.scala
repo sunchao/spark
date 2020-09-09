@@ -23,6 +23,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.columnar.ColumnBuilder._
 import org.apache.spark.sql.execution.columnar.compression.{AllCompressionSchemes, CompressibleColumnBuilder}
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.vectorized.ColumnVector
 
 private[columnar] trait ColumnBuilder {
   /**
@@ -34,6 +35,11 @@ private[columnar] trait ColumnBuilder {
    * Appends `row(ordinal)` to the column builder.
    */
   def appendFrom(row: InternalRow, ordinal: Int): Unit
+
+  /**
+   * Appends `vec[rowId]` to the column builder.
+   */
+  def appendFrom(vec: ColumnVector, rowId: Int): Unit
 
   /**
    * Column statistics information
@@ -70,6 +76,11 @@ private[columnar] class BasicColumnBuilder[JvmType](
   override def appendFrom(row: InternalRow, ordinal: Int): Unit = {
     buffer = ensureFreeSpace(buffer, columnType.actualSize(row, ordinal))
     columnType.append(row, ordinal, buffer)
+  }
+
+  override def appendFrom(vec: ColumnVector, rowId: Int): Unit = {
+    buffer = ensureFreeSpace(buffer, columnType.actualSize(vec, rowId))
+    columnType.append(vec, rowId, buffer)
   }
 
   override def build(): ByteBuffer = {

@@ -52,11 +52,13 @@ class InMemoryColumnarQuerySuite extends QueryTest with SharedSparkSession {
 
   setupTestData()
 
-  private def cachePrimitiveTest(data: DataFrame, dataType: String): Unit = {
+  private def cachePrimitiveTest(data: DataFrame, dataType: String,
+      useCompression: Boolean = true, batchSize: Int = 5): Unit = {
     data.createOrReplaceTempView(s"testData$dataType")
     val storageLevel = MEMORY_ONLY
     val plan = spark.sessionState.executePlan(data.logicalPlan).sparkPlan
-    val inMemoryRelation = InMemoryRelation(new TestCachedBatchSerializer(useCompression = true, 5),
+    val inMemoryRelation = InMemoryRelation(
+      new TestCachedBatchSerializer(useCompression = useCompression, batchSize),
       storageLevel, plan, None, data.logicalPlan)
 
     assert(inMemoryRelation.cacheBuilder.cachedColumnBuffers.getStorageLevel == storageLevel)
@@ -117,6 +119,39 @@ class InMemoryColumnarQuerySuite extends QueryTest with SharedSparkSession {
 
   test("primitive type with nullability:false") {
     testPrimitiveType(false)
+  }
+
+  private def testPrimitiveTypeColumnar(
+      nullability: Boolean,
+      dir: String,
+      useCompression: Boolean,
+      batchSize: Int): Unit = {
+    val dataTypes = Seq(BooleanType, ByteType, ShortType, IntegerType, LongType, FloatType,
+      DoubleType)
+    val schema = StructType(dataTypes.zipWithIndex.map { case (dataType, index) =>
+      StructField(s"col$index", dataType, nullability)
+    })
+    val rdd = spark.sparkContext.parallelize((1 to 100).map(i => Row(
+      if (nullability && i % 3 == 0) null else if (i % 2 == 0) true else false,
+      if (nullability && i % 3 == 0) null else i.toByte,
+      if (nullability && i % 3 == 0) null else i.toShort,
+      if (nullability && i % 3 == 0) null else i.toInt,
+      if (nullability && i % 3 == 0) null else i.toLong,
+      if (nullability && i % 3 == 0) null else (i + 0.25).toFloat,
+      if (nullability && i % 3 == 0) null else (i + 0.75).toDouble
+    )))
+    spark.createDataFrame(rdd, schema).write.parquet(dir)
+    cachePrimitiveTest(spark.read.parquet(dir), "primitiveColumnar", useCompression, batchSize)
+  }
+
+  test("primitive type columnar") {
+    Seq(true, false).foreach { nullability =>
+      Seq(1, 5, 10, 200).foreach { batchSize =>
+        withTempPath(dir => {
+          testPrimitiveTypeColumnar(nullability, dir.getAbsolutePath, true, batchSize)
+        })
+      }
+    }
   }
 
   test("non-primitive type with nullability:true") {

@@ -51,16 +51,9 @@ case class DefaultCachedBatch(numRows: Int, buffers: Array[Array[Byte]], stats: 
  * The default implementation of CachedBatchSerializer.
  */
 class DefaultCachedBatchSerializer extends SimpleMetricsCachedBatchSerializer {
-  override def supportsColumnarInput(schema: Seq[Attribute]): Boolean = false
+  override def supportsColumnarInput(schema: Seq[Attribute]): Boolean = true
 
-  override def convertColumnarBatchToCachedBatch(
-      input: RDD[ColumnarBatch],
-      schema: Seq[Attribute],
-      storageLevel: StorageLevel,
-      conf: SQLConf): RDD[CachedBatch] =
-    throw new IllegalStateException("Columnar input is not supported")
-
-  override def convertInternalRowToCachedBatch(
+ override def convertInternalRowToCachedBatch(
       input: RDD[InternalRow],
       schema: Seq[Attribute],
       storageLevel: StorageLevel,
@@ -171,6 +164,70 @@ class DefaultCachedBatchSerializer extends SimpleMetricsCachedBatchSerializer {
     }
 
     input.map(createAndDecompressColumn)
+  }
+
+  override def convertColumnarBatchToCachedBatch(
+      input: RDD[ColumnarBatch],
+      schema: Seq[Attribute],
+      storageLevel: StorageLevel,
+      conf: SQLConf): RDD[CachedBatch] = {
+    val batchSize = conf.columnBatchSize
+    val useCompression = conf.useCompression
+    input.mapPartitionsInternal(CachedBatchIterator(_, schema, batchSize, useCompression))
+  }
+
+  private[columnar] case class CachedBatchIterator(
+      columnIterator: Iterator[ColumnarBatch],
+      schema: Seq[Attribute],
+      batchSize: Int,
+      useCompression: Boolean
+  ) extends Iterator[DefaultCachedBatch] {
+    private var currentBatch: ColumnarBatch = _
+    private var offset: Int = 0
+
+    override def hasNext: Boolean =
+      (currentBatch != null && offset < currentBatch.numRows) || columnIterator.hasNext
+
+    override def next(): DefaultCachedBatch = {
+      val columnBuilders: Seq[ColumnBuilder] = schema.map { attribute =>
+        ColumnBuilder(attribute.dataType, batchSize, attribute.name, useCompression)
+      }
+
+      var rowCount = 0
+      while (loadNextBatch() && rowCount < batchSize) {
+        val toRead = Math.min(batchSize - rowCount, currentBatch.numRows - offset)
+
+        assert(columnBuilders.length == currentBatch.numCols)
+
+        var totalSize = 0L
+        for (_ <- 0 until toRead if totalSize < ColumnBuilder.MAX_BATCH_SIZE_IN_BYTE) {
+          totalSize = 0L
+          for (colIdx <- schema.indices) {
+            columnBuilders(colIdx).appendFrom(currentBatch.column(colIdx), offset)
+            totalSize += columnBuilders(colIdx).columnStats.sizeInBytes
+          }
+          offset += 1
+          rowCount += 1
+        }
+      }
+
+      val stats = InternalRow.fromSeq(columnBuilders.flatMap(_.columnStats.collectedStatistics))
+      DefaultCachedBatch(rowCount, columnBuilders.map { builder =>
+        JavaUtils.bufferToArray(builder.build())
+      }.toArray, stats)
+    }
+
+    private def loadNextBatch(): Boolean = {
+      if (currentBatch != null && offset < currentBatch.numRows()) {
+        true
+      } else if (!columnIterator.hasNext) {
+        false
+      } else {
+        currentBatch = columnIterator.next()
+        offset = 0
+        true
+      }
+    }
   }
 
   override def convertCachedBatchToInternalRow(

@@ -26,6 +26,7 @@ import scala.reflect.runtime.universe.TypeTag
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.vectorized.{ColumnarRow, ColumnVector}
 import org.apache.spark.unsafe.Platform
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 
@@ -142,6 +143,10 @@ private[columnar] sealed abstract class ColumnType[JvmType] {
     append(getField(row, ordinal), buffer)
   }
 
+  def append(vec: ColumnVector, rowId: Int, buffer: ByteBuffer): Unit = {
+    append(getField(vec, rowId), buffer)
+  }
+
   /**
    * Returns the size of the value `row(ordinal)`. This is used to calculate the size of variable
    * length types such as byte arrays and strings.
@@ -149,10 +154,22 @@ private[columnar] sealed abstract class ColumnType[JvmType] {
   def actualSize(row: InternalRow, ordinal: Int): Int = defaultSize
 
   /**
+   * Returns the size of the value `vec[rowId]`. This is used to calculate the size of variable
+   * length types such as byte arrays and strings.
+   */
+  def actualSize(vec: ColumnVector, rowId: Int): Int = defaultSize
+
+  /**
    * Returns `row(ordinal)`. Subclasses should override this method to avoid boxing/unboxing costs
    * whenever possible.
    */
   def getField(row: InternalRow, ordinal: Int): JvmType
+
+  /**
+   * Returns `vec[rowId]`. Subclasses should override this method to avoid boxing/unboxing costs
+   * whenever possible.
+   */
+  def getField(vec: ColumnVector, rowId: Int): JvmType
 
   /**
    * Sets `row(ordinal)` to `field`. Subclasses should override this method to avoid boxing/unboxing
@@ -184,6 +201,7 @@ private[columnar] object NULL extends ColumnType[Any] {
   override def extract(buffer: ByteBuffer): Any = null
   override def setField(row: InternalRow, ordinal: Int, value: Any): Unit = row.setNullAt(ordinal)
   override def getField(row: InternalRow, ordinal: Int): Any = null
+  override def getField(vec: ColumnVector, rowId: Int): Any = null
 }
 
 private[columnar] abstract class NativeColumnType[T <: AtomicType](
@@ -195,6 +213,12 @@ private[columnar] abstract class NativeColumnType[T <: AtomicType](
    * Scala TypeTag. Can be used to create primitive arrays and hash tables.
    */
   def scalaTag: TypeTag[dataType.InternalType] = dataType.tag
+
+  /**
+   * Appends `vec[offset, offset + len)` of type T into the given ByteBuffer, and return the
+   * actual number of elements appended.
+   */
+  def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int
 }
 
 private[columnar] object INT extends NativeColumnType(IntegerType, 4) {
@@ -204,6 +228,18 @@ private[columnar] object INT extends NativeColumnType(IntegerType, 4) {
 
   override def append(row: InternalRow, ordinal: Int, buffer: ByteBuffer): Unit = {
     buffer.putInt(row.getInt(ordinal))
+  }
+
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == IntegerType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.putInt(vec.getInt(rowId))
+        count += 1
+      }
+    }
+    count
   }
 
   override def extract(buffer: ByteBuffer): Int = {
@@ -220,6 +256,7 @@ private[columnar] object INT extends NativeColumnType(IntegerType, 4) {
 
   override def getField(row: InternalRow, ordinal: Int): Int = row.getInt(ordinal)
 
+  override def getField(vec: ColumnVector, rowId: Int): Int = vec.getInt(rowId)
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
       to: InternalRow, toOrdinal: Int): Unit = {
@@ -236,6 +273,18 @@ private[columnar] object LONG extends NativeColumnType(LongType, 8) {
     buffer.putLong(row.getLong(ordinal))
   }
 
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == LongType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.putLong(vec.getLong(rowId))
+        count += 1
+      }
+    }
+    count
+  }
+
   override def extract(buffer: ByteBuffer): Long = {
     ByteBufferHelper.getLong(buffer)
   }
@@ -249,6 +298,8 @@ private[columnar] object LONG extends NativeColumnType(LongType, 8) {
   }
 
   override def getField(row: InternalRow, ordinal: Int): Long = row.getLong(ordinal)
+
+  override def getField(vec: ColumnVector, rowId: Int): Long = vec.getLong(rowId)
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
       to: InternalRow, toOrdinal: Int): Unit = {
@@ -265,6 +316,18 @@ private[columnar] object FLOAT extends NativeColumnType(FloatType, 4) {
     buffer.putFloat(row.getFloat(ordinal))
   }
 
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == FloatType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.putFloat(vec.getFloat(rowId))
+        count += 1
+      }
+    }
+    count
+  }
+
   override def extract(buffer: ByteBuffer): Float = {
     ByteBufferHelper.getFloat(buffer)
   }
@@ -278,6 +341,8 @@ private[columnar] object FLOAT extends NativeColumnType(FloatType, 4) {
   }
 
   override def getField(row: InternalRow, ordinal: Int): Float = row.getFloat(ordinal)
+
+  override def getField(vec: ColumnVector, rowId: Int): Float = vec.getFloat(rowId)
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
       to: InternalRow, toOrdinal: Int): Unit = {
@@ -294,6 +359,18 @@ private[columnar] object DOUBLE extends NativeColumnType(DoubleType, 8) {
     buffer.putDouble(row.getDouble(ordinal))
   }
 
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == DoubleType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.putDouble(vec.getDouble(rowId))
+        count += 1
+      }
+    }
+    count
+  }
+
   override def extract(buffer: ByteBuffer): Double = {
     ByteBufferHelper.getDouble(buffer)
   }
@@ -307,6 +384,8 @@ private[columnar] object DOUBLE extends NativeColumnType(DoubleType, 8) {
   }
 
   override def getField(row: InternalRow, ordinal: Int): Double = row.getDouble(ordinal)
+
+  override def getField(vec: ColumnVector, rowId: Int): Double = vec.getDouble(rowId)
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
       to: InternalRow, toOrdinal: Int): Unit = {
@@ -323,6 +402,18 @@ private[columnar] object BOOLEAN extends NativeColumnType(BooleanType, 1) {
     buffer.put(if (row.getBoolean(ordinal)) 1: Byte else 0: Byte)
   }
 
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == BooleanType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.put(if (vec.getBoolean(rowId)) 1: Byte else 0: Byte)
+        count += 1
+      }
+    }
+    count
+  }
+
   override def extract(buffer: ByteBuffer): Boolean = buffer.get() == 1
 
   override def extract(buffer: ByteBuffer, row: InternalRow, ordinal: Int): Unit = {
@@ -334,6 +425,8 @@ private[columnar] object BOOLEAN extends NativeColumnType(BooleanType, 1) {
   }
 
   override def getField(row: InternalRow, ordinal: Int): Boolean = row.getBoolean(ordinal)
+
+  override def getField(vec: ColumnVector, rowId: Int): Boolean = vec.getBoolean(rowId)
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
       to: InternalRow, toOrdinal: Int): Unit = {
@@ -350,6 +443,18 @@ private[columnar] object BYTE extends NativeColumnType(ByteType, 1) {
     buffer.put(row.getByte(ordinal))
   }
 
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == ByteType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.put(vec.getByte(rowId))
+        count += 1
+      }
+    }
+    count
+  }
+
   override def extract(buffer: ByteBuffer): Byte = {
     buffer.get()
   }
@@ -363,6 +468,8 @@ private[columnar] object BYTE extends NativeColumnType(ByteType, 1) {
   }
 
   override def getField(row: InternalRow, ordinal: Int): Byte = row.getByte(ordinal)
+
+  override def getField(vec: ColumnVector, rowId: Int): Byte = vec.getByte(rowId)
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
       to: InternalRow, toOrdinal: Int): Unit = {
@@ -379,6 +486,18 @@ private[columnar] object SHORT extends NativeColumnType(ShortType, 2) {
     buffer.putShort(row.getShort(ordinal))
   }
 
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == ShortType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.putShort(vec.getShort(rowId))
+        count += 1
+      }
+    }
+    count
+  }
+
   override def extract(buffer: ByteBuffer): Short = {
     buffer.getShort()
   }
@@ -392,6 +511,8 @@ private[columnar] object SHORT extends NativeColumnType(ShortType, 2) {
   }
 
   override def getField(row: InternalRow, ordinal: Int): Short = row.getShort(ordinal)
+
+  override def getField(vec: ColumnVector, rowId: Int): Short = vec.getShort(rowId)
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
       to: InternalRow, toOrdinal: Int): Unit = {
@@ -435,9 +556,27 @@ private[columnar] object STRING
     row.getUTF8String(ordinal).numBytes() + 4
   }
 
+  override def actualSize(vec: ColumnVector, rowId: Int): Int = {
+    vec.getUTF8String(rowId).numBytes() + 4
+  }
+
   override def append(v: UTF8String, buffer: ByteBuffer): Unit = {
     buffer.putInt(v.numBytes())
     v.writeTo(buffer)
+  }
+
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == StringType)
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        val v = vec.getUTF8String(rowId)
+        buffer.putInt(v.numBytes())
+        v.writeTo(buffer)
+        count += 1
+      }
+    }
+    count
   }
 
   override def extract(buffer: ByteBuffer): UTF8String = {
@@ -457,6 +596,10 @@ private[columnar] object STRING
 
   override def getField(row: InternalRow, ordinal: Int): UTF8String = {
     row.getUTF8String(ordinal)
+  }
+
+  override def getField(vec: ColumnVector, rowId: Int): UTF8String = {
+    vec.getUTF8String(rowId)
   }
 
   override def copyField(from: InternalRow, fromOrdinal: Int,
@@ -496,8 +639,24 @@ private[columnar] case class COMPACT_DECIMAL(precision: Int, scale: Int)
     }
   }
 
+  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
+    assert(vec.dataType() == DecimalType(precision, scale))
+    var count = 0
+    for (rowId <- offset to len) {
+      if (!vec.isNullAt(rowId)) {
+        buffer.putLong(vec.getDecimal(rowId, precision, scale).toUnscaledLong)
+        count += 1
+      }
+    }
+    count
+  }
+
   override def getField(row: InternalRow, ordinal: Int): Decimal = {
     row.getDecimal(ordinal, precision, scale)
+  }
+
+  override def getField(vec: ColumnVector, rowId: Int): Decimal = {
+    vec.getDecimal(rowId, precision, scale)
   }
 
   override def setField(row: InternalRow, ordinal: Int, value: Decimal): Unit = {
@@ -547,8 +706,16 @@ private[columnar] object BINARY extends ByteArrayColumnType[Array[Byte]](16) {
     row.getBinary(ordinal)
   }
 
+  override def getField(vec: ColumnVector, rowId: Int): Array[Byte] = {
+    vec.getBinary(rowId)
+  }
+
   override def actualSize(row: InternalRow, ordinal: Int): Int = {
     row.getBinary(ordinal).length + 4
+  }
+
+  override def actualSize(vec: ColumnVector, rowId: Int): Int = {
+    vec.getBinary(rowId).length + 4
   }
 
   def serialize(value: Array[Byte]): Array[Byte] = value
@@ -564,12 +731,20 @@ private[columnar] case class LARGE_DECIMAL(precision: Int, scale: Int)
     row.getDecimal(ordinal, precision, scale)
   }
 
+  override def getField(vec: ColumnVector, rowId: Int): Decimal = {
+    vec.getDecimal(rowId, precision, scale)
+  }
+
   override def setField(row: InternalRow, ordinal: Int, value: Decimal): Unit = {
     row.setDecimal(ordinal, value, precision)
   }
 
   override def actualSize(row: InternalRow, ordinal: Int): Int = {
     4 + getField(row, ordinal).toJavaBigDecimal.unscaledValue().bitLength() / 8 + 1
+  }
+
+  override def actualSize(vec: ColumnVector, rowId: Int): Int = {
+    4 + getField(vec, rowId).toJavaBigDecimal.unscaledValue().bitLength() / 8 + 1
   }
 
   override def serialize(value: Decimal): Array[Byte] = {
@@ -603,8 +778,17 @@ private[columnar] case class STRUCT(dataType: StructType)
     row.getStruct(ordinal, numOfFields).asInstanceOf[UnsafeRow]
   }
 
+  override def getField(vec: ColumnVector, rowId: Int): UnsafeRow = {
+    // FIXME: how to get a `UnsafeRow`?
+    vec.getStruct(rowId).asInstanceOf[UnsafeRow]
+  }
+
   override def actualSize(row: InternalRow, ordinal: Int): Int = {
     4 + getField(row, ordinal).getSizeInBytes
+  }
+
+  override def actualSize(vec: ColumnVector, rowId: Int): Int = {
+    4 + getField(vec, rowId).getSizeInBytes
   }
 
   override def append(value: UnsafeRow, buffer: ByteBuffer): Unit = {
@@ -641,8 +825,17 @@ private[columnar] case class ARRAY(dataType: ArrayType)
     row.getArray(ordinal).asInstanceOf[UnsafeArrayData]
   }
 
+  override def getField(vec: ColumnVector, rowId: Int): UnsafeArrayData = {
+    vec.getArray(rowId).asInstanceOf[UnsafeArrayData]
+  }
+
   override def actualSize(row: InternalRow, ordinal: Int): Int = {
     val unsafeArray = getField(row, ordinal)
+    4 + unsafeArray.getSizeInBytes
+  }
+
+  override def actualSize(vec: ColumnVector, rowId: Int): Int = {
+    val unsafeArray = getField(vec, rowId)
     4 + unsafeArray.getSizeInBytes
   }
 
@@ -680,8 +873,17 @@ private[columnar] case class MAP(dataType: MapType)
     row.getMap(ordinal).asInstanceOf[UnsafeMapData]
   }
 
+  override def getField(vec: ColumnVector, rowId: Int): UnsafeMapData = {
+    vec.getMap(rowId).asInstanceOf[UnsafeMapData]
+  }
+
   override def actualSize(row: InternalRow, ordinal: Int): Int = {
     val unsafeMap = getField(row, ordinal)
+    4 + unsafeMap.getSizeInBytes
+  }
+
+  override def actualSize(vec: ColumnVector, rowId: Int): Int = {
+    val unsafeMap = getField(vec, rowId)
     4 + unsafeMap.getSizeInBytes
   }
 
@@ -712,6 +914,8 @@ private[columnar] object CALENDAR_INTERVAL extends ColumnType[CalendarInterval] 
   override def defaultSize: Int = 16
 
   override def getField(row: InternalRow, ordinal: Int): CalendarInterval = row.getInterval(ordinal)
+
+  override def getField(vec: ColumnVector, rowId: Int): CalendarInterval = vec.getInterval(rowId)
 
   override def setField(row: InternalRow, ordinal: Int, value: CalendarInterval): Unit = {
     row.setInterval(ordinal, value)

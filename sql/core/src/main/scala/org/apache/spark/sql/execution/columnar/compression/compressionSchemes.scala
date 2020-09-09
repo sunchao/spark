@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.expressions.SpecificInternalRow
 import org.apache.spark.sql.execution.columnar._
 import org.apache.spark.sql.execution.vectorized.WritableColumnVector
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.vectorized.ColumnVector
 
 
 private[columnar] case object PassThrough extends CompressionScheme {
@@ -183,7 +184,7 @@ private[columnar] case object RunLengthEncoding extends CompressionScheme {
     private var _compressedSize = 0
 
     // Using `MutableRow` to store the last value to avoid boxing/unboxing cost.
-    private val lastValue = new SpecificInternalRow(Seq(columnType.dataType))
+    private var lastValue: T#InternalType = _
     private var lastRun = 0
 
     override def uncompressedSize: Int = _uncompressedSize
@@ -193,18 +194,28 @@ private[columnar] case object RunLengthEncoding extends CompressionScheme {
     override def gatherCompressibilityStats(row: InternalRow, ordinal: Int): Unit = {
       val value = columnType.getField(row, ordinal)
       val actualSize = columnType.actualSize(row, ordinal)
+      gatherCompressibilityStatsInternal(value, actualSize)
+    }
+
+    override def gatherCompressibilityStats(vec: ColumnVector, rowId: Int): Unit = {
+      val value = columnType.getField(vec, rowId)
+      val actualSize = columnType.actualSize(vec, rowId)
+      gatherCompressibilityStatsInternal(value, actualSize)
+    }
+
+    private def gatherCompressibilityStatsInternal(value: T#InternalType, actualSize: Int): Unit = {
       _uncompressedSize += actualSize
 
-      if (lastValue.isNullAt(0)) {
-        columnType.copyField(row, ordinal, lastValue, 0)
+      if (lastValue == null) {
+        lastValue = columnType.clone(value)
         lastRun = 1
         _compressedSize += actualSize + 4
       } else {
-        if (columnType.getField(lastValue, 0) == value) {
+        if (lastValue == value) {
           lastRun += 1
         } else {
           _compressedSize += actualSize + 4
-          columnType.copyField(row, ordinal, lastValue, 0)
+          lastValue = columnType.clone(value)
           lastRun = 1
         }
       }
@@ -402,9 +413,18 @@ private[columnar] case object DictionaryEncoding extends CompressionScheme {
 
     override def gatherCompressibilityStats(row: InternalRow, ordinal: Int): Unit = {
       val value = columnType.getField(row, ordinal)
+      val actualSize = columnType.actualSize(row, ordinal)
+      gatherCompressibilityStatsInternal(value, actualSize)
+    }
 
+    override def gatherCompressibilityStats(vec: ColumnVector, rowId: Int): Unit = {
+      val value = columnType.getField(vec, rowId)
+      val actualSize = columnType.actualSize(vec, rowId)
+      gatherCompressibilityStatsInternal(value, actualSize)
+    }
+
+    private def gatherCompressibilityStatsInternal(value: T#InternalType, actualSize: Int): Unit = {
       if (!overflow) {
-        val actualSize = columnType.actualSize(row, ordinal)
         count += 1
         _uncompressedSize += actualSize
 
@@ -551,6 +571,10 @@ private[columnar] case object BooleanBitSet extends CompressionScheme {
       _uncompressedSize += BOOLEAN.defaultSize
     }
 
+    override def gatherCompressibilityStats(vec: ColumnVector, rowId: Int): Unit = {
+      _uncompressedSize += BOOLEAN.defaultSize
+    }
+
     override def compress(from: ByteBuffer, to: ByteBuffer): ByteBuffer = {
       to.putInt(BooleanBitSet.typeId)
         // Total element count (1 byte per Boolean value)
@@ -674,6 +698,15 @@ private[columnar] case object IntDelta extends CompressionScheme {
 
     override def gatherCompressibilityStats(row: InternalRow, ordinal: Int): Unit = {
       val value = row.getInt(ordinal)
+      gatherCompressibilityStatsInternal(value)
+    }
+
+    override def gatherCompressibilityStats(vec: ColumnVector, rowId: Int): Unit = {
+      val value = vec.getInt(rowId)
+      gatherCompressibilityStatsInternal(value)
+    }
+
+    private def gatherCompressibilityStatsInternal(value: Int): Unit = {
       val delta = value - prevValue
 
       _compressedSize += 1
@@ -780,6 +813,15 @@ private[columnar] case object LongDelta extends CompressionScheme {
 
     override def gatherCompressibilityStats(row: InternalRow, ordinal: Int): Unit = {
       val value = row.getLong(ordinal)
+      gatherCompressibilityStatsInternal(value)
+    }
+
+    override def gatherCompressibilityStats(vec: ColumnVector, rowId: Int): Unit = {
+      val value = vec.getLong(rowId)
+      gatherCompressibilityStatsInternal(value)
+    }
+
+    private def gatherCompressibilityStatsInternal(value: Long): Unit = {
       val delta = value - prevValue
 
       _compressedSize += 1

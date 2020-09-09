@@ -20,6 +20,7 @@ package org.apache.spark.sql.execution.columnar
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeMap, AttributeReference}
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.vectorized.ColumnVector
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 
 class ColumnStatisticsSchema(a: Attribute) extends Serializable {
@@ -56,6 +57,20 @@ private[columnar] sealed trait ColumnStats extends Serializable {
   def gatherStats(row: InternalRow, ordinal: Int): Unit
 
   /**
+   * Gathers statistics information from `vec[rowId]`.
+   */
+  def gatherStats(vec: ColumnVector, rowId: Int): Unit
+
+  /**
+   * Gathers statistics information from `vec[offset, offset+len)`
+   */
+  def gatherStats(vec: ColumnVector, offset: Int, len: Int): Unit = {
+    for (rowId <- offset to len) {
+      gatherStats(vec, rowId)
+    }
+  }
+
+  /**
    * Gathers statistics information on `null`.
    */
   def gatherNullStats(): Unit = {
@@ -84,7 +99,16 @@ private[columnar] final class NoopColumnStats extends ColumnStats {
     }
   }
 
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      count += 1
+    } else {
+      gatherNullStats()
+    }
+  }
+
   override def collectedStatistics: Array[Any] = Array[Any](null, null, nullCount, count, 0L)
+
 }
 
 private[columnar] final class BooleanColumnStats extends ColumnStats {
@@ -97,6 +121,15 @@ private[columnar] final class BooleanColumnStats extends ColumnStats {
       gatherValueStats(value)
     } else {
       gatherNullStats
+    }
+  }
+
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getBoolean(rowId)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
     }
   }
 
@@ -124,6 +157,15 @@ private[columnar] final class ByteColumnStats extends ColumnStats {
     }
   }
 
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getByte(rowId)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
+    }
+  }
+
   def gatherValueStats(value: Byte): Unit = {
     if (value > upper) upper = value
     if (value < lower) lower = value
@@ -145,6 +187,15 @@ private[columnar] final class ShortColumnStats extends ColumnStats {
       gatherValueStats(value)
     } else {
       gatherNullStats
+    }
+  }
+
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getShort(rowId)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
     }
   }
 
@@ -172,6 +223,15 @@ private[columnar] final class IntColumnStats extends ColumnStats {
     }
   }
 
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getInt(rowId)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
+    }
+  }
+
   def gatherValueStats(value: Int): Unit = {
     if (value > upper) upper = value
     if (value < lower) lower = value
@@ -193,6 +253,15 @@ private[columnar] final class LongColumnStats extends ColumnStats {
       gatherValueStats(value)
     } else {
       gatherNullStats
+    }
+  }
+
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getLong(rowId)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
     }
   }
 
@@ -220,6 +289,15 @@ private[columnar] final class FloatColumnStats extends ColumnStats {
     }
   }
 
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getFloat(rowId)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
+    }
+  }
+
   def gatherValueStats(value: Float): Unit = {
     if (value > upper) upper = value
     if (value < lower) lower = value
@@ -241,6 +319,15 @@ private[columnar] final class DoubleColumnStats extends ColumnStats {
       gatherValueStats(value)
     } else {
       gatherNullStats
+    }
+  }
+
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getDouble(rowId)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
     }
   }
 
@@ -269,6 +356,16 @@ private[columnar] final class StringColumnStats extends ColumnStats {
     }
   }
 
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getUTF8String(rowId)
+      val size = STRING.actualSize(vec, rowId)
+      gatherValueStats(value, size)
+    } else {
+      gatherNullStats()
+    }
+  }
+
   def gatherValueStats(value: UTF8String, size: Int): Unit = {
     if (upper == null || value.compareTo(upper) > 0) upper = value.clone()
     if (lower == null || value.compareTo(lower) < 0) lower = value.clone()
@@ -291,6 +388,16 @@ private[columnar] final class BinaryColumnStats extends ColumnStats {
     }
   }
 
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val size = BINARY.actualSize(vec, rowId)
+      sizeInBytes += size
+      count += 1
+    } else {
+      gatherNullStats()
+    }
+  }
+
   override def collectedStatistics: Array[Any] =
     Array[Any](null, null, nullCount, count, sizeInBytes)
 }
@@ -302,6 +409,15 @@ private[columnar] final class IntervalColumnStats extends ColumnStats {
       count += 1
     } else {
       gatherNullStats
+    }
+  }
+
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      sizeInBytes += CALENDAR_INTERVAL.actualSize(vec, rowId)
+      count += 1
+    } else {
+      gatherNullStats()
     }
   }
 
@@ -325,6 +441,15 @@ private[columnar] final class DecimalColumnStats(precision: Int, scale: Int) ext
     }
   }
 
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val value = vec.getDecimal(rowId, precision, scale)
+      gatherValueStats(value)
+    } else {
+      gatherNullStats()
+    }
+  }
+
   def gatherValueStats(value: Decimal): Unit = {
     if (upper == null || value.compareTo(upper) > 0) upper = value
     if (lower == null || value.compareTo(lower) < 0) lower = value
@@ -342,6 +467,16 @@ private[columnar] final class ObjectColumnStats(dataType: DataType) extends Colu
   override def gatherStats(row: InternalRow, ordinal: Int): Unit = {
     if (!row.isNullAt(ordinal)) {
       val size = columnType.actualSize(row, ordinal)
+      sizeInBytes += size
+      count += 1
+    } else {
+      gatherNullStats
+    }
+  }
+
+  override def gatherStats(vec: ColumnVector, rowId: Int): Unit = {
+    if (!vec.isNullAt(rowId)) {
+      val size = columnType.actualSize(vec, rowId)
       sizeInBytes += size
       count += 1
     } else {

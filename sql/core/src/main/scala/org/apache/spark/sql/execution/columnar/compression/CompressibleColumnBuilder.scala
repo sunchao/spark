@@ -23,6 +23,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.columnar.{ColumnBuilder, NativeColumnBuilder}
 import org.apache.spark.sql.types.AtomicType
+import org.apache.spark.sql.vectorized.ColumnVector
 import org.apache.spark.unsafe.Platform
 
 /**
@@ -74,10 +75,21 @@ private[columnar] trait CompressibleColumnBuilder[T <: AtomicType]
     compressionEncoders.foreach(_.gatherCompressibilityStats(row, ordinal))
   }
 
+  private def gatherCompressibilityStats(vec: ColumnVector, rowId: Int): Unit = {
+    compressionEncoders.foreach(_.gatherCompressibilityStats(vec, rowId))
+  }
+
   abstract override def appendFrom(row: InternalRow, ordinal: Int): Unit = {
     super.appendFrom(row, ordinal)
     if (!row.isNullAt(ordinal)) {
       gatherCompressibilityStats(row, ordinal)
+    }
+  }
+
+  abstract override def appendFrom(vec: ColumnVector, rowId: Int): Unit = {
+    super.appendFrom(vec, rowId)
+    if (!vec.isNullAt(rowId)) {
+      gatherCompressibilityStats(vec, rowId)
     }
   }
 

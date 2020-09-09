@@ -20,6 +20,7 @@ package org.apache.spark.sql.execution.columnar
 import java.nio.{ByteBuffer, ByteOrder}
 
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.vectorized.ColumnVector
 
 /**
  * A stackable trait used for building byte buffer for a column containing null values.  Memory
@@ -59,6 +60,18 @@ private[columnar] trait NullableColumnBuilder extends ColumnBuilder {
       nullCount += 1
     } else {
       super.appendFrom(row, ordinal)
+    }
+    pos += 1
+  }
+
+  abstract override def appendFrom(vec: ColumnVector, rowId: Int): Unit = {
+    columnStats.gatherStats(vec, rowId)
+    if (vec.isNullAt(rowId)) {
+      nulls = ColumnBuilder.ensureFreeSpace(nulls, 4)
+      nulls.putInt(pos)
+      nullCount += 1
+    } else {
+      super.appendFrom(vec, rowId)
     }
     pos += 1
   }
