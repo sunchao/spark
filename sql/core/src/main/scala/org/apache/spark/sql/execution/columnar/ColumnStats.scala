@@ -62,15 +62,6 @@ private[columnar] sealed trait ColumnStats extends Serializable {
   def gatherStats(vec: ColumnVector, rowId: Int): Unit
 
   /**
-   * Gathers statistics information from `vec[offset, offset+len)`
-   */
-  def gatherStats(vec: ColumnVector, offset: Int, len: Int): Unit = {
-    for (rowId <- offset to len) {
-      gatherStats(vec, rowId)
-    }
-  }
-
-  /**
    * Gathers statistics information on `null`.
    */
   def gatherNullStats(): Unit = {

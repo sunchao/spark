@@ -213,12 +213,6 @@ private[columnar] abstract class NativeColumnType[T <: AtomicType](
    * Scala TypeTag. Can be used to create primitive arrays and hash tables.
    */
   def scalaTag: TypeTag[dataType.InternalType] = dataType.tag
-
-  /**
-   * Appends `vec[offset, offset + len)` of type T into the given ByteBuffer, and return the
-   * actual number of elements appended.
-   */
-  def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int
 }
 
 private[columnar] object INT extends NativeColumnType(IntegerType, 4) {
@@ -228,18 +222,6 @@ private[columnar] object INT extends NativeColumnType(IntegerType, 4) {
 
   override def append(row: InternalRow, ordinal: Int, buffer: ByteBuffer): Unit = {
     buffer.putInt(row.getInt(ordinal))
-  }
-
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == IntegerType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.putInt(vec.getInt(rowId))
-        count += 1
-      }
-    }
-    count
   }
 
   override def extract(buffer: ByteBuffer): Int = {
@@ -273,18 +255,6 @@ private[columnar] object LONG extends NativeColumnType(LongType, 8) {
     buffer.putLong(row.getLong(ordinal))
   }
 
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == LongType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.putLong(vec.getLong(rowId))
-        count += 1
-      }
-    }
-    count
-  }
-
   override def extract(buffer: ByteBuffer): Long = {
     ByteBufferHelper.getLong(buffer)
   }
@@ -314,18 +284,6 @@ private[columnar] object FLOAT extends NativeColumnType(FloatType, 4) {
 
   override def append(row: InternalRow, ordinal: Int, buffer: ByteBuffer): Unit = {
     buffer.putFloat(row.getFloat(ordinal))
-  }
-
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == FloatType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.putFloat(vec.getFloat(rowId))
-        count += 1
-      }
-    }
-    count
   }
 
   override def extract(buffer: ByteBuffer): Float = {
@@ -359,18 +317,6 @@ private[columnar] object DOUBLE extends NativeColumnType(DoubleType, 8) {
     buffer.putDouble(row.getDouble(ordinal))
   }
 
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == DoubleType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.putDouble(vec.getDouble(rowId))
-        count += 1
-      }
-    }
-    count
-  }
-
   override def extract(buffer: ByteBuffer): Double = {
     ByteBufferHelper.getDouble(buffer)
   }
@@ -402,18 +348,6 @@ private[columnar] object BOOLEAN extends NativeColumnType(BooleanType, 1) {
     buffer.put(if (row.getBoolean(ordinal)) 1: Byte else 0: Byte)
   }
 
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == BooleanType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.put(if (vec.getBoolean(rowId)) 1: Byte else 0: Byte)
-        count += 1
-      }
-    }
-    count
-  }
-
   override def extract(buffer: ByteBuffer): Boolean = buffer.get() == 1
 
   override def extract(buffer: ByteBuffer, row: InternalRow, ordinal: Int): Unit = {
@@ -441,18 +375,6 @@ private[columnar] object BYTE extends NativeColumnType(ByteType, 1) {
 
   override def append(row: InternalRow, ordinal: Int, buffer: ByteBuffer): Unit = {
     buffer.put(row.getByte(ordinal))
-  }
-
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == ByteType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.put(vec.getByte(rowId))
-        count += 1
-      }
-    }
-    count
   }
 
   override def extract(buffer: ByteBuffer): Byte = {
@@ -484,18 +406,6 @@ private[columnar] object SHORT extends NativeColumnType(ShortType, 2) {
 
   override def append(row: InternalRow, ordinal: Int, buffer: ByteBuffer): Unit = {
     buffer.putShort(row.getShort(ordinal))
-  }
-
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == ShortType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.putShort(vec.getShort(rowId))
-        count += 1
-      }
-    }
-    count
   }
 
   override def extract(buffer: ByteBuffer): Short = {
@@ -565,20 +475,6 @@ private[columnar] object STRING
     v.writeTo(buffer)
   }
 
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == StringType)
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        val v = vec.getUTF8String(rowId)
-        buffer.putInt(v.numBytes())
-        v.writeTo(buffer)
-        count += 1
-      }
-    }
-    count
-  }
-
   override def extract(buffer: ByteBuffer): UTF8String = {
     val length = buffer.getInt()
     val cursor = buffer.position()
@@ -637,18 +533,6 @@ private[columnar] case class COMPACT_DECIMAL(precision: Int, scale: Int)
     } else {
       append(getField(row, ordinal), buffer)
     }
-  }
-
-  override def append(vec: ColumnVector, offset: Int, len: Int, buffer: ByteBuffer): Int = {
-    assert(vec.dataType() == DecimalType(precision, scale))
-    var count = 0
-    for (rowId <- offset to len) {
-      if (!vec.isNullAt(rowId)) {
-        buffer.putLong(vec.getDecimal(rowId, precision, scale).toUnscaledLong)
-        count += 1
-      }
-    }
-    count
   }
 
   override def getField(row: InternalRow, ordinal: Int): Decimal = {
