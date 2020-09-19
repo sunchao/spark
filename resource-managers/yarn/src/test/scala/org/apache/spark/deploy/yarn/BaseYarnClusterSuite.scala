@@ -80,6 +80,10 @@ abstract class BaseYarnClusterSuite
     yarnConf.set("yarn.nodemanager.disk-health-checker.max-disk-utilization-per-disk-percentage",
       "100.0")
 
+//    val clazz = classOf[MiniYARNCluster]
+//    val location = clazz.getResource('/' + clazz.getName.replace('.', '/') + ".class")
+//    assert(false, s"location = $location")
+
     yarnCluster = new MiniYARNCluster(getClass().getName(), 1, 1, 1)
     yarnCluster.init(yarnConf)
     yarnCluster.start()

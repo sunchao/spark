@@ -1299,9 +1299,8 @@
       </dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>
-        <artifactId>hadoop-yarn-server-tests</artifactId>
+        <artifactId>hadoop-client-minicluster</artifactId>
         <version>${yarn.version}</version>
-        <classifier>tests</classifier>
         <scope>test</scope>
         <exclusions>
           <exclusion>
