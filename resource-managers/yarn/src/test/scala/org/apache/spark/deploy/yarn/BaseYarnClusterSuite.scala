@@ -74,14 +74,21 @@ abstract class BaseYarnClusterSuite
     val logConfFile = new File(logConfDir, "log4j.properties")
     Files.write(LOG4J_CONF, logConfFile, StandardCharsets.UTF_8)
 
-//    val clazz = classOf[Configuration]
-//    val location = clazz.getResource('/' + clazz.getName.replace('.', '/') + ".class")
-
     // Disable the disk utilization check to avoid the test hanging when people's disks are
     // getting full.
     val yarnConf = newYarnConfig()
     yarnConf.set("yarn.nodemanager.disk-health-checker.max-disk-utilization-per-disk-percentage",
       "100.0")
+
+    // capacity-scheduler.xml is missing in hadoop-client-minicluster so this is a workaround
+    yarnConf.set("yarn.scheduler.capacity.root.queues", "default")
+    yarnConf.setInt("yarn.scheduler.capacity.root.default.capacity", 100)
+    yarnConf.setFloat("yarn.scheduler.capacity.root.default.user-limit-factor", 1)
+    yarnConf.setInt("yarn.scheduler.capacity.root.default.maximum-capacity", 100)
+    yarnConf.set("yarn.scheduler.capacity.root.default.state", "RUNNING")
+    yarnConf.set("yarn.scheduler.capacity.root.default.acl_submit_applications", "*")
+    yarnConf.set("yarn.scheduler.capacity.root.default.acl_administer_queue", "*")
+    yarnConf.setInt("yarn.scheduler.capacity.node-locality-delay", -1)
 
     yarnCluster = new MiniYARNCluster(getClass().getName(), 1, 1, 1)
     yarnCluster.init(yarnConf)
