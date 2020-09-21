@@ -74,15 +74,14 @@ abstract class BaseYarnClusterSuite
     val logConfFile = new File(logConfDir, "log4j.properties")
     Files.write(LOG4J_CONF, logConfFile, StandardCharsets.UTF_8)
 
+//    val clazz = classOf[Configuration]
+//    val location = clazz.getResource('/' + clazz.getName.replace('.', '/') + ".class")
+
     // Disable the disk utilization check to avoid the test hanging when people's disks are
     // getting full.
     val yarnConf = newYarnConfig()
     yarnConf.set("yarn.nodemanager.disk-health-checker.max-disk-utilization-per-disk-percentage",
       "100.0")
-
-//    val clazz = classOf[MiniYARNCluster]
-//    val location = clazz.getResource('/' + clazz.getName.replace('.', '/') + ".class")
-//    assert(false, s"location = $location")
 
     yarnCluster = new MiniYARNCluster(getClass().getName(), 1, 1, 1)
     yarnCluster.init(yarnConf)
