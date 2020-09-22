@@ -17,9 +17,9 @@
 
 package org.apache.spark.scheduler.cluster
 
-import org.apache.hadoop.ipc.ProtobufRpcEngine
-import org.apache.hadoop.yarn.api.records.YarnApplicationState
 import scala.collection.mutable.ArrayBuffer
+
+import org.apache.hadoop.yarn.api.records.YarnApplicationState
 
 import org.apache.spark.{SparkContext, SparkException}
 import org.apache.spark.deploy.yarn.{Client, ClientArguments, YarnAppReport}
@@ -54,11 +54,6 @@ private[spark] class YarnClientSchedulerBackend(
     argsArrayBuf += ("--arg", hostport)
 
     logDebug("ClientArguments called with: " + argsArrayBuf.mkString(" "))
-    val klass = classOf[ProtobufRpcEngine]
-    val location = klass.getResource('/' + klass.getName().replace('.', '/') + ".class");
-    logInfo(s"ProtobufEngine is from: $location")
-    if (3 > 2) throw new RuntimeException(s"ProtobufEngine is from $location")
-
     val args = new ClientArguments(argsArrayBuf.toArray)
     totalExpectedExecutors = SchedulerBackendUtils.getInitialTargetExecutorNumber(conf)
     client = new Client(args, conf, sc.env.rpcEnv)
