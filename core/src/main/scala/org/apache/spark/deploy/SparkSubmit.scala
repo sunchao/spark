@@ -899,7 +899,7 @@ private[spark] class SparkSubmit extends Logging {
       mainClass = Utils.classForName(childMainClass)
     } catch {
       case e: ClassNotFoundException =>
-        logError(s"Failed to load class $childMainClass.")
+        logError(s"Failed to load class $childMainClass.", e)
         if (childMainClass.contains("thriftserver")) {
           logInfo(s"Failed to load main class $childMainClass.")
           logInfo("You need to build Spark with -Phive and -Phive-thriftserver.")
@@ -1185,9 +1185,9 @@ private[spark] object SparkSubmitUtils {
     artifacts.map { ai =>
       val artifactInfo = ai.asInstanceOf[Artifact]
       val artifact = artifactInfo.getModuleRevisionId
-      val testSuffix = if (artifactInfo.getType == "test-jar") "-tests" else ""
+      // val testSuffix = if (artifactInfo.getType == "test-jar") "-tests" else ""
       cacheDirectory.getAbsolutePath + File.separator +
-        s"${artifact.getOrganisation}_${artifact.getName}-${artifact.getRevision}${testSuffix}.jar"
+        s"${artifact.getOrganisation}_${artifact.getName}-${artifact.getRevision}.jar"
     }.mkString(",")
   }
 

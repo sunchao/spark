@@ -241,9 +241,12 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
 
   private def testBasicYarnApp(clientMode: Boolean, conf: Map[String, String] = Map()): Unit = {
     val result = File.createTempFile("result", null, tempDir)
+    val file = new File("/tmp/spark-test.txt")
+    file.createNewFile()
     val finalState = runSpark(clientMode, mainClassName(YarnClusterDriver.getClass),
       appArgs = Seq(result.getAbsolutePath()),
-      extraConf = conf)
+      extraConf = conf,
+      outFile = Some(file))
     checkResult(finalState, result)
   }
 
