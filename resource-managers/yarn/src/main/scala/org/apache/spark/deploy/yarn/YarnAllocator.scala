@@ -17,6 +17,7 @@
 
 package org.apache.spark.deploy.yarn
 
+import java.io.FileWriter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import javax.annotation.concurrent.GuardedBy
@@ -791,6 +792,9 @@ private[yarn] class YarnAllocator(
           case None => logWarning(s"Cannot find executorId for container: ${containerId.toString}")
         }
 
+        val writer = new FileWriter("/tmp/container.log")
+        writer.write("GET HERE!!!")
+
         logInfo("Completed container %s%s (state: %s, exit status: %s)".format(
           containerId,
           onHostStr,
@@ -836,6 +840,8 @@ private[yarn] class YarnAllocator(
                 s". Exit status: ${completedContainer.getExitStatus}" +
                 s". Diagnostics: ${completedContainer.getDiagnostics}.")
             } else {
+              writer.write(s"other_exit_status, exit status: ${completedContainer.getExitStatus}," +
+                s" diagnostics: ${completedContainer.getDiagnostics}")
               // completed container from a bad node
               allocatorBlacklistTracker.handleResourceAllocationFailure(hostOpt)
               (true, s"Container from a bad node: $containerId$onHostStr" +
@@ -845,6 +851,7 @@ private[yarn] class YarnAllocator(
 
 
         }
+        writer.close()
         if (exitCausedByApp) {
           logWarning(containerExitReason)
         } else {

@@ -54,6 +54,7 @@ private[spark] class YarnClientSchedulerBackend(
     argsArrayBuf += ("--arg", hostport)
 
     logDebug("ClientArguments called with: " + argsArrayBuf.mkString(" "))
+
     val args = new ClientArguments(argsArrayBuf.toArray)
     totalExpectedExecutors = SchedulerBackendUtils.getInitialTargetExecutorNumber(conf)
     client = new Client(args, conf, sc.env.rpcEnv)

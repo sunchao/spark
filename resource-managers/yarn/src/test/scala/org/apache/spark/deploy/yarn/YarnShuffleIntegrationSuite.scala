@@ -17,7 +17,7 @@
 
 package org.apache.spark.deploy.yarn
 
-import java.io.File
+import java.io.{File, FileWriter}
 import java.nio.charset.StandardCharsets
 
 import com.google.common.io.Files
@@ -69,6 +69,8 @@ class YarnShuffleIntegrationSuite extends BaseYarnClusterSuite {
     val registeredExecFile = YarnTestAccessor.getRegisteredExecutorFile(shuffleService)
 
     val result = File.createTempFile("result", null, tempDir)
+    val outFile = new File("/tmp/shuffle.log")
+    outFile.createNewFile()
     val finalState = runSpark(
       false,
       mainClassName(YarnExternalShuffleDriver.getClass),
@@ -77,9 +79,12 @@ class YarnShuffleIntegrationSuite extends BaseYarnClusterSuite {
       } else {
         Seq(result.getAbsolutePath)
       },
-      extraConf = extraSparkConf()
+      extraConf = extraSparkConf(),
+      outFile = Some(outFile)
     )
-    checkResult(finalState, result)
+    val outFile2 = new File("/tmp/shuffle2.log")
+    outFile2.createNewFile()
+    checkResult(finalState, result, outFile = Some(outFile2))
 
     if (registeredExecFile != null) {
       assert(YarnTestAccessor.getRegisteredExecutorFile(shuffleService).exists())
@@ -128,6 +133,7 @@ private object YarnExternalShuffleDriver extends Logging with Matchers {
 
     val sc = new SparkContext(new SparkConf()
       .setAppName("External Shuffle Test"))
+
     val conf = sc.getConf
     val status = new File(args(0))
     val registeredExecFile = if (args.length == 2) {
@@ -135,6 +141,7 @@ private object YarnExternalShuffleDriver extends Logging with Matchers {
     } else {
       null
     }
+
     logInfo("shuffle service executor file = " + registeredExecFile)
     var result = "failure"
     val execStateCopy = Option(registeredExecFile).map { file =>
@@ -156,6 +163,9 @@ private object YarnExternalShuffleDriver extends Logging with Matchers {
       if (execStateCopy != null) {
         FileUtils.deleteDirectory(execStateCopy)
       }
+      val file2 = new File("/tmp/external_shuffle.log")
+      file2.createNewFile()
+      Files.write(result, file2, StandardCharsets.UTF_8)
       Files.write(result, status, StandardCharsets.UTF_8)
     }
   }

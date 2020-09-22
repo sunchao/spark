@@ -17,7 +17,7 @@
 
 package org.apache.spark.deploy.yarn
 
-import java.io.{File, IOException}
+import java.io.{File, FileWriter, IOException}
 import java.lang.reflect.{InvocationTargetException, Modifier}
 import java.net.{URI, URL}
 import java.security.PrivilegedExceptionAction
@@ -385,6 +385,9 @@ private[spark] class ApplicationMaster(
           finalStatus = FinalApplicationStatus.FAILED
           exitCode = ApplicationMaster.EXIT_SC_NOT_INITED
         }
+        val writer = new FileWriter("/tmp/app_master.log")
+        writer.write(s"GET HERE!!! exitCode: $exitCode, msg: $msg")
+        writer.close()
         logInfo(s"Final app status: $finalStatus, exitCode: $exitCode" +
           Option(msg).map(msg => s", (reason: $msg)").getOrElse(""))
         finalMsg = ComStrUtils.abbreviate(msg, sparkConf.get(AM_FINAL_MSG_LIMIT).toInt)

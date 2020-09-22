@@ -165,6 +165,9 @@ private[spark] class Client(
   def submitApplication(): ApplicationId = {
     ResourceRequestHelper.validateResources(sparkConf)
 
+    val writer = new FileWriter("/tmp/client.log")
+    writer.write("GET HERE 1")
+
     var appId: ApplicationId = null
     try {
       launcherBackend.connect()
@@ -203,6 +206,9 @@ private[spark] class Client(
       yarnClient.submitApplication(appContext)
       launcherBackend.setAppId(appId.toString)
       reportLauncherState(SparkAppHandle.State.SUBMITTED)
+
+      writer.write("GET HERE 2")
+      writer.close()
 
       appId
     } catch {
@@ -956,7 +962,9 @@ private[spark] class Client(
     }
 
     // For log4j configuration to reference
-    javaOpts += ("-Dspark.yarn.app.container.log.dir=" + ApplicationConstants.LOG_DIR_EXPANSION_VAR)
+    // javaOpts += ("-Dspark.yarn.app.container.log.dir=" +
+    // ApplicationConstants.LOG_DIR_EXPANSION_VAR)
+    javaOpts += ("-Dspark.yarn.app.container.log.dir=/tmp/yarn_logs")
 
     val userClass =
       if (isClusterMode) {
