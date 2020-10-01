@@ -306,9 +306,9 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     val driverResult = File.createTempFile("driver", null, tempDir)
     val executorResult = File.createTempFile("executor", null, tempDir)
     val finalState = runSpark(clientMode, mainClassName(YarnClasspathTest.getClass),
-      appArgs = Seq(driverResult.getAbsolutePath(), executorResult.getAbsolutePath()),
-      extraClassPath = Seq(originalJar.getPath()),
-      extraJars = Seq("local:" + userJar.getPath()),
+      appArgs = Seq(driverResult.getAbsolutePath, executorResult.getAbsolutePath),
+      extraClassPath = Seq(originalJar.getPath),
+      extraJars = Seq("local:" + userJar.getPath),
       extraConf = Map(
         "spark.driver.userClassPathFirst" -> "true",
         "spark.executor.userClassPathFirst" -> "true"))
