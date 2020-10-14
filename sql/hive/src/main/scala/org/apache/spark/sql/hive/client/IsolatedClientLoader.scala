@@ -121,8 +121,7 @@ private[hive] object IsolatedClientLoader extends Logging {
     val hiveArtifacts = version.extraDeps ++
       Seq("hive-metastore", "hive-exec", "hive-common", "hive-serde")
         .map(a => s"org.apache.hive:$a:${version.fullVersion}") ++
-      Seq("com.google.guava:guava:14.0.1",
-        s"org.apache.hadoop:hadoop-client:$hadoopVersion")
+      Seq("com.google.guava:guava:14.0.1")
 
     val classpath = quietly {
       SparkSubmitUtils.resolveMavenCoordinates(
