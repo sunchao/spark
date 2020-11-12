@@ -93,7 +93,8 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case PhysicalOperation(project, filters,
-        DataSourceV2ScanRelation(_, V1ScanWrapper(scan, pushed, aggregate), output)) =>
+        DataSourceV2ScanRelation(_, V1ScanWrapper(scan, pushed, aggregate), output,
+        distribution, ordering)) =>
       val v1Relation = scan.toV1TableScan[BaseRelation with TableScan](session.sqlContext)
       if (v1Relation.schema != scan.readSchema()) {
         throw QueryExecutionErrors.fallbackV1RelationReportsInconsistentSchemaError(
@@ -113,7 +114,7 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
       withProjectAndFilter(project, filters, dsScan, needsUnsafeConversion = false) :: Nil
 
     case PhysicalOperation(project, filters,
-        DataSourceV2ScanRelation(_, scan: LocalScan, output)) =>
+        DataSourceV2ScanRelation(_, scan: LocalScan, output, _, _)) =>
       val localScanExec = LocalTableScanExec(output, scan.rows().toSeq)
       withProjectAndFilter(project, filters, localScanExec, needsUnsafeConversion = false) :: Nil
 
@@ -125,7 +126,8 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
         case _: DynamicPruning => true
         case _ => false
       }
-      val batchExec = BatchScanExec(relation.output, relation.scan, runtimeFilters)
+      val batchExec = BatchScanExec(relation.output, relation.distribution, relation.ordering,
+        relation.scan, runtimeFilters)
       withProjectAndFilter(project, postScanFilters, batchExec, !batchExec.supportsColumnar) :: Nil
 
     case PhysicalOperation(p, f, r: StreamingDataSourceV2Relation)
@@ -133,7 +135,8 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
 
       val microBatchStream = r.stream.asInstanceOf[MicroBatchStream]
       val scanExec = MicroBatchScanExec(
-        r.output, r.scan, microBatchStream, r.startOffset.get, r.endOffset.get)
+        r.output, r.distribution, r.ordering, r.scan, microBatchStream, r.startOffset.get,
+        r.endOffset.get)
 
       // Add a Project here to make sure we produce unsafe rows.
       withProjectAndFilter(p, f, scanExec, !scanExec.supportsColumnar) :: Nil
@@ -142,7 +145,8 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
       if r.startOffset.isDefined && r.endOffset.isEmpty =>
 
       val continuousStream = r.stream.asInstanceOf[ContinuousStream]
-      val scanExec = ContinuousScanExec(r.output, r.scan, continuousStream, r.startOffset.get)
+      val scanExec = ContinuousScanExec(r.output, r.distribution, r.ordering, r.scan,
+        continuousStream, r.startOffset.get)
 
       // Add a Project here to make sure we produce unsafe rows.
       withProjectAndFilter(p, f, scanExec, !scanExec.supportsColumnar) :: Nil
@@ -245,7 +249,7 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
 
     case DeleteFromTable(relation, condition) =>
       relation match {
-        case DataSourceV2ScanRelation(r, _, output) =>
+        case DataSourceV2ScanRelation(r, _, output, _, _) =>
           val table = r.table
           if (condition.exists(SubqueryExpression.hasSubquery)) {
             throw QueryCompilationErrors.unsupportedDeleteByConditionWithSubqueryError(condition)

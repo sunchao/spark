@@ -24,7 +24,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.QueryPlan
-import org.apache.spark.sql.catalyst.plans.physical.SinglePartition
+import org.apache.spark.sql.catalyst.plans.physical.{DataSourcePartitioning, Distribution, SinglePartition}
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory, Scan, SupportsRuntimeFiltering}
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
@@ -34,6 +34,8 @@ import org.apache.spark.sql.execution.datasources.DataSourceStrategy
  */
 case class BatchScanExec(
     output: Seq[AttributeReference],
+    distribution: Option[Distribution],
+    ordering: Seq[SortOrder],
     @transient scan: Scan,
     runtimeFilters: Seq[Expression]) extends DataSourceV2ScanExecBase {
 
@@ -49,7 +51,8 @@ case class BatchScanExec(
 
   override def hashCode(): Int = Objects.hashCode(batch, runtimeFilters)
 
-  @transient override lazy val partitions: Seq[InputPartition] = batch.planInputPartitions()
+  // we should not cache partitions in order to support dynamic filters
+  @transient override lazy val inputPartitions: Seq[InputPartition] = batch.planInputPartitions()
 
   @transient private lazy val filteredPartitions: Seq[InputPartition] = {
     val dataSourceFilters = runtimeFilters.flatMap {
@@ -109,4 +112,5 @@ case class BatchScanExec(
     val result = s"$nodeName$truncatedOutputString ${scan.description()} $runtimeFiltersString"
     redact(result)
   }
+
 }

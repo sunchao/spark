@@ -20,6 +20,7 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.plans.physical.Distribution
 import org.apache.spark.sql.connector.read.{InputPartition, Scan}
 import org.apache.spark.sql.connector.read.streaming.{ContinuousPartitionReaderFactory, ContinuousStream, Offset}
 import org.apache.spark.sql.execution.streaming.continuous._
@@ -29,6 +30,8 @@ import org.apache.spark.sql.execution.streaming.continuous._
  */
 case class ContinuousScanExec(
     output: Seq[Attribute],
+    distribution: Option[Distribution],
+    ordering: Seq[SortOrder],
     @transient scan: Scan,
     @transient stream: ContinuousStream,
     @transient start: Offset) extends DataSourceV2ScanExecBase {
@@ -41,7 +44,7 @@ case class ContinuousScanExec(
 
   override def hashCode(): Int = stream.hashCode()
 
-  override lazy val partitions: Seq[InputPartition] = stream.planInputPartitions(start)
+  override lazy val inputPartitions: Seq[InputPartition] = stream.planInputPartitions(start)
 
   override lazy val readerFactory: ContinuousPartitionReaderFactory = {
     stream.createContinuousReaderFactory()

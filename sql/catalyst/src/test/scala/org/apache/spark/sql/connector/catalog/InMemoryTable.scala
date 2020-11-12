@@ -33,6 +33,7 @@ import org.apache.spark.sql.connector.distributions.{Distribution, Distributions
 import org.apache.spark.sql.connector.expressions._
 import org.apache.spark.sql.connector.metric.{CustomMetric, CustomTaskMetric}
 import org.apache.spark.sql.connector.read._
+import org.apache.spark.sql.connector.read.partitioning.Partitioning
 import org.apache.spark.sql.connector.write._
 import org.apache.spark.sql.connector.write.streaming.{StreamingDataWriterFactory, StreamingWrite}
 import org.apache.spark.sql.sources._
@@ -127,20 +128,20 @@ class InMemoryTable(
       case YearsTransform(ref) =>
         extractor(ref.fieldNames, cleanedSchema, row) match {
           case (days: Int, DateType) =>
-            ChronoUnit.YEARS.between(EPOCH_LOCAL_DATE, DateTimeUtils.daysToLocalDate(days))
+            ChronoUnit.YEARS.between(EPOCH_LOCAL_DATE, DateTimeUtils.daysToLocalDate(days)).toInt
           case (micros: Long, TimestampType) =>
             val localDate = DateTimeUtils.microsToInstant(micros).atZone(UTC).toLocalDate
-            ChronoUnit.YEARS.between(EPOCH_LOCAL_DATE, localDate)
+            ChronoUnit.YEARS.between(EPOCH_LOCAL_DATE, localDate).toInt
           case (v, t) =>
             throw new IllegalArgumentException(s"Match: unsupported argument(s) type - ($v, $t)")
         }
       case MonthsTransform(ref) =>
         extractor(ref.fieldNames, cleanedSchema, row) match {
           case (days: Int, DateType) =>
-            ChronoUnit.MONTHS.between(EPOCH_LOCAL_DATE, DateTimeUtils.daysToLocalDate(days))
+            ChronoUnit.MONTHS.between(EPOCH_LOCAL_DATE, DateTimeUtils.daysToLocalDate(days)).toInt
           case (micros: Long, TimestampType) =>
             val localDate = DateTimeUtils.microsToInstant(micros).atZone(UTC).toLocalDate
-            ChronoUnit.MONTHS.between(EPOCH_LOCAL_DATE, localDate)
+            ChronoUnit.MONTHS.between(EPOCH_LOCAL_DATE, localDate).toInt
           case (v, t) =>
             throw new IllegalArgumentException(s"Match: unsupported argument(s) type - ($v, $t)")
         }
@@ -149,14 +150,14 @@ class InMemoryTable(
           case (days, DateType) =>
             days
           case (micros: Long, TimestampType) =>
-            ChronoUnit.DAYS.between(Instant.EPOCH, DateTimeUtils.microsToInstant(micros))
+            ChronoUnit.DAYS.between(Instant.EPOCH, DateTimeUtils.microsToInstant(micros)).toInt
           case (v, t) =>
             throw new IllegalArgumentException(s"Match: unsupported argument(s) type - ($v, $t)")
         }
       case HoursTransform(ref) =>
         extractor(ref.fieldNames, cleanedSchema, row) match {
           case (micros: Long, TimestampType) =>
-            ChronoUnit.HOURS.between(Instant.EPOCH, DateTimeUtils.microsToInstant(micros))
+            ChronoUnit.HOURS.between(Instant.EPOCH, DateTimeUtils.microsToInstant(micros)).toInt
           case (v, t) =>
             throw new IllegalArgumentException(s"Match: unsupported argument(s) type - ($v, $t)")
         }
@@ -197,7 +198,7 @@ class InMemoryTable(
 
   protected def createPartitionKey(key: Seq[Any]): Unit = dataMap.synchronized {
     if (!dataMap.contains(key)) {
-      val emptyRows = new BufferedRows(key.toArray.mkString("/"))
+      val emptyRows = new BufferedRows(key)
       val rows = if (key.length == schema.length) {
         emptyRows.withRow(InternalRow.fromSeq(key))
       } else emptyRows
@@ -215,7 +216,7 @@ class InMemoryTable(
       val key = getKey(row)
       dataMap += dataMap.get(key)
         .map(key -> _.withRow(row))
-        .getOrElse(key -> new BufferedRows(key.toArray.mkString("/")).withRow(row))
+        .getOrElse(key -> new BufferedRows(key).withRow(row))
       addPartitionKey(key)
     })
     this
@@ -252,7 +253,8 @@ class InMemoryTable(
       var data: Seq[InputPartition],
       readSchema: StructType,
       tableSchema: StructType)
-    extends Scan with Batch with SupportsRuntimeFiltering with SupportsReportStatistics {
+    extends Scan with Batch with SupportsRuntimeFiltering with SupportsReportStatistics
+        with SupportsReportPartitioning {
 
     override def toBatch: Batch = this
 
@@ -291,12 +293,17 @@ class InMemoryTable(
             val matchingKeys = values.map(_.toString).toSet
             data = data.filter(partition => {
               val key = partition.asInstanceOf[BufferedRows].key
-              matchingKeys.contains(key)
+              matchingKeys.contains(key.toArray.mkString("/"))
             })
 
           case _ => // skip
         }
       }
+    }
+
+    override def outputPartitioning(): Partitioning = new Partitioning {
+      override def distribution: Distribution = InMemoryTable.this.distribution
+      override def ordering: Array[SortOrder] = InMemoryTable.this.ordering
     }
   }
 
@@ -509,7 +516,8 @@ object InMemoryTable {
 }
 
 class BufferedRows(
-    val key: String = "") extends WriterCommitMessage with InputPartition with Serializable {
+    val key: Seq[Any] = Seq.empty) extends WriterCommitMessage with InputPartition
+  with Serializable with HasPartitionKey {
   val rows = new mutable.ArrayBuffer[InternalRow]()
 
   def withRow(row: InternalRow): BufferedRows = {
@@ -518,6 +526,10 @@ class BufferedRows(
   }
 
   def clear(): Unit = rows.clear()
+
+  override def partitionKey(): InternalRow = {
+    InternalRow.fromSeq(key)
+  }
 }
 
 private class BufferedRowsReaderFactory(
@@ -538,7 +550,7 @@ private class BufferedRowsReader(
   private def addMetadata(row: InternalRow): InternalRow = {
     val metadataRow = new GenericInternalRow(metadataColumnNames.map {
       case "index" => index
-      case "_partition" => UTF8String.fromString(partition.key)
+      case "_partition" => UTF8String.fromString(partition.key.toArray.mkString("/"))
     }.toArray)
     new JoinedRow(row, metadataRow)
   }

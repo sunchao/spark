@@ -18,9 +18,13 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.expressions.{Expression, SortOrder}
+import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils
 import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils.toCatalyst
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, RepartitionByExpression, Sort}
+import org.apache.spark.sql.catalyst.plans.physical.Distribution
 import org.apache.spark.sql.connector.distributions.{ClusteredDistribution, OrderedDistribution, UnspecifiedDistribution}
+import org.apache.spark.sql.connector.read.Scan
+import org.apache.spark.sql.connector.read.SupportsReportPartitioning
 import org.apache.spark.sql.connector.write.{RequiresDistributionAndOrdering, Write}
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
@@ -66,5 +70,17 @@ object DistributionAndOrderingUtils {
 
     case _ =>
       query
+  }
+
+  def fromScan(
+      query: LogicalPlan,
+      scan: Scan): (Option[Distribution], Seq[SortOrder]) = scan match {
+    case v: SupportsReportPartitioning =>
+      val distribution = V2ExpressionUtils.toCatalyst(
+        v.outputPartitioning.distribution, query)
+      val ordering = v.outputPartitioning.ordering.map(
+        V2ExpressionUtils.toCatalyst(_, query).asInstanceOf[SortOrder])
+      (Some(distribution), ordering.toSeq)
+    case _ => (None, Seq.empty)
   }
 }

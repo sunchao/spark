@@ -18,8 +18,8 @@
 package org.apache.spark.sql.catalyst
 
 import org.apache.spark.SparkFunSuite
-/* Implicit conversions */
 import org.apache.spark.sql.catalyst.dsl.expressions._
+import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.physical._
 
 class DistributionSuite extends SparkFunSuite {
@@ -38,6 +38,23 @@ class DistributionSuite extends SparkFunSuite {
         |== Does input partitioning satisfy required distribution? ==
         |Expected $satisfied got ${inputPartitioning.satisfies(requiredDistribution)}
         """.stripMargin)
+    }
+  }
+
+  protected def checkCompatible(
+      left: Partitioning,
+      right: Partitioning,
+      compatible: Boolean): Unit = {
+    if (left.isCompatibleWith(right) != compatible) {
+      fail(
+        s"""
+           |== Left Partitioning ==
+           |$left
+           |== Right Partitioning ==
+           |$right
+           |== Is left partitioning compatible with right partitioning? ==
+           |Expected $compatible but got ${left.isCompatibleWith(right)}
+           |""".stripMargin)
     }
   }
 
@@ -302,5 +319,237 @@ class DistributionSuite extends SparkFunSuite {
       RangePartitioning(Seq($"a".asc, $"b".asc, $"c".asc), 10),
       ClusteredDistribution(Seq($"a", $"b", $"c"), Some(5)),
       false)
+  }
+
+  test("DataSourcePartitioning satisfies and compatibility") {
+    checkSatisfied(
+      DataSourcePartitioning(Seq($"a", $"b", $"c"),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      HashClusteredDistribution(Seq($"a", $"b", $"c"), None),
+      satisfied = true
+    )
+
+    // num partitions is not checked - for now
+    checkSatisfied(
+      DataSourcePartitioning(Seq($"a", $"b", $"c"),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      HashClusteredDistribution(Seq($"a", $"b", $"c"), None),
+      satisfied = true
+    )
+
+    // should also handle `ClusteredDistribution`
+    checkSatisfied(
+      DataSourcePartitioning(Seq($"a", $"b", $"c"),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      ClusteredDistribution(Seq($"a", $"b", $"c"), None),
+      satisfied = true
+    )
+
+    // requires exact match between partitioning and distribution
+    checkSatisfied(
+      DataSourcePartitioning(Seq($"a", $"b"),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      HashClusteredDistribution(Seq($"a", $"b", $"c"), None),
+      satisfied = false
+    )
+
+    // should satisify `UnspecifiedDistribution`
+    checkSatisfied(
+      DataSourcePartitioning(Seq($"a", $"b", $"c"),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      UnspecifiedDistribution,
+      satisfied = true
+    )
+
+    // unsupported distribution types
+
+    checkSatisfied(
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      BroadcastDistribution(IdentityBroadcastMode),
+      satisfied = false
+    )
+
+    checkSatisfied(
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      OrderedDistribution(Seq($"a".asc)),
+      satisfied = false
+    )
+  }
+
+  test("isCompatibleWith() for DataSourcePartitioning") {
+    checkCompatible(
+      DataSourcePartitioning(Seq($"a", $"b", $"c"), Seq.empty),
+      DataSourcePartitioning(Seq($"a", $"b", $"c"), Seq.empty),
+      compatible = true
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"a"), $"c"), Seq.empty),
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"d"), $"f"), Seq.empty),
+      compatible = true
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"a"), IcebergYearTransform($"c")),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"d"), IcebergYearTransform($"f")),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      compatible = true
+    )
+
+    // negative cases
+
+    checkCompatible(
+      DataSourcePartitioning(Seq($"a", $"b", $"c"), Seq.empty),
+      DataSourcePartitioning(Seq($"a", $"b"), Seq.empty),
+      compatible = false
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq($"a", $"b", $"c"), Seq(InternalRow(0, 0, 0))),
+      DataSourcePartitioning(Seq($"a", $"b", $"c"),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      compatible = false
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"a"),
+        IcebergYearTransform($"c")), Seq.empty),
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"a"),
+        IcebergMonthTransform($"c")), Seq.empty),
+      compatible = false
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"a"), $"c"),
+        Seq(InternalRow(0, 0, 0), InternalRow(1, 1, 1))),
+      DataSourcePartitioning(Seq(IcebergBucketTransform(42, $"a"), $"c"),
+        Seq(InternalRow(0, 0, 0), InternalRow(2, 2, 2))),
+      compatible = false
+    )
+  }
+
+  test("isCompatibleWith() for PartitioningCollection") {
+    checkCompatible(
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      PartitioningCollection(Seq(DataSourcePartitioning(Seq($"a"), Seq.empty))),
+      compatible = true
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq($"a"), Seq.empty),
+        DataSourcePartitioning(Seq(IcebergBucketTransform(32, $"b")), Seq.empty))),
+      compatible = true
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq(IcebergBucketTransform(32, $"b")), Seq.empty),
+        DataSourcePartitioning(Seq($"a"), Seq.empty))),
+      compatible = true
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq(IcebergYearTransform($"a"), IcebergBucketTransform(32, $"b")),
+        Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))),
+      PartitioningCollection(Seq(
+        HashPartitioning(Seq($"a"), 2),
+        DataSourcePartitioning(Seq(IcebergYearTransform($"a"), IcebergBucketTransform(32, $"b")),
+          Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))))),
+      compatible = true
+    )
+
+    checkCompatible(
+      PartitioningCollection(Seq(DataSourcePartitioning(Seq($"a"), Seq.empty))),
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      compatible = true
+    )
+
+    checkCompatible(
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq($"a"), Seq.empty),
+        DataSourcePartitioning(Seq(IcebergBucketTransform(32, $"b")), Seq.empty))),
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      compatible = true
+    )
+
+    checkCompatible(
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq(IcebergBucketTransform(32, $"b")), Seq.empty),
+        DataSourcePartitioning(Seq($"a"), Seq.empty))),
+      DataSourcePartitioning(Seq($"a"), Seq.empty),
+      compatible = true
+    )
+
+    checkCompatible(
+      PartitioningCollection(Seq(
+        HashPartitioning(Seq($"a"), 2),
+        DataSourcePartitioning(Seq(IcebergYearTransform($"a"), IcebergBucketTransform(32, $"b")),
+          Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))))),
+      DataSourcePartitioning(Seq(IcebergYearTransform($"a"), IcebergBucketTransform(32, $"b")),
+        Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))),
+      compatible = true
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq(IcebergYearTransform($"a")), Seq.empty),
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq(IcebergHourTransform($"a")), Seq.empty),
+        DataSourcePartitioning(Seq(IcebergDayTransform($"a")), Seq.empty))),
+      compatible = false
+    )
+
+    checkCompatible(
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq(IcebergHourTransform($"a")), Seq.empty),
+        DataSourcePartitioning(Seq(IcebergDayTransform($"a")), Seq.empty))),
+      DataSourcePartitioning(Seq(IcebergYearTransform($"a")), Seq.empty),
+      compatible = false
+    )
+
+    checkCompatible(
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq(IcebergHourTransform($"a")),
+          Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))),
+        HashPartitioning(Seq(IcebergYearTransform($"a")), 2))),
+      DataSourcePartitioning(Seq(IcebergYearTransform($"a")),
+        Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))),
+      compatible = false
+    )
+
+    checkCompatible(
+      DataSourcePartitioning(Seq(IcebergYearTransform($"a")),
+        Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))),
+      PartitioningCollection(Seq(
+        DataSourcePartitioning(Seq(IcebergHourTransform($"a")),
+          Seq(InternalRow("2020-01-01", 1), InternalRow("1900-01-01", 2))),
+        HashPartitioning(Seq(IcebergYearTransform($"a")), 2))),
+      compatible = false
+    )
+  }
+
+  test("isCompatibleWith() should always succeed for non-data source partitionings") {
+    val partitionings: Seq[Partitioning] = Seq(UnknownPartitioning(1),
+      BroadcastPartitioning(IdentityBroadcastMode),
+      RoundRobinPartitioning(10),
+      HashPartitioning(Seq($"a"), 10),
+      RangePartitioning(Seq($"a".asc), 10),
+      PartitioningCollection(Seq(UnknownPartitioning(1)))
+    )
+
+    for (i <- partitionings.indices) {
+      for (j <- partitionings.indices) {
+        checkCompatible(partitionings(i), partitionings(j), compatible = true)
+      }
+    }
+
+    // should always return false when comparing with `DataSourcePartitioning`
+    partitionings.foreach { p =>
+      checkCompatible(p, DataSourcePartitioning(Seq($"a"), Seq.empty),
+        compatible = false)
+    }
   }
 }

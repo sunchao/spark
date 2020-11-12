@@ -31,6 +31,7 @@ import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset =
 import org.apache.spark.sql.errors.QueryExecutionErrors
 import org.apache.spark.sql.execution.SQLExecution
 import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, StreamingDataSourceV2Relation, StreamWriterCommitProgress, WriteToDataSourceV2Exec}
+import org.apache.spark.sql.execution.datasources.v2.DistributionAndOrderingUtils
 import org.apache.spark.sql.execution.streaming.sources.WriteToMicroBatchDataSource
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.streaming.Trigger
@@ -88,7 +89,8 @@ class MicroBatchExecution(
           StreamingExecutionRelation(source, output)(sparkSession)
         })
 
-      case s @ StreamingRelationV2(src, srcName, table: SupportsRead, options, output, _, _, v1) =>
+      case s @ StreamingRelationV2(src, srcName, table: SupportsRead, options,
+        output, _, _, v1) =>
         val dsStr = if (src.nonEmpty) s"[${src.get}]" else ""
         val v2Disabled = disabledSources.contains(src.getOrElse(None).getClass.getCanonicalName)
         if (!v2Disabled && table.supports(TableCapability.MICRO_BATCH_READ)) {
@@ -100,7 +102,8 @@ class MicroBatchExecution(
             // TODO: operator pushdown.
             val scan = table.newScanBuilder(options).build()
             val stream = scan.toMicroBatchStream(metadataPath)
-            StreamingDataSourceV2Relation(output, scan, stream)
+            val (distribution, ordering) = DistributionAndOrderingUtils.fromScan(s, scan)
+            StreamingDataSourceV2Relation(output, distribution, ordering, scan, stream)
           })
         } else if (v1.isEmpty) {
           throw QueryExecutionErrors.microBatchUnsupportedByDataSourceError(srcName)
