@@ -183,6 +183,7 @@
     <commons-pool2.version>2.6.2</commons-pool2.version>
     <datanucleus-core.version>4.1.17</datanucleus-core.version>
     <guava.version>14.0.1</guava.version>
+    <iceberg.version>0.11.0</iceberg.version>
     <janino.version>3.0.16</janino.version>
     <jersey.version>2.30</jersey.version>
     <joda.version>2.10.5</joda.version>
@@ -2415,6 +2416,11 @@
             <artifactId>commons-lang</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-spark3-runtime</artifactId>
+        <version>${iceberg.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

@@ -17,7 +17,9 @@
 
 package org.apache.spark.sql.catalyst.plans.physical
 
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.plans.physical
 import org.apache.spark.sql.types.{DataType, IntegerType}
 
 /**
@@ -184,6 +186,19 @@ trait Partitioning {
     case AllTuples => numPartitions == 1
     case _ => false
   }
+
+  /**
+   * Whether this partitioning is compatible with the other partitioning provided. Note this
+   * operation MUST be transitive.
+   *
+   * Currently this only checked for [[DataSourcePartitioning]] where we ensure both partitionings
+   * have the same transforms. For others, this simply returns true for non-data source
+   * partitioning and false otherwise.
+   */
+  def isCompatibleWith(other: Partitioning): Boolean = other match {
+    case _: DataSourcePartitioning => false
+    case _ => true
+  }
 }
 
 case class UnknownPartitioning(numPartitions: Int) extends Partitioning
@@ -323,6 +338,14 @@ case class PartitioningCollection(partitionings: Seq[Partitioning])
   override def satisfies0(required: Distribution): Boolean =
     partitionings.exists(_.satisfies(required))
 
+  /**
+   * Returns true if any `partitioning` of this collection is compatible with the given
+   * [[Partitioning]]
+   */
+  override def isCompatibleWith(other: Partitioning): Boolean = {
+    partitionings.exists(_.isCompatibleWith(other))
+  }
+
   override def toString: String = {
     partitionings.map(_.toString).mkString("(", " or ", ")")
   }
@@ -338,5 +361,103 @@ case class BroadcastPartitioning(mode: BroadcastMode) extends Partitioning {
   override def satisfies0(required: Distribution): Boolean = required match {
     case BroadcastDistribution(m) if m == mode => true
     case _ => false
+  }
+}
+
+/**
+ * Represents a partitioning where rows are split across partitions based on transforms defined
+ * by `expressions`. `partitionValues` should contain value of partition key(s) in ascending order,
+ * after evaluated by the transforms in `expressions`, for each input partition. In addition, its
+ * length must be the same as the number of input partitions (and thus is a 1-1 mapping), and each
+ * row in `partitionValues` must be unique.
+ *
+ * For example, if `expressions` is `[years(ts_col)]`, then a valid value of `partitionValues` is
+ * `[50, 51, 52]`, which represents 3 input partitions with distinct partition values. All rows
+ * in each partition have the same value for column `ts_col` (which is of timestamp type), after
+ * being applied by the `years` transform.
+ *
+ * On the other hand, `[50, 50, 51]` is not a valid value for `partitionValues` since `50` is
+ * duplicated twice.
+ *
+ * - `expressions`: partition expressions for the partitioning.
+ * - `partitionValues`: the values for the cluster keys of the distribution, must be in ascending
+ *   order.
+ */
+case class DataSourcePartitioning(
+    expressions: Seq[Expression],
+    partitionValues: Seq[InternalRow]) extends Partitioning {
+  override val numPartitions: Int = partitionValues.length
+
+  override def satisfies0(required: physical.Distribution): Boolean = {
+    super.satisfies0(required) || {
+      required match {
+        case p: HashClusteredDistribution =>
+          val attributes = expressions.flatMap(DataSourcePartitioning.collectSingleExpression)
+          p.expressions.length == attributes.length &&
+            p.expressions.zip(attributes).forall {
+              case (l, r) => l.semanticEquals(r)
+            }
+        case p: ClusteredDistribution =>
+          val attributes = expressions.flatMap(DataSourcePartitioning.collectSingleExpression)
+          attributes.forall(c => p.clustering.exists(_.semanticEquals(c)))
+        case _ =>
+          false
+      }
+    }
+  }
+
+  // TODO: we should consider distribution here together with partitioning, for instance:
+  //   (bucket(32, col1), year(col2)) vs (bucket(32, col1), day(col3)) should be considered
+  //   if join key is (col1). This will require us to group the buckets together which will
+  //   introduce shuffle. We should introduce a planner rule to pass down the join keys down to
+  //   scanner where the output partitioning is created.
+  override def isCompatibleWith(partitioning: Partitioning): Boolean = partitioning match {
+    case other: DataSourcePartitioning =>
+      numPartitions == other.numPartitions &&
+        DataSourcePartitioning.clusteringCompatible(expressions, other.expressions) &&
+        partitionValues.zip(other.partitionValues).forall { case (v1, v2) =>
+          v1 == v2
+        }
+    case PartitioningCollection(otherPartitionings) =>
+      otherPartitionings.exists(_.isCompatibleWith(this))
+    case _ =>
+      false
+  }
+}
+
+object DataSourcePartitioning {
+  def clusteringCompatible(left: Seq[Expression], right: Seq[Expression]): Boolean = {
+    left.length == right.length && left.zip(right).forall { case (l, r) =>
+        expressionCompatible(l, r)
+      }
+  }
+
+  // TODO: we should compare functions using their ID and argument length
+  private def expressionCompatible(left: Expression, right: Expression): Boolean = {
+    (left, right) match {
+      case (_: Attribute, _: Attribute) => true
+      case (_: Literal, _: Literal) => true
+      case (_: IcebergYearTransform, _: IcebergYearTransform) => true
+      case (_: IcebergMonthTransform, _: IcebergMonthTransform) => true
+      case (_: IcebergDayTransform, _: IcebergDayTransform) => true
+      case (_: IcebergHourTransform, _: IcebergHourTransform) => true
+      case (IcebergBucketTransform(leftNumBuckets, _),
+      IcebergBucketTransform(rightNumBuckets, _)) =>
+        leftNumBuckets == rightNumBuckets
+      case _ => false
+    }
+  }
+
+  // TODO: make this tail recursive
+  def collectSingleExpression(e: Expression): Seq[Expression] = e match {
+    case IcebergYearTransform(child) => collectSingleExpression(child)
+    case IcebergMonthTransform(child) => collectSingleExpression(child)
+    case IcebergDayTransform(child) => collectSingleExpression(child)
+    case IcebergHourTransform(child) => collectSingleExpression(child)
+    case IcebergBucketTransform(_, children) => children.flatMap(collectSingleExpression)
+    case a: Attribute => Seq(a)
+    case l: Literal => Seq(l)
+    case _ =>
+      throw new IllegalArgumentException(s"unexpected expression: $e")
   }
 }

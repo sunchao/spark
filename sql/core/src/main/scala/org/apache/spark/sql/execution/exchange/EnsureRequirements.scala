@@ -62,6 +62,27 @@ object EnsureRequirements extends Rule[SparkPlan] {
       case _ => true
     }.map(_._2)
 
+    // assuming transitivity in partitioning compatibility check
+    val allCompatible = childrenIndexes.map(children(_).outputPartitioning).sliding(2).map {
+      case Seq(_) => true
+      case Seq(a, b) => a.isCompatibleWith(b)
+    }.forall(_ == true)
+
+    if (!allCompatible) {
+      // insert shuffle for all children that are data source partitioning
+      children = children.zip(requiredChildDistributions).zipWithIndex.map {
+        case ((child, _), idx) if !childrenIndexes.contains(idx) =>
+          child
+        case ((child, distribution), _)
+          if child.outputPartitioning.isInstanceOf[DataSourcePartitioning] =>
+          val numPartitions = distribution.requiredNumPartitions
+            .getOrElse(conf.numShufflePartitions)
+          ShuffleExchangeExec(distribution.createPartitioning(numPartitions), child)
+        case ((child, _), _) =>
+          child
+      }
+    }
+
     val childrenNumPartitions =
       childrenIndexes.map(children(_).outputPartitioning.numPartitions).toSet
 
@@ -217,6 +238,16 @@ object EnsureRequirements extends Rule[SparkPlan] {
         partitionings.foldLeft(Option.empty[(Seq[Expression], Seq[Expression])]) { (res, p) =>
           res.orElse(reorderJoinKeysRecursively(leftKeys, rightKeys, leftPartitioning, Some(p)))
         }.orElse(None)
+      case (Some(DataSourcePartitioning(clustering, _)), _) =>
+        val leafExprs = clustering.flatMap(DataSourcePartitioning.collectSingleExpression)
+        reorder(leftKeys.toIndexedSeq, rightKeys.toIndexedSeq, leafExprs, leftKeys)
+          .orElse(reorderJoinKeysRecursively(
+            leftKeys, rightKeys, None, rightPartitioning))
+      case (_, Some(DataSourcePartitioning(clustering, _))) =>
+        val leafExprs = clustering.flatMap(DataSourcePartitioning.collectSingleExpression)
+        reorder(leftKeys.toIndexedSeq, rightKeys.toIndexedSeq, leafExprs, rightKeys)
+          .orElse(reorderJoinKeysRecursively(
+            leftKeys, rightKeys, leftPartitioning, None))
       case _ =>
         None
     }

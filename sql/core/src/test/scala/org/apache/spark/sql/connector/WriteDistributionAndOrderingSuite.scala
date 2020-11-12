@@ -19,10 +19,7 @@ package org.apache.spark.sql.connector
 
 import java.util.Collections
 
-import org.scalatest.BeforeAndAfter
-
-import org.apache.spark.sql.{catalyst, DataFrame, QueryTest}
-import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
+import org.apache.spark.sql.{catalyst, DataFrame}
 import org.apache.spark.sql.catalyst.plans.physical
 import org.apache.spark.sql.catalyst.plans.physical.{HashPartitioning, RangePartitioning, UnknownPartitioning}
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -30,28 +27,13 @@ import org.apache.spark.sql.connector.distributions.{Distribution, Distributions
 import org.apache.spark.sql.connector.expressions.{Expression, FieldReference, NullOrdering, SortDirection, SortOrder}
 import org.apache.spark.sql.connector.expressions.LogicalExpressions._
 import org.apache.spark.sql.execution.{QueryExecution, SortExec, SparkPlan}
-import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper
 import org.apache.spark.sql.execution.datasources.v2.V2TableWriteExec
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeLike
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
 import org.apache.spark.sql.util.QueryExecutionListener
 
-class WriteDistributionAndOrderingSuite
-  extends QueryTest with SharedSparkSession with BeforeAndAfter with AdaptiveSparkPlanHelper {
-
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
-
-  before {
-    spark.conf.set("spark.sql.catalog.testcat", classOf[InMemoryTableCatalog].getName)
-  }
-
-  after {
-    spark.sessionState.catalogManager.reset()
-    spark.sessionState.conf.unsetConf("spark.sql.catalog.testcat")
-  }
-
+class WriteDistributionAndOrderingSuite extends DistributionAndOrderingBase {
   private val namespace = Array("ns1")
   private val ident = Identifier.of(namespace, "test_table")
   private val tableNameAsString = "testcat." + ident.toString
@@ -59,8 +41,6 @@ class WriteDistributionAndOrderingSuite
   private val schema = new StructType()
     .add("id", IntegerType)
     .add("data", StringType)
-
-  private val resolver = conf.resolver
 
   test("ordered distribution and sort with same exprs: append") {
     checkOrderedDistributionAndSortWithSameExprs("append")
@@ -521,28 +501,6 @@ class WriteDistributionAndOrderingSuite
     val actualOrdering = plan.outputOrdering
     val expectedOrdering = ordering.map(resolveAttrs(_, plan))
     assert(actualOrdering == expectedOrdering, "ordering must match")
-  }
-
-  private def resolveAttrs(
-      expr: catalyst.expressions.Expression,
-      plan: SparkPlan): catalyst.expressions.Expression = {
-
-    expr.transform {
-      case UnresolvedAttribute(Seq(attrName)) =>
-        plan.output.find(attr => resolver(attr.name, attrName)).get
-      case UnresolvedAttribute(nameParts) =>
-        val attrName = nameParts.mkString(".")
-        fail(s"cannot resolve a nested attr: $attrName")
-    }
-  }
-
-  private def attr(name: String): UnresolvedAttribute = {
-    UnresolvedAttribute(name)
-  }
-
-  private def catalog: InMemoryTableCatalog = {
-    val catalog = spark.sessionState.catalogManager.catalog("testcat")
-    catalog.asTableCatalog.asInstanceOf[InMemoryTableCatalog]
   }
 
   // executes a write operation and keeps the executed physical plan

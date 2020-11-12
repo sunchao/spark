@@ -30,9 +30,10 @@ import org.apache.spark.sql.{AnalysisException, DataFrame, QueryTest, Row}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.connector.catalog.{SupportsRead, Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.catalog.TableCapability._
-import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.connector.distributions.{Distribution, Distributions}
+import org.apache.spark.sql.connector.expressions.{FieldReference, SortOrder, Transform}
 import org.apache.spark.sql.connector.read._
-import org.apache.spark.sql.connector.read.partitioning.{ClusteredDistribution, Distribution, Partitioning}
+import org.apache.spark.sql.connector.read.partitioning.Partitioning
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper
 import org.apache.spark.sql.execution.datasources.v2.{BatchScanExec, DataSourceV2Relation, DataSourceV2ScanRelation}
 import org.apache.spark.sql.execution.exchange.{Exchange, ShuffleExchangeExec}
@@ -731,7 +732,11 @@ class PartitionAwareDataSource extends TestingV2Source {
       SpecificReaderFactory
     }
 
-    override def outputPartitioning(): Partitioning = new MyPartitioning
+    override def outputPartitioning(): Partitioning = new Partitioning {
+      override def distribution(): Distribution =
+        Distributions.clustered(Array(FieldReference("i")))
+      override def ordering(): Array[SortOrder] = Array.empty
+    }
   }
 
   override def getTable(options: CaseInsensitiveStringMap): Table = new SimpleBatchTable {
@@ -739,18 +744,13 @@ class PartitionAwareDataSource extends TestingV2Source {
       new MyScanBuilder()
     }
   }
-
-  class MyPartitioning extends Partitioning {
-    override def numPartitions(): Int = 2
-
-    override def satisfy(distribution: Distribution): Boolean = distribution match {
-      case c: ClusteredDistribution => c.clusteredColumns.contains("i")
-      case _ => false
-    }
-  }
 }
 
-case class SpecificInputPartition(i: Array[Int], j: Array[Int]) extends InputPartition
+case class SpecificInputPartition(
+    i: Array[Int],
+    j: Array[Int]) extends InputPartition with HasPartitionKey {
+  override def partitionKey(): InternalRow = InternalRow.fromSeq(Seq(i(0)))
+}
 
 object SpecificReaderFactory extends PartitionReaderFactory {
   override def createReader(partition: InputPartition): PartitionReader[InternalRow] = {

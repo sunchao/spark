@@ -19,11 +19,14 @@ package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.analysis.Resolver
-import org.apache.spark.sql.catalyst.expressions.{Ascending, Descending, Expression, NamedExpression, NullOrdering, NullsFirst, NullsLast, SortDirection, SortOrder}
+import org.apache.spark.sql.catalyst.expressions.{Ascending, Descending, Expression, IcebergBucketTransform, IcebergDayTransform, IcebergHourTransform, IcebergMonthTransform, IcebergYearTransform, NamedExpression, NullOrdering, NullsFirst, NullsLast, SortDirection, SortOrder}
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, RepartitionByExpression, Sort}
-import org.apache.spark.sql.connector.distributions.{ClusteredDistribution, OrderedDistribution, UnspecifiedDistribution}
-import org.apache.spark.sql.connector.expressions.{Expression => V2Expression, FieldReference, IdentityTransform, NullOrdering => V2NullOrdering, SortDirection => V2SortDirection, SortValue}
+import org.apache.spark.sql.catalyst.plans.physical.{ClusteredDistribution, Distribution, OrderedDistribution, UnspecifiedDistribution}
+import org.apache.spark.sql.connector.distributions.{ClusteredDistribution => V2ClusteredDistribution, Distribution => V2Distribution, OrderedDistribution => V2OrderedDistribution, UnspecifiedDistribution => V2UnspecifiedDistribution}
+import org.apache.spark.sql.connector.expressions.{BucketTransform, DaysTransform, Expression => V2Expression, FieldReference, HoursTransform, IdentityTransform, MonthsTransform, NullOrdering => V2NullOrdering, SortDirection => V2SortDirection, SortValue, YearsTransform}
+import org.apache.spark.sql.connector.read.{Scan, SupportsReportPartitioning}
 import org.apache.spark.sql.connector.write.{RequiresDistributionAndOrdering, Write}
+import org.apache.spark.sql.execution.datasources.v2.V2ScanPartitioning.conf
 import org.apache.spark.sql.internal.SQLConf
 
 object DistributionAndOrderingUtils {
@@ -33,11 +36,11 @@ object DistributionAndOrderingUtils {
       val resolver = conf.resolver
 
       val distribution = write.requiredDistribution match {
-        case d: OrderedDistribution =>
+        case d: V2OrderedDistribution =>
           d.ordering.map(e => toCatalyst(e, query, resolver))
-        case d: ClusteredDistribution =>
+        case d: V2ClusteredDistribution =>
           d.clustering.map(e => toCatalyst(e, query, resolver))
-        case _: UnspecifiedDistribution =>
+        case _: V2UnspecifiedDistribution =>
           Array.empty[Expression]
       }
 
@@ -67,6 +70,31 @@ object DistributionAndOrderingUtils {
       query
   }
 
+  def fromScan(
+      query: LogicalPlan,
+      scan: Scan): (Option[Distribution], Seq[SortOrder]) = scan match {
+    case v: SupportsReportPartitioning =>
+      val distribution = DistributionAndOrderingUtils.toCatalystDistribution(
+        v.outputPartitioning.distribution, query, conf.resolver)
+      val ordering = v.outputPartitioning.ordering.map(
+        DistributionAndOrderingUtils.toCatalyst(_, query, conf.resolver)
+          .asInstanceOf[SortOrder])
+      (Some(distribution), ordering.toSeq)
+    case _ => (None, Seq.empty)
+  }
+
+  private def toCatalystDistribution(
+      distribution: V2Distribution,
+      query: LogicalPlan,
+      resolver: Resolver): Distribution = distribution match {
+    case d: V2OrderedDistribution =>
+      OrderedDistribution(d.ordering.map(toCatalyst(_, query, resolver).asInstanceOf[SortOrder]))
+    case d: V2ClusteredDistribution =>
+      ClusteredDistribution(d.clustering.map(toCatalyst(_, query, resolver)))
+    case _: V2UnspecifiedDistribution =>
+      UnspecifiedDistribution
+  }
+
   private def toCatalyst(
       expr: V2Expression,
       query: LogicalPlan,
@@ -81,12 +109,23 @@ object DistributionAndOrderingUtils {
       }
     }
 
+    // FIXME: we should move this to analyzer and lookup transform through function catalog
     expr match {
       case SortValue(child, direction, nullOrdering) =>
         val catalystChild = toCatalyst(child, query, resolver)
         SortOrder(catalystChild, toCatalyst(direction), toCatalyst(nullOrdering), Seq.empty)
       case IdentityTransform(ref) =>
         resolve(ref)
+      case BucketTransform(n, ref) =>
+        IcebergBucketTransform(n, resolve(ref))
+      case YearsTransform(ref) =>
+        IcebergYearTransform(resolve(ref))
+      case MonthsTransform(ref) =>
+        IcebergMonthTransform(resolve(ref))
+      case DaysTransform(ref) =>
+        IcebergDayTransform(resolve(ref))
+      case HoursTransform(ref) =>
+        IcebergHourTransform(resolve(ref))
       case ref: FieldReference =>
         resolve(ref)
       case _ =>

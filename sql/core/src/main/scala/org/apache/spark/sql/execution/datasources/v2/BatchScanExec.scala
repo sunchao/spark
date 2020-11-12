@@ -21,6 +21,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.QueryPlan
+import org.apache.spark.sql.catalyst.plans.physical.Distribution
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory, Scan}
 
 /**
@@ -28,6 +29,8 @@ import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFacto
  */
 case class BatchScanExec(
     output: Seq[AttributeReference],
+    distribution: Option[Distribution],
+    ordering: Seq[SortOrder],
     @transient scan: Scan) extends DataSourceV2ScanExecBase {
 
   @transient lazy val batch = scan.toBatch
@@ -40,7 +43,8 @@ case class BatchScanExec(
 
   override def hashCode(): Int = batch.hashCode()
 
-  @transient override lazy val partitions: Seq[InputPartition] = batch.planInputPartitions()
+  // we should not cache partitions in order to support dynamic filters
+  @transient override lazy val inputPartitions: Seq[InputPartition] = batch.planInputPartitions()
 
   override lazy val readerFactory: PartitionReaderFactory = batch.createReaderFactory()
 
@@ -51,4 +55,5 @@ case class BatchScanExec(
   override def doCanonicalize(): BatchScanExec = {
     this.copy(output = output.map(QueryPlan.normalizeExpressions(_, output)))
   }
+
 }

@@ -32,7 +32,7 @@ import org.apache.spark.sql.catalyst.streaming.StreamingRelationV2
 import org.apache.spark.sql.connector.catalog.{SupportsRead, SupportsWrite, TableCapability}
 import org.apache.spark.sql.connector.read.streaming.{ContinuousStream, Offset => OffsetV2, PartitionOffset, ReadLimit}
 import org.apache.spark.sql.execution.SQLExecution
-import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.{DistributionAndOrderingUtils, StreamingDataSourceV2Relation}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.streaming.{OutputMode, Trigger}
 import org.apache.spark.util.Clock
@@ -79,7 +79,8 @@ class ContinuousExecution(
           // TODO: operator pushdown.
           val scan = table.newScanBuilder(options).build()
           val stream = scan.toContinuousStream(metadataPath)
-          StreamingDataSourceV2Relation(output, scan, stream)
+          val (distribution, ordering) = DistributionAndOrderingUtils.fromScan(s, scan)
+          StreamingDataSourceV2Relation(output, distribution, ordering, scan, stream)
         })
     }
 

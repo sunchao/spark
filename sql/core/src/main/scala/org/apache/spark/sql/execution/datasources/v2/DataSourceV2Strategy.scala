@@ -86,7 +86,8 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case PhysicalOperation(project, filters,
-        relation @ DataSourceV2ScanRelation(_, V1ScanWrapper(scan, translated, pushed), output)) =>
+        relation @ DataSourceV2ScanRelation(_,
+          V1ScanWrapper(scan, translated, pushed), output, distribution, ordering)) =>
       val v1Relation = scan.toV1TableScan[BaseRelation with TableScan](session.sqlContext)
       if (v1Relation.schema != scan.readSchema()) {
         throw new IllegalArgumentException(
@@ -110,13 +111,15 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
       // projection and filters were already pushed down in the optimizer.
       // this uses PhysicalOperation to get the projection and ensure that if the batch scan does
       // not support columnar, a projection is added to convert the rows to UnsafeRow.
-      val batchExec = BatchScanExec(relation.output, relation.scan)
+      val batchExec = BatchScanExec(relation.output,
+        relation.distribution, relation.ordering, relation.scan)
       withProjectAndFilter(project, filters, batchExec, !batchExec.supportsColumnar) :: Nil
 
     case r: StreamingDataSourceV2Relation if r.startOffset.isDefined && r.endOffset.isDefined =>
       val microBatchStream = r.stream.asInstanceOf[MicroBatchStream]
       val scanExec = MicroBatchScanExec(
-        r.output, r.scan, microBatchStream, r.startOffset.get, r.endOffset.get)
+        r.output, r.distribution, r.ordering, r.scan, microBatchStream, r.startOffset.get,
+        r.endOffset.get)
 
       val withProjection = if (scanExec.supportsColumnar) {
         scanExec
@@ -129,7 +132,8 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
 
     case r: StreamingDataSourceV2Relation if r.startOffset.isDefined && r.endOffset.isEmpty =>
       val continuousStream = r.stream.asInstanceOf[ContinuousStream]
-      val scanExec = ContinuousScanExec(r.output, r.scan, continuousStream, r.startOffset.get)
+      val scanExec = ContinuousScanExec(r.output, r.distribution, r.ordering, r.scan,
+        continuousStream, r.startOffset.get)
 
       val withProjection = if (scanExec.supportsColumnar) {
         scanExec
@@ -239,7 +243,7 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
 
     case DeleteFromTable(relation, condition) =>
       relation match {
-        case DataSourceV2ScanRelation(r, _, output) =>
+        case DataSourceV2ScanRelation(r, _, output, _, _) =>
           val table = r.table
           if (condition.exists(SubqueryExpression.hasSubquery)) {
             throw new AnalysisException(

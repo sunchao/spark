@@ -18,8 +18,9 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.analysis.{MultiInstanceRelation, NamedRelation}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, SortOrder}
 import org.apache.spark.sql.catalyst.plans.logical.{LeafNode, LogicalPlan, Statistics}
+import org.apache.spark.sql.catalyst.plans.physical.Distribution
 import org.apache.spark.sql.catalyst.util.{truncatedString, CharVarcharUtils}
 import org.apache.spark.sql.connector.catalog.{CatalogPlugin, Identifier, MetadataColumn, SupportsMetadataColumns, Table, TableCapability}
 import org.apache.spark.sql.connector.read.{Scan, Statistics => V2Statistics, SupportsReportStatistics}
@@ -31,7 +32,7 @@ import org.apache.spark.util.Utils
 /**
  * A logical plan representing a data source v2 table.
  *
- * @param table   The table that this relation represents.
+ * @param table the table that this relation represents.
  * @param output the output attributes of this relation.
  * @param catalog catalogPlugin for the table. None if no catalog is specified.
  * @param identifier the identifier for the table. None if no identifier is defined.
@@ -118,7 +119,10 @@ case class DataSourceV2Relation(
 case class DataSourceV2ScanRelation(
     relation: DataSourceV2Relation,
     scan: Scan,
-    output: Seq[AttributeReference]) extends LeafNode with NamedRelation {
+    output: Seq[AttributeReference],
+    distribution: Option[Distribution] = None,
+    ordering: Seq[SortOrder] = Nil
+  ) extends LeafNode with NamedRelation {
 
   override def name: String = relation.table.name()
 
@@ -146,6 +150,8 @@ case class DataSourceV2ScanRelation(
  */
 case class StreamingDataSourceV2Relation(
     output: Seq[Attribute],
+    distribution: Option[Distribution],
+    ordering: Seq[SortOrder],
     scan: Scan,
     stream: SparkDataStream,
     startOffset: Option[Offset] = None,
