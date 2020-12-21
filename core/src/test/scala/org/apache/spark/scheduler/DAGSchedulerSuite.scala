@@ -1153,11 +1153,12 @@ class DAGSchedulerSuite extends SparkFunSuite with TempLocalSparkContext with Ti
 
     // In the first two iterations, Stage 0 succeeds and stage 1 fails. In the next two iterations,
     // stage 2 fails.
-    for (attempt <- 0 until scheduler.maxConsecutiveStageAttempts) {
+    val scheduler_maxConsecutiveStageAttempts = 4
+    for (attempt <- 0 until scheduler_maxConsecutiveStageAttempts) {
       // Complete all the tasks for the current attempt of stage 0 successfully
       completeShuffleMapStageSuccessfully(0, attempt, numShufflePartitions = 2)
 
-      if (attempt < scheduler.maxConsecutiveStageAttempts / 2) {
+      if (attempt < scheduler_maxConsecutiveStageAttempts / 2) {
         // Now we should have a new taskSet, for a new attempt of stage 1.
         // Fail all these tasks with FetchFailure
         completeNextStageWithFetchFailure(1, attempt, shuffleDepOne)
@@ -1166,7 +1167,7 @@ class DAGSchedulerSuite extends SparkFunSuite with TempLocalSparkContext with Ti
 
         // Fail stage 2
         completeNextStageWithFetchFailure(2,
-          attempt - scheduler.maxConsecutiveStageAttempts / 2, shuffleDepTwo)
+          attempt - scheduler_maxConsecutiveStageAttempts / 2, shuffleDepTwo)
       }
 
       // this will trigger a resubmission of stage 0, since we've lost some of its
@@ -1178,7 +1179,7 @@ class DAGSchedulerSuite extends SparkFunSuite with TempLocalSparkContext with Ti
     completeShuffleMapStageSuccessfully(1, 4, numShufflePartitions = 1)
 
     // Succeed stage2 with a "42"
-    completeNextResultStageWithSuccess(2, scheduler.maxConsecutiveStageAttempts / 2)
+    completeNextResultStageWithSuccess(2, scheduler_maxConsecutiveStageAttempts / 2)
 
     assert(results === Map(0 -> 42))
     assertDataStructuresEmpty()
@@ -1201,7 +1202,8 @@ class DAGSchedulerSuite extends SparkFunSuite with TempLocalSparkContext with Ti
     submit(finalRdd, Array(0))
 
     // First, execute stages 0 and 1, failing stage 1 up to MAX-1 times.
-    for (attempt <- 0 until scheduler.maxConsecutiveStageAttempts - 1) {
+    val scheduler_maxConsecutiveStageAttempts = 4
+    for (attempt <- 0 until scheduler_maxConsecutiveStageAttempts - 1) {
       // Make each task in stage 0 success
       completeShuffleMapStageSuccessfully(0, attempt, numShufflePartitions = 2)
 
