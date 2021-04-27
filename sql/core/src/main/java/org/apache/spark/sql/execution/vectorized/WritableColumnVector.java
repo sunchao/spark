@@ -63,6 +63,7 @@ public abstract class WritableColumnVector extends ColumnVector {
       putNotNulls(0, capacity);
       numNulls = 0;
     }
+    numValues = 0;
   }
 
   @Override
@@ -99,6 +100,7 @@ public abstract class WritableColumnVector extends ColumnVector {
   }
 
   private void throwUnsupportedException(int requiredCapacity, Throwable cause) {
+    // TODO: add more info about nested data type
     String message = "Cannot reserve additional contiguous bytes in the vectorized reader (" +
         (requiredCapacity >= 0 ? "requested " + requiredCapacity + " bytes" : "integer overflow") +
         "). As a workaround, you can reduce the vectorized reader batch size, or disable the " +
@@ -120,6 +122,10 @@ public abstract class WritableColumnVector extends ColumnVector {
 
   @Override
   public int numNulls() { return numNulls; }
+
+  public int numValues() {
+    return numValues;
+  }
 
   /**
    * Returns the dictionary Id for rowId.
@@ -678,6 +684,14 @@ public abstract class WritableColumnVector extends ColumnVector {
   public final void setIsConstant() { isConstant = true; }
 
   /**
+   * Set the total number of values for this vector. This should only be called after done
+   * reading the current batch.
+   */
+  public final void setNumValues(int numValues) {
+    this.numValues = numValues;
+  }
+
+  /**
    * Maximum number of rows that can be stored in this column.
    */
   protected int capacity;
@@ -692,6 +706,11 @@ public abstract class WritableColumnVector extends ColumnVector {
    * Number of nulls in this column. This is an optimization for the reader, to skip NULL checks.
    */
   protected int numNulls;
+
+  /**
+   * Total number of values (including both nulls and non-nulls) in this column.
+   */
+  protected int numValues;
 
   /**
    * True if this column's values are fixed. This means the column values never change, even

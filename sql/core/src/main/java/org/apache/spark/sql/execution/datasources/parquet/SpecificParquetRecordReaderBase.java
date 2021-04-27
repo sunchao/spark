@@ -68,6 +68,7 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
   protected MessageType fileSchema;
   protected MessageType requestedSchema;
   protected StructType sparkSchema;
+  protected ParquetGroupReadInfo parquetReadInfo;
 
   /**
    * The total number of rows this RecordReader will eventually read. The sum of the
@@ -98,7 +99,22 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
     reader.setRequestedSchema(requestedSchema);
     String sparkRequestedSchemaString =
         configuration.get(ParquetReadSupport$.MODULE$.SPARK_ROW_REQUESTED_SCHEMA());
-    this.sparkSchema = StructType$.MODULE$.fromString(sparkRequestedSchemaString);
+    StructType sparkSchema = StructType$.MODULE$.fromString(sparkRequestedSchemaString);
+    ParquetToSparkSchemaConverter converter = new ParquetToSparkSchemaConverter(configuration);
+    ParquetGroupReadInfo info = converter.convert2(requestedSchema);
+
+    // `sparkSchema` could contain different schema from the Spark schema converted, for
+    // instance, due to Parquet schema not able to express Spark tinyint/smallint types.
+    // Therefore, we need to "refine" the converted Spark schema & type info by applying the
+    // original Spark read schema to them.
+    this.parquetReadInfo = ParquetSchemaConverter.refineTypeInfo(info, sparkSchema, true);
+    if (!parquetReadInfo.sparkType().sameType(sparkSchema)) {
+      throw new IOException("[BUG] Spark schema obtained from requested Parquet schema: " +
+          parquetReadInfo.sparkType() + " doesn't match the schema passed through " +
+          "SPARK_ROW_REQUESTED_SCHEMA: " + sparkSchema);
+    }
+    this.sparkSchema = (StructType) parquetReadInfo.sparkType();
+
     this.totalRowCount = reader.getFilteredRecordCount();
 
     // For test purpose.
@@ -176,7 +192,8 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
       }
     }
     reader.setRequestedSchema(requestedSchema);
-    this.sparkSchema = new ParquetToSparkSchemaConverter(config).convert(requestedSchema);
+    this.parquetReadInfo = new ParquetToSparkSchemaConverter(config).convert2(requestedSchema);
+    this.sparkSchema = (StructType) parquetReadInfo.sparkType();
     this.totalRowCount = reader.getFilteredRecordCount();
   }
 

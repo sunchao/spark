@@ -24,6 +24,7 @@ import scala.reflect.runtime.universe.TypeTag
 
 import org.apache.spark.sql.{DataFrame, Row, SaveMode}
 import org.apache.spark.sql.functions.struct
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SQLTestUtils
 import org.apache.spark.sql.types.StructType
 
@@ -52,7 +53,8 @@ private[sql] trait FileBasedDataSourceTest extends SQLTestUtils {
       f(spark.read.format(dataSourceName).load(path.toString))
     }
     if (testVectorized) {
-      withSQLConf(vectorizedReaderEnabledKey -> "true") {
+      withSQLConf(vectorizedReaderEnabledKey -> "true",
+          SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
         f(spark.read.format(dataSourceName).load(path.toString))
       }
     }

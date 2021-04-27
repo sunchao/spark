@@ -17,9 +17,8 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
-import scala.collection.JavaConverters._
-
 import org.apache.hadoop.conf.Configuration
+import org.apache.parquet.io.{ColumnIO, ColumnIOFactory, GroupColumnIO, PrimitiveColumnIO}
 import org.apache.parquet.schema._
 import org.apache.parquet.schema.LogicalTypeAnnotation._
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName._
@@ -60,40 +59,56 @@ class ParquetToSparkSchemaConverter(
   /**
    * Converts Parquet [[MessageType]] `parquetSchema` to a Spark SQL [[StructType]].
    */
-  def convert(parquetSchema: MessageType): StructType = convert(parquetSchema.asGroupType())
+  def convert(parquetSchema: MessageType): StructType = {
+    val column = new ColumnIOFactory().getColumnIO(parquetSchema)
+    val converted = convertInternal(column)
+    converted.sparkType.asInstanceOf[StructType]
+  }
 
-  private def convert(parquetSchema: GroupType): StructType = {
-    val fields = parquetSchema.getFields.asScala.map { field =>
-      field.getRepetition match {
+  def convert2(parquetSchema: MessageType): ParquetGroupReadInfo = {
+    val column = new ColumnIOFactory().getColumnIO(parquetSchema)
+    convertInternal(column)
+  }
+
+  private def convertInternal(groupColumn: GroupColumnIO): ParquetGroupReadInfo = {
+    val converted = (0 until groupColumn.getChildrenCount).map { i =>
+      val field = groupColumn.getChild(i)
+      val convertedField = convertField(field)
+
+      val structField = field.getType.getRepetition match {
         case OPTIONAL =>
-          StructField(field.getName, convertField(field), nullable = true)
+          StructField(field.getType.getName, convertedField.sparkType, nullable = true)
 
         case REQUIRED =>
-          StructField(field.getName, convertField(field), nullable = false)
+          StructField(field.getType.getName, convertedField.sparkType, nullable = false)
 
         case REPEATED =>
           // A repeated field that is neither contained by a `LIST`- or `MAP`-annotated group nor
           // annotated by `LIST` or `MAP` should be interpreted as a required list of required
           // elements where the element type is the type of the field.
-          val arrayType = ArrayType(convertField(field), containsNull = false)
-          StructField(field.getName, arrayType, nullable = false)
+          val arrayType = ArrayType(convertedField.sparkType, containsNull = false)
+          StructField(field.getType.getName, arrayType, nullable = false)
       }
+      (structField, convertedField)
     }
 
-    StructType(fields.toSeq)
+    ParquetGroupReadInfo(StructType(converted.map(_._1)), groupColumn, converted.map(_._2))
   }
 
   /**
    * Converts a Parquet [[Type]] to a Spark SQL [[DataType]].
    */
-  def convertField(parquetType: Type): DataType = parquetType match {
-    case t: PrimitiveType => convertPrimitiveField(t)
-    case t: GroupType => convertGroupField(t.asGroupType())
+  def convertField(field: ColumnIO): ParquetReadInfo = field match {
+    case primitiveColumn: PrimitiveColumnIO => convertPrimitiveField(primitiveColumn)
+    case groupColumn: GroupColumnIO => convertGroupField(groupColumn)
   }
 
-  private def convertPrimitiveField(field: PrimitiveType): DataType = {
-    val typeName = field.getPrimitiveTypeName
-    val typeAnnotation = field.getLogicalTypeAnnotation
+  private def convertPrimitiveField(
+      primitiveColumn: PrimitiveColumnIO): ParquetPrimitiveReadInfo = {
+    val parquetType = primitiveColumn.getType.asPrimitiveType()
+    val typeAnnotation = primitiveColumn.getType.getLogicalTypeAnnotation
+    val typeName = primitiveColumn.getPrimitive
+    val originalType = parquetType.getOriginalType
 
     def typeString =
       if (typeAnnotation == null) s"$typeName" else s"$typeName ($typeAnnotation)"
@@ -108,7 +123,7 @@ class ParquetToSparkSchemaConverter(
     // specified in field.getDecimalMetadata.  This is useful when interpreting decimal types stored
     // as binaries with variable lengths.
     def makeDecimalType(maxPrecision: Int = -1): DecimalType = {
-      val decimalLogicalTypeAnnotation = field.getLogicalTypeAnnotation
+      val decimalLogicalTypeAnnotation = typeAnnotation
         .asInstanceOf[DecimalLogicalTypeAnnotation]
       val precision = decimalLogicalTypeAnnotation.getPrecision
       val scale = decimalLogicalTypeAnnotation.getScale
@@ -120,7 +135,7 @@ class ParquetToSparkSchemaConverter(
       DecimalType(precision, scale)
     }
 
-    typeName match {
+    val sparkType = typeName match {
       case BOOLEAN => BooleanType
 
       case FLOAT => FloatType
@@ -178,7 +193,7 @@ class ParquetToSparkSchemaConverter(
         ParquetSchemaConverter.checkConversionRequirement(
           assumeInt96IsTimestamp,
           "INT96 is not supported unless it's interpreted as timestamp. " +
-            s"Please try to set ${SQLConf.PARQUET_INT96_AS_TIMESTAMP.key} to true.")
+              s"Please try to set ${SQLConf.PARQUET_INT96_AS_TIMESTAMP.key} to true.")
         TimestampType
 
       case BINARY =>
@@ -195,17 +210,21 @@ class ParquetToSparkSchemaConverter(
       case FIXED_LEN_BYTE_ARRAY =>
         typeAnnotation match {
           case _: DecimalLogicalTypeAnnotation =>
-            makeDecimalType(Decimal.maxPrecisionForBytes(field.getTypeLength))
+            makeDecimalType(Decimal.maxPrecisionForBytes(parquetType.getTypeLength))
           case _: IntervalLogicalTypeAnnotation => typeNotImplemented()
           case _ => illegalType()
         }
 
       case _ => illegalType()
     }
+
+    ParquetPrimitiveReadInfo(sparkType, primitiveColumn)
   }
 
-  private def convertGroupField(field: GroupType): DataType = {
-    Option(field.getLogicalTypeAnnotation).fold(convert(field): DataType) {
+  private def convertGroupField(groupColumn: GroupColumnIO): ParquetGroupReadInfo = {
+    val field = groupColumn.getType.asGroupType()
+    Option(field.getLogicalTypeAnnotation).fold(convertInternal(groupColumn)
+        .asInstanceOf[ParquetGroupReadInfo]) {
       // A Parquet list is represented as a 3-level structure:
       //
       //   <list-repetition> group <name> (LIST) {
@@ -223,16 +242,22 @@ class ParquetToSparkSchemaConverter(
         ParquetSchemaConverter.checkConversionRequirement(
           field.getFieldCount == 1, s"Invalid list type $field")
 
-        val repeatedType = field.getType(0)
+        val repeated = groupColumn.getChild(0)
+        val repeatedType = repeated.getType
         ParquetSchemaConverter.checkConversionRequirement(
           repeatedType.isRepetition(REPEATED), s"Invalid list type $field")
 
         if (isElementType(repeatedType, field.getName)) {
-          ArrayType(convertField(repeatedType), containsNull = false)
+          val converted = convertField(repeated)
+          ParquetGroupReadInfo(ArrayType(converted.sparkType, containsNull = false),
+            groupColumn, Seq(converted))
         } else {
-          val elementType = repeatedType.asGroupType().getType(0)
+          val element = repeated.asInstanceOf[GroupColumnIO].getChild(0)
+          val elementType = element.getType
           val optional = elementType.isRepetition(OPTIONAL)
-          ArrayType(convertField(elementType), containsNull = optional)
+          val converted = convertField(element)
+          ParquetGroupReadInfo(ArrayType(converted.sparkType, containsNull = optional),
+            groupColumn, Seq(converted))
         }
 
       // scalastyle:off
@@ -244,19 +269,22 @@ class ParquetToSparkSchemaConverter(
           field.getFieldCount == 1 && !field.getType(0).isPrimitive,
           s"Invalid map type: $field")
 
-        val keyValueType = field.getType(0).asGroupType()
+        val keyValue = groupColumn.getChild(0).asInstanceOf[GroupColumnIO]
+        val keyValueType = keyValue.getType.asGroupType()
         ParquetSchemaConverter.checkConversionRequirement(
           keyValueType.isRepetition(REPEATED) && keyValueType.getFieldCount == 2,
           s"Invalid map type: $field")
 
-        val keyType = keyValueType.getType(0)
-        val valueType = keyValueType.getType(1)
+        val key = keyValue.getChild(0)
+        val value = keyValue.getChild(1)
+        val valueType = value.getType
         val valueOptional = valueType.isRepetition(OPTIONAL)
-        MapType(
-          convertField(keyType),
-          convertField(valueType),
-          valueContainsNull = valueOptional)
-
+        val convertedKey = convertField(key)
+        val convertedValue = convertField(value)
+        ParquetGroupReadInfo(
+          MapType(convertedKey.sparkType, convertedValue.sparkType,
+            valueContainsNull = valueOptional),
+          groupColumn, Seq(convertedKey, convertedValue))
       case _ =>
         throw QueryCompilationErrors.unrecognizedParquetTypeError(field.toString)
     }
@@ -602,4 +630,95 @@ private[sql] object ParquetSchemaConverter {
       throw new AnalysisException(message)
     }
   }
+
+  /**
+   * Refine the given `typeInfo` by replacing Spark type with the same type in `readSchema`.
+   */
+  def refineTypeInfo(
+      typeInfo: ParquetGroupReadInfo,
+      readSchema: StructType,
+      caseSensitive: Boolean = true
+  ): ParquetGroupReadInfo = {
+    val newSchema = refineSparkType(typeInfo.sparkType.asInstanceOf[StructType],
+      readSchema, caseSensitive)
+    val newChildren = applySchemaChanges(newSchema, typeInfo.children)
+    ParquetGroupReadInfo(newSchema, typeInfo.repetitionLevel, typeInfo.definitionLevel,
+      typeInfo.required, newChildren)
+  }
+
+  /**
+   * Refine the `originalSchema` by replacing Spark type with the same type in `readSchema`.
+   */
+  private def refineSparkType(
+      originalSchema: StructType,
+      readSchema: StructType,
+      caseSensitive: Boolean = true): StructType = {
+    val newFields = originalSchema.map { oldField =>
+      readSchema.find(f => isSameFieldName(oldField.name, f.name, caseSensitive)) match {
+        case Some(newField) =>
+          val newType = refineSparkTypeInternal(oldField.dataType, newField.dataType, caseSensitive)
+          StructField(oldField.name, newType, newField.nullable, newField.metadata)
+        case None =>
+          oldField
+      }
+    }
+    StructType(newFields)
+  }
+
+  private def refineSparkTypeInternal(
+      originalType: DataType,
+      readType: DataType,
+      caseSensitive: Boolean = true): DataType = (originalType, readType) match {
+    case (originalStructType: StructType, readStructType: StructType) =>
+      refineSparkType(originalStructType, readStructType, caseSensitive)
+    case _ => readType
+  }
+
+
+  private def applySchemaChanges(
+      newSchema: StructType,
+      children: Seq[ParquetReadInfo]): Seq[ParquetReadInfo] = {
+    if (newSchema.length != children.length) {
+      throw new IllegalStateException(s"[BUG] schema length = ${newSchema.length} but children " +
+          s"length = ${children.length}")
+    }
+    newSchema.zip(children).map { case (f, p) =>
+      applySchemaChangesInternal(f.dataType, p)
+    }
+  }
+
+  private def applySchemaChangesInternal(
+      newType: DataType,
+      typeInfo: ParquetReadInfo): ParquetReadInfo = typeInfo match {
+    case groupTypeInfo: ParquetGroupReadInfo =>
+      newType match {
+        case newStructType: StructType =>
+          val newChildren = applySchemaChanges(newStructType, groupTypeInfo.children)
+          ParquetGroupReadInfo(newStructType, groupTypeInfo.repetitionLevel,
+            groupTypeInfo.definitionLevel, groupTypeInfo.required, newChildren)
+        case newArrayType: ArrayType =>
+          assert(groupTypeInfo.children.length == 1)
+          ParquetGroupReadInfo(newArrayType,
+            groupTypeInfo.repetitionLevel, groupTypeInfo.definitionLevel, groupTypeInfo.required,
+            groupTypeInfo.children.map(_.withNewType(newArrayType.elementType)))
+        case newMapType: MapType =>
+          assert(groupTypeInfo.children.length == 2)
+          val newKeyType = newMapType.keyType
+          val newValueType = newMapType.valueType
+          ParquetGroupReadInfo(newMapType,
+            groupTypeInfo.repetitionLevel, groupTypeInfo.definitionLevel, groupTypeInfo.required,
+            Seq(groupTypeInfo.children.head.withNewType(newKeyType),
+              groupTypeInfo.children(1).withNewType(newValueType)))
+        case _ =>
+          throw new IllegalStateException(s"[BUG] unexpected data type: $newType")
+      }
+    case _ =>
+      typeInfo.withNewType(newType)
+  }
+
+
+  private def isSameFieldName(left: String, right: String, caseSensitive: Boolean): Boolean =
+    if (caseSensitive) left.equalsIgnoreCase(right)
+    else left == right
+
 }
