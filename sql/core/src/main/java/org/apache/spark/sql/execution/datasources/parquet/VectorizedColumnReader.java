@@ -50,7 +50,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.DecimalType;
 
-import static org.apache.parquet.column.ValuesType.REPETITION_LEVEL;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
 /**
@@ -84,6 +83,11 @@ public class VectorizedColumnReader {
   private final int maxDefLevel;
 
   /**
+   * Maximum repetition level for this column.
+   */
+  private final int maxRepLevel;
+
+  /**
    * Value readers.
    */
   private ValuesReader dataColumn;
@@ -102,6 +106,11 @@ public class VectorizedColumnReader {
    * Total values in the current page.
    */
   private int pageValueCount;
+
+  /**
+   * Vectorized RLE decoder for repetition levels
+   */
+  private VectorizedRleValuesReader repColumn;
 
   private final PageReader pageReader;
   private final ColumnDescriptor descriptor;
@@ -151,6 +160,7 @@ public class VectorizedColumnReader {
     this.convertTz = convertTz;
     this.logicalTypeAnnotation = logicalTypeAnnotation;
     this.maxDefLevel = descriptor.getMaxDefinitionLevel();
+    this.maxRepLevel = descriptor.getMaxRepetitionLevel();
 
     DictionaryPage dictionaryPage = pageReader.readDictionaryPage();
     if (dictionaryPage != null) {
@@ -237,14 +247,19 @@ public class VectorizedColumnReader {
   /**
    * Reads `total` values from this columnReader into column.
    */
-  void readBatch(int total, WritableColumnVector column) throws IOException {
+  void readBatch(
+      int total,
+      WritableColumnVector values,
+      WritableColumnVector repetitionLevels,
+      WritableColumnVector definitionLevels) throws IOException {
     int rowId = 0;
     WritableColumnVector dictionaryIds = null;
     if (dictionary != null) {
       // SPARK-16334: We only maintain a single dictionary per row batch, so that it can be used to
       // decode all previous dictionary encoded pages if we ever encounter a non-dictionary encoded
       // page.
-      dictionaryIds = column.reserveDictionaryIds(total);
+      // TODO: this won't work for nested types
+      dictionaryIds = values.reserveDictionaryIds(total);
     }
     while (total > 0) {
       // Compute the number of values we want to read in this page.
@@ -253,17 +268,38 @@ public class VectorizedColumnReader {
         readPage();
         leftInPage = (int) (endOfPageValueCount - valuesRead);
       }
-      int num = Math.min(total, leftInPage);
+
+      int rowsRead, valuesRead;
+      if (maxRepLevel == 0) {
+        rowsRead = valuesRead = Math.min(total, leftInPage);
+      } else {
+        // For complex types, we first read repetition levels and gather two values:
+        //   1. the total number of leaf values read
+        //   2. the total number of top-level rows read
+        // For instance, if we are reading ints from a `array<int>`, then 1) represents how many
+        // ints we've read from the current page, and 2) represents how many `array<int>` we've
+        // read from the current page. The latter is used to compare with the batch size `total`.
+        int[] result = repColumn.readRepetitionLevels(leftInPage, total,
+            repetitionLevels);
+        valuesRead = result[0];
+        rowsRead = result[1];
+
+        // reserve enough space for values & definitions
+        values.reserve(values.numValues() + valuesRead);
+        definitionLevels.reserve(definitionLevels.numValues() + valuesRead);
+      }
+
       PrimitiveType.PrimitiveTypeName typeName =
         descriptor.getPrimitiveType().getPrimitiveTypeName();
       if (isCurrentPageDictionaryEncoded) {
         // Read and decode dictionary ids.
-        defColumn.readIntegers(
-            num, dictionaryIds, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+        dictionaryIds.reserve(dictionaryIds.numValues() + valuesRead);
+        defColumn.readIntegers(valuesRead, dictionaryIds, values, definitionLevels, rowId,
+            maxDefLevel, (VectorizedValuesReader) dataColumn);
 
         // TIMESTAMP_MILLIS encoded as INT64 can't be lazily decoded as we need to post process
         // the values to add microseconds precision.
-        if (column.hasDictionary() || (rowId == 0 && isLazyDecodingSupported(typeName))) {
+        if (values.hasDictionary() || (rowId == 0 && isLazyDecodingSupported(typeName))) {
           // Column vector supports lazy decoding of dictionary values so just set the dictionary.
           // We can't do this if rowId != 0 AND the column doesn't have a dictionary (i.e. some
           // non-dictionary encoded values have already been added).
@@ -286,51 +322,54 @@ public class VectorizedColumnReader {
           boolean isUnsignedInt64 = isUnsignedIntTypeMatched(64);
 
           boolean needTransform = castLongToInt || isUnsignedInt32 || isUnsignedInt64;
-          column.setDictionary(new ParquetDictionary(dictionary, needTransform));
+          values.setDictionary(new ParquetDictionary(dictionary, needTransform));
         } else {
-          decodeDictionaryIds(rowId, num, column, dictionaryIds);
+          decodeDictionaryIds(rowId, valuesRead, values, dictionaryIds);
         }
       } else {
-        if (column.hasDictionary() && rowId != 0) {
+        if (values.hasDictionary() && rowId != 0) {
           // This batch already has dictionary encoded values but this new page is not. The batch
           // does not support a mix of dictionary and not so we will decode the dictionary.
-          decodeDictionaryIds(0, rowId, column, column.getDictionaryIds());
+          decodeDictionaryIds(0, rowId, values, values.getDictionaryIds());
         }
-        column.setDictionary(null);
+        values.setDictionary(null);
         switch (typeName) {
           case BOOLEAN:
-            readBooleanBatch(rowId, num, column);
+            readBooleanBatch(rowId, valuesRead, values, definitionLevels);
             break;
           case INT32:
-            readIntBatch(rowId, num, column);
+            readIntBatch(rowId, valuesRead, values, definitionLevels);
             break;
           case INT64:
-            readLongBatch(rowId, num, column);
+            readLongBatch(rowId, valuesRead, values, definitionLevels);
             break;
           case INT96:
-            readBinaryBatch(rowId, num, column);
+            readBinaryBatch(rowId, valuesRead, values, definitionLevels);
             break;
           case FLOAT:
-            readFloatBatch(rowId, num, column);
+            readFloatBatch(rowId, valuesRead, values, definitionLevels);
             break;
           case DOUBLE:
-            readDoubleBatch(rowId, num, column);
+            readDoubleBatch(rowId, valuesRead, values, definitionLevels);
             break;
           case BINARY:
-            readBinaryBatch(rowId, num, column);
+            readBinaryBatch(rowId, valuesRead, values, definitionLevels);
             break;
           case FIXED_LEN_BYTE_ARRAY:
-            readFixedLenByteArrayBatch(
-              rowId, num, column, descriptor.getPrimitiveType().getTypeLength());
+            readFixedLenByteArrayBatch(rowId, valuesRead, values, definitionLevels,
+                descriptor.getPrimitiveType().getTypeLength());
             break;
           default:
             throw new IOException("Unsupported type: " + typeName);
         }
       }
 
-      valuesRead += num;
-      rowId += num;
-      total -= num;
+      this.valuesRead += valuesRead;
+      rowId += valuesRead;
+      total -= rowsRead;
+      values.setNumValues(values.numValues() + valuesRead);
+      repetitionLevels.setNumValues(repetitionLevels.numValues() + valuesRead);
+      definitionLevels.setNumValues(definitionLevels.numValues() + valuesRead);
     }
   }
 
@@ -572,88 +611,107 @@ public class VectorizedColumnReader {
    * is guaranteed that num is smaller than the number of values left in the current page.
    */
 
-  private void readBooleanBatch(int rowId, int num, WritableColumnVector column)
+  private void readBooleanBatch(
+      int rowId,
+      int num,
+      WritableColumnVector column,
+      WritableColumnVector definitionLevels)
       throws IOException {
     if (column.dataType() != DataTypes.BooleanType) {
       throw constructConvertNotSupportedException(descriptor, column);
     }
     defColumn.readBooleans(
-        num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+        num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
   }
 
-  private void readIntBatch(int rowId, int num, WritableColumnVector column) throws IOException {
+  private void readIntBatch(
+      int rowId,
+      int num,
+      WritableColumnVector column,
+      WritableColumnVector definitionLevels) throws IOException {
     // This is where we implement support for the valid type conversions.
     // TODO: implement remaining type conversions
     if (column.dataType() == DataTypes.IntegerType ||
         canReadAsIntDecimal(column.dataType())) {
       defColumn.readIntegers(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
     } else if (column.dataType() == DataTypes.LongType) {
       // In `ParquetToSparkSchemaConverter`, we map parquet UINT32 to our LongType.
       // For unsigned int32, it stores as plain signed int32 in Parquet when dictionary fallbacks.
       // We read them as long values.
       defColumn.readUnsignedIntegers(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
     } else if (column.dataType() == DataTypes.ByteType) {
       defColumn.readBytes(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
     } else if (column.dataType() == DataTypes.ShortType) {
       defColumn.readShorts(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
     } else if (column.dataType() == DataTypes.DateType ) {
       if ("CORRECTED".equals(datetimeRebaseMode)) {
         defColumn.readIntegers(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
       } else {
         boolean failIfRebase = "EXCEPTION".equals(datetimeRebaseMode);
         defColumn.readIntegersWithRebase(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn, failIfRebase);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn,
+            failIfRebase);
       }
     } else {
       throw constructConvertNotSupportedException(descriptor, column);
     }
   }
 
-  private void readLongBatch(int rowId, int num, WritableColumnVector column) throws IOException {
+  private void readLongBatch(
+      int rowId,
+      int num,
+      WritableColumnVector column,
+      WritableColumnVector definitionLevels) throws IOException {
     // This is where we implement support for the valid type conversions.
     if (column.dataType() == DataTypes.LongType ||
         canReadAsLongDecimal(column.dataType())) {
       defColumn.readLongs(
-        num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn,
+        num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn,
         DecimalType.is32BitDecimalType(column.dataType()));
     } else if (isUnsignedIntTypeMatched(64)) {
       // In `ParquetToSparkSchemaConverter`, we map parquet UINT64 to our Decimal(20, 0).
       // For unsigned int64, it stores as plain signed int64 in Parquet when dictionary fallbacks.
       // We read them as decimal values.
       defColumn.readUnsignedLongs(
-        num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+        num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
     } else if (isTimestampTypeMatched(TimeUnit.MICROS)) {
       if ("CORRECTED".equals(datetimeRebaseMode)) {
         defColumn.readLongs(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn, false);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn,
+            false);
       } else {
         boolean failIfRebase = "EXCEPTION".equals(datetimeRebaseMode);
         defColumn.readLongsWithRebase(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn, failIfRebase);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn,
+            failIfRebase);
       }
     } else if (isTimestampTypeMatched(TimeUnit.MILLIS)) {
       if ("CORRECTED".equals(datetimeRebaseMode)) {
         for (int i = 0; i < num; i++) {
-          if (defColumn.readInteger() == maxDefLevel) {
+          int defLevel = defColumn.readInteger();
+          if (defLevel == maxDefLevel) {
             column.putLong(rowId + i, DateTimeUtils.millisToMicros(dataColumn.readLong()));
           } else {
             column.putNull(rowId + i);
           }
+          definitionLevels.putInt(rowId + i, defLevel);
         }
       } else {
         final boolean failIfRebase = "EXCEPTION".equals(datetimeRebaseMode);
         for (int i = 0; i < num; i++) {
-          if (defColumn.readInteger() == maxDefLevel) {
+          int defLevel = defColumn.readInteger();
+          if (defLevel == maxDefLevel) {
             long julianMicros = DateTimeUtils.millisToMicros(dataColumn.readLong());
             column.putLong(rowId + i, rebaseMicros(julianMicros, failIfRebase));
           } else {
             column.putNull(rowId + i);
           }
+          definitionLevels.putInt(rowId + i, defLevel);
         }
       }
     } else {
@@ -661,51 +719,67 @@ public class VectorizedColumnReader {
     }
   }
 
-  private void readFloatBatch(int rowId, int num, WritableColumnVector column) throws IOException {
+  private void readFloatBatch(
+      int rowId,
+      int num,
+      WritableColumnVector column,
+      WritableColumnVector definitionLevels) throws IOException {
     // This is where we implement support for the valid type conversions.
     // TODO: support implicit cast to double?
     if (column.dataType() == DataTypes.FloatType) {
       defColumn.readFloats(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
     } else {
       throw constructConvertNotSupportedException(descriptor, column);
     }
   }
 
-  private void readDoubleBatch(int rowId, int num, WritableColumnVector column) throws IOException {
+  private void readDoubleBatch(
+      int rowId,
+      int num,
+      WritableColumnVector column,
+      WritableColumnVector definitionLevels) throws IOException {
     // This is where we implement support for the valid type conversions.
     // TODO: implement remaining type conversions
     if (column.dataType() == DataTypes.DoubleType) {
       defColumn.readDoubles(
-          num, column, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
+          num, column, definitionLevels, rowId, maxDefLevel, (VectorizedValuesReader) dataColumn);
     } else {
       throw constructConvertNotSupportedException(descriptor, column);
     }
   }
 
-  private void readBinaryBatch(int rowId, int num, WritableColumnVector column) throws IOException {
+  private void readBinaryBatch(
+      int rowId,
+      int num,
+      WritableColumnVector column,
+      WritableColumnVector definitionLevels) throws IOException {
     // This is where we implement support for the valid type conversions.
     // TODO: implement remaining type conversions
     VectorizedValuesReader data = (VectorizedValuesReader) dataColumn;
     if (column.dataType() == DataTypes.StringType || column.dataType() == DataTypes.BinaryType
             || canReadAsBinaryDecimal(column.dataType())) {
-      defColumn.readBinarys(num, column, rowId, maxDefLevel, data);
+      defColumn.readBinarys(num, column, definitionLevels, rowId, maxDefLevel, data);
     } else if (column.dataType() == DataTypes.TimestampType) {
       final boolean failIfRebase = "EXCEPTION".equals(int96RebaseMode);
       if (!shouldConvertTimestamps()) {
         if ("CORRECTED".equals(int96RebaseMode)) {
           for (int i = 0; i < num; i++) {
-            if (defColumn.readInteger() == maxDefLevel) {
+            int defLevel = defColumn.readInteger();
+            if (defLevel == maxDefLevel) {
               // Read 12 bytes for INT96
               long gregorianMicros = ParquetRowConverter.binaryToSQLTimestamp(data.readBinary(12));
               column.putLong(rowId + i, gregorianMicros);
             } else {
               column.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, defLevel);
           }
         } else {
           for (int i = 0; i < num; i++) {
-            if (defColumn.readInteger() == maxDefLevel) {
+            int defLevel = defColumn.readInteger();
+            definitionLevels.putInt(rowId + i, defLevel);
+            if (defLevel == maxDefLevel) {
               // Read 12 bytes for INT96
               long julianMicros = ParquetRowConverter.binaryToSQLTimestamp(data.readBinary(12));
               long gregorianMicros = rebaseInt96(julianMicros, failIfRebase);
@@ -718,7 +792,9 @@ public class VectorizedColumnReader {
       } else {
         if ("CORRECTED".equals(int96RebaseMode)) {
           for (int i = 0; i < num; i++) {
-            if (defColumn.readInteger() == maxDefLevel) {
+            int defLevel = defColumn.readInteger();
+            definitionLevels.putInt(rowId + i, defLevel);
+            if (defLevel == maxDefLevel) {
               // Read 12 bytes for INT96
               long gregorianMicros = ParquetRowConverter.binaryToSQLTimestamp(data.readBinary(12));
               long adjTime = DateTimeUtils.convertTz(gregorianMicros, convertTz, UTC);
@@ -729,7 +805,9 @@ public class VectorizedColumnReader {
           }
         } else {
           for (int i = 0; i < num; i++) {
-            if (defColumn.readInteger() == maxDefLevel) {
+            int defLevel = defColumn.readInteger();
+            definitionLevels.putInt(rowId + i, defLevel);
+            if (defLevel == maxDefLevel) {
               // Read 12 bytes for INT96
               long julianMicros = ParquetRowConverter.binaryToSQLTimestamp(data.readBinary(12));
               long gregorianMicros = rebaseInt96(julianMicros, failIfRebase);
@@ -750,13 +828,16 @@ public class VectorizedColumnReader {
       int rowId,
       int num,
       WritableColumnVector column,
+      WritableColumnVector definitionLevels,
       int arrayLen) {
     VectorizedValuesReader data = (VectorizedValuesReader) dataColumn;
     // This is where we implement support for the valid type conversions.
     // TODO: implement remaining type conversions
     if (canReadAsIntDecimal(column.dataType())) {
       for (int i = 0; i < num; i++) {
-        if (defColumn.readInteger() == maxDefLevel) {
+        int defLevel = defColumn.readInteger();
+        definitionLevels.putInt(rowId + i, defLevel);
+        if (defLevel == maxDefLevel) {
           column.putInt(rowId + i,
               (int) ParquetRowConverter.binaryToUnscaledLong(data.readBinary(arrayLen)));
         } else {
@@ -765,7 +846,9 @@ public class VectorizedColumnReader {
       }
     } else if (canReadAsLongDecimal(column.dataType())) {
       for (int i = 0; i < num; i++) {
-        if (defColumn.readInteger() == maxDefLevel) {
+        int defLevel = defColumn.readInteger();
+        definitionLevels.putInt(rowId + i, defLevel);
+        if (defLevel == maxDefLevel) {
           column.putLong(rowId + i,
               ParquetRowConverter.binaryToUnscaledLong(data.readBinary(arrayLen)));
         } else {
@@ -774,7 +857,9 @@ public class VectorizedColumnReader {
       }
     } else if (canReadAsBinaryDecimal(column.dataType())) {
       for (int i = 0; i < num; i++) {
-        if (defColumn.readInteger() == maxDefLevel) {
+        int defLevel = defColumn.readInteger();
+        definitionLevels.putInt(rowId + i, defLevel);
+        if (defLevel == maxDefLevel) {
           column.putByteArray(rowId + i, data.readBinary(arrayLen).getBytes());
         } else {
           column.putNull(rowId + i);
@@ -850,17 +935,15 @@ public class VectorizedColumnReader {
       throw new UnsupportedOperationException("Unsupported encoding: " + page.getDlEncoding());
     }
 
-    int bitWidth = BytesUtils.getWidthFromMaxInt(descriptor.getMaxDefinitionLevel());
-    this.defColumn = new VectorizedRleValuesReader(bitWidth);
+    int defLevelBitWidth = BytesUtils.getWidthFromMaxInt(maxDefLevel);
+    this.defColumn = new VectorizedRleValuesReader(defLevelBitWidth);
+    int repLevelBitWidth = BytesUtils.getWidthFromMaxInt(maxRepLevel);
+    this.repColumn = new VectorizedRleValuesReader(repLevelBitWidth);
     try {
       BytesInput bytes = page.getBytes();
       ByteBufferInputStream in = bytes.toInputStream();
 
-      // only used now to consume the repetition level data
-      page.getRlEncoding()
-          .getValuesReader(descriptor, REPETITION_LEVEL)
-          .initFromPage(pageValueCount, in);
-
+      repColumn.initFromPage(pageValueCount, in);
       defColumn.initFromPage(pageValueCount, in);
       initDataReader(page.getValueEncoding(), in);
     } catch (IOException e) {
@@ -871,10 +954,14 @@ public class VectorizedColumnReader {
   private void readPageV2(DataPageV2 page) throws IOException {
     this.pageValueCount = page.getValueCount();
 
-    int bitWidth = BytesUtils.getWidthFromMaxInt(descriptor.getMaxDefinitionLevel());
+    int defLevelBitWidth = BytesUtils.getWidthFromMaxInt(maxDefLevel);
     // do not read the length from the stream. v2 pages handle dividing the page bytes.
-    defColumn = new VectorizedRleValuesReader(bitWidth, false);
-    defColumn.initFromPage(this.pageValueCount, page.getDefinitionLevels().toInputStream());
+    defColumn = new VectorizedRleValuesReader(defLevelBitWidth, false);
+    defColumn.initFromPage(pageValueCount, page.getDefinitionLevels().toInputStream());
+
+    int repLevelBitWidth = BytesUtils.getWidthFromMaxInt(maxRepLevel);
+    repColumn = new VectorizedRleValuesReader(repLevelBitWidth, false);
+    repColumn.initFromPage(pageValueCount, page.getRepetitionLevels().toInputStream());
     try {
       initDataReader(page.getDataEncoding(), page.getData().toInputStream());
     } catch (IOException e) {

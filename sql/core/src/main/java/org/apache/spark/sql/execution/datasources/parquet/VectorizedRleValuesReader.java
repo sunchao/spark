@@ -127,6 +127,77 @@ public final class VectorizedRleValuesReader extends ValuesReader
     this.packer = Packer.LITTLE_ENDIAN.newBytePacker(bitWidth);
   }
 
+  /**
+   * Keep reading repetition level values from the page until either the page is completely
+   * drained or we've seen `totalRows` values that are equal to 0, which means they represent a
+   * single element of the top-level field.
+   *
+   * Returns a tuple where the first element is the totalRows number of levels read, and the second
+   * is the totalRows number of levels read whose value is equal to 0.
+   *
+   * Note that `totalRows` should be <= the totalRows number of values in the page of this reader.
+   */
+  public int[] readRepetitionLevels(
+      int totalValues,
+      int totalRows,
+      WritableColumnVector c) {
+    int valuesToRead = totalValues;
+    int rowsToRead = totalRows + 1;
+
+    while (rowsToRead > 0 && valuesToRead > 0) {
+      if (currentCount == 0 && !readNextGroup()) {
+        break;
+      }
+      int valuesToReadInBlock = Math.min(valuesToRead, currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == 0) {
+            int n = Math.min(rowsToRead, valuesToReadInBlock);
+            rowsToRead -= n;
+            // if we reached the beginning of `(totalRows + 1)th` row, we should move back one
+            // position so that it will be read again by the next call.
+            if (rowsToRead == 0) {
+              n--;
+            }
+            c.appendInts(n, 0);
+            valuesToRead -= n;
+            currentCount -= n;
+          } else {
+            c.appendInts(valuesToReadInBlock, currentValue);
+            valuesToRead -= valuesToReadInBlock;
+            currentCount -= valuesToReadInBlock;
+          }
+          break;
+        case PACKED:
+          int i = 0;
+          for (; i < valuesToReadInBlock; ++i) {
+            int currentValue = currentBuffer[i + currentBufferIdx];
+            if (currentValue == 0) {
+              rowsToRead--;
+              if (rowsToRead == 0) {
+                // if we reached the beginning of `(totalRows + 1)th` row, we should move back one
+                // position so that it will be read again by the next call.
+                //
+                // for bit-packed encoding, the number of values in the current group could be
+                // less than 8, in which case we'll read outside the boundary but it should be
+                // zero padded always.
+                break;
+              }
+            }
+            c.appendInt(currentValue);
+          }
+          valuesToRead -= i;
+          currentCount -= i;
+          currentBufferIdx += i;
+          break;
+      }
+    }
+    if (rowsToRead == 0) {
+      rowsToRead++;
+    }
+    return new int[]{ totalValues - valuesToRead, totalRows + 1 - rowsToRead };
+  }
+
   @Override
   public boolean readBoolean() {
     return this.readInteger() != 0;
@@ -173,6 +244,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readIntegers(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -187,14 +259,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               c.putInt(rowId + i, data.readInteger());
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -208,6 +283,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readUnsignedIntegers(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -222,14 +298,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               c.putLong(rowId + i, Integer.toUnsignedLong(data.readInteger()));
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -244,6 +323,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readIntegersWithRebase(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data,
@@ -259,15 +339,18 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               int julianDays = data.readInteger();
               c.putInt(rowId + i, VectorizedColumnReader.rebaseDays(julianDays, failIfRebase));
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -281,6 +364,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readBooleans(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -295,14 +379,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               c.putBoolean(rowId + i, data.readBoolean());
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -315,6 +402,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readBytes(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -329,14 +417,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               c.putByte(rowId + i, data.readByte());
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -349,6 +440,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readShorts(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -363,14 +455,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               c.putShort(rowId + i, data.readShort());
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -383,6 +478,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readLongs(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data,
@@ -401,6 +497,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
             } else {
               data.readLongs(n, c, rowId);
             }
+            definitionLevels.putInts(rowId, n, currentValue);
           } else {
             c.putNulls(rowId, n);
           }
@@ -409,19 +506,23 @@ public final class VectorizedRleValuesReader extends ValuesReader
           // code repeated for performance
           if (downCastLongToInt) {
             for (int i = 0; i < n; ++i) {
-              if (currentBuffer[currentBufferIdx++] == level) {
+              int currentValue = currentBuffer[currentBufferIdx++];
+              if (currentValue == level) {
                 c.putInt(rowId + i, (int) data.readLong());
               } else {
                 c.putNull(rowId + i);
               }
+              definitionLevels.putInt(rowId + i, currentValue);
             }
           } else {
             for (int i = 0; i < n; ++i) {
-              if (currentBuffer[currentBufferIdx++] == level) {
+              int currentValue = currentBuffer[currentBufferIdx++];
+              if (currentValue == level) {
                 c.putLong(rowId + i, data.readLong());
               } else {
                 c.putNull(rowId + i);
               }
+              definitionLevels.putInt(rowId + i, currentValue);
             }
           }
           break;
@@ -435,6 +536,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readUnsignedLongs(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -449,15 +551,18 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               byte[] bytes = new BigInteger(Long.toUnsignedString(data.readLong())).toByteArray();
               c.putByteArray(rowId + i, bytes);
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -472,6 +577,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readLongsWithRebase(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data,
@@ -487,15 +593,18 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               long julianMicros = data.readLong();
               c.putLong(rowId + i, VectorizedColumnReader.rebaseMicros(julianMicros, failIfRebase));
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -508,6 +617,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readFloats(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -522,14 +632,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               c.putFloat(rowId + i, data.readFloat());
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -542,6 +655,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readDoubles(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
@@ -556,14 +670,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               c.putDouble(rowId + i, data.readDouble());
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -576,12 +693,15 @@ public final class VectorizedRleValuesReader extends ValuesReader
   public void readBinarys(
       int total,
       WritableColumnVector c,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
     int left = total;
     while (left > 0) {
-      if (this.currentCount == 0) this.readNextGroup();
+      if (this.currentCount == 0 && !readNextGroup()) {
+        break;
+      }
       int n = Math.min(left, this.currentCount);
       switch (mode) {
         case RLE:
@@ -590,14 +710,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             c.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               data.readBinary(1, c, rowId + i);
             } else {
               c.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -615,12 +738,15 @@ public final class VectorizedRleValuesReader extends ValuesReader
       int total,
       WritableColumnVector values,
       WritableColumnVector nulls,
+      WritableColumnVector definitionLevels,
       int rowId,
       int level,
       VectorizedValuesReader data) throws IOException {
     int left = total;
     while (left > 0) {
-      if (this.currentCount == 0) this.readNextGroup();
+      if (this.currentCount == 0 && !readNextGroup()) {
+        break;
+      }
       int n = Math.min(left, this.currentCount);
       switch (mode) {
         case RLE:
@@ -629,14 +755,17 @@ public final class VectorizedRleValuesReader extends ValuesReader
           } else {
             nulls.putNulls(rowId, n);
           }
+          definitionLevels.putInts(rowId, n, currentValue);
           break;
         case PACKED:
           for (int i = 0; i < n; ++i) {
-            if (currentBuffer[currentBufferIdx++] == level) {
+            int currentValue = currentBuffer[currentBufferIdx++];
+            if (currentValue == level) {
               values.putInt(rowId + i, data.readInteger());
             } else {
               nulls.putNull(rowId + i);
             }
+            definitionLevels.putInt(rowId + i, currentValue);
           }
           break;
       }
@@ -644,6 +773,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
       left -= n;
       currentCount -= n;
     }
+    values.setNumValues(values.numValues() + total - left);
   }
 
 
@@ -803,7 +933,12 @@ public final class VectorizedRleValuesReader extends ValuesReader
   /**
    * Reads the next group.
    */
-  private void readNextGroup() {
+  private boolean readNextGroup() {
+    if (in.available() <= 0) {
+      currentCount = 0;
+      return false;
+    }
+
     try {
       int header = readUnsignedVarInt();
       this.mode = (header & 1) == 0 ? MODE.RLE : MODE.PACKED;
@@ -811,7 +946,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
         case RLE:
           this.currentCount = header >>> 1;
           this.currentValue = readIntLittleEndianPaddedOnBitWidth();
-          return;
+          break;
         case PACKED:
           int numGroups = header >>> 1;
           this.currentCount = numGroups * 8;
@@ -827,12 +962,13 @@ public final class VectorizedRleValuesReader extends ValuesReader
             this.packer.unpack8Values(buffer, buffer.position(), this.currentBuffer, valueIndex);
             valueIndex += 8;
           }
-          return;
+          break;
         default:
           throw new ParquetDecodingException("not a valid mode " + this.mode);
       }
     } catch (IOException e) {
       throw new ParquetDecodingException("Failed to read from input stream", e);
     }
+    return true;
   }
 }

@@ -68,6 +68,7 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
   protected MessageType fileSchema;
   protected MessageType requestedSchema;
   protected StructType sparkSchema;
+  protected ParquetGroupTypeInfo parquetReadInfo;
 
   /**
    * The total number of rows this RecordReader will eventually read. The sum of the
@@ -98,7 +99,13 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
     reader.setRequestedSchema(requestedSchema);
     String sparkRequestedSchemaString =
         configuration.get(ParquetReadSupport$.MODULE$.SPARK_ROW_REQUESTED_SCHEMA());
-    this.sparkSchema = StructType$.MODULE$.fromString(sparkRequestedSchemaString);
+    StructType sparkRequestedSchema = StructType$.MODULE$.fromString(sparkRequestedSchemaString);
+    boolean caseSensitive = configuration.getBoolean(SQLConf.CASE_SENSITIVE().key(),
+        Boolean.getBoolean(SQLConf.CASE_SENSITIVE().defaultValueString()));
+    ParquetToSparkSchemaConverter converter = new ParquetToSparkSchemaConverter(configuration);
+    this.parquetReadInfo = converter.convertTypeInfo(
+        requestedSchema, Option.apply(sparkRequestedSchema), caseSensitive);
+    this.sparkSchema = (StructType) parquetReadInfo.sparkType();
     this.totalRowCount = reader.getFilteredRecordCount();
 
     // For test purpose.
@@ -176,7 +183,9 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
       }
     }
     reader.setRequestedSchema(requestedSchema);
-    this.sparkSchema = new ParquetToSparkSchemaConverter(config).convert(requestedSchema);
+    this.parquetReadInfo = new ParquetToSparkSchemaConverter(config)
+        .convertTypeInfo(requestedSchema, Option.empty(), true);
+    this.sparkSchema = (StructType) parquetReadInfo.sparkType();
     this.totalRowCount = reader.getFilteredRecordCount();
   }
 
