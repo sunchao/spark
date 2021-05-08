@@ -303,7 +303,6 @@ private[hive] class HiveClientImpl(
     // with the side-effect of Hive.get(conf) to avoid using out-of-date HiveConf.
     // See discussion in https://github.com/apache/spark/pull/16826/files#r104606859
     // for more details.
-    Hive.get(conf)
     // setCurrentSessionState will use the classLoader associated
     // with the HiveConf in `state` to override the context class loader of the current
     // thread.
