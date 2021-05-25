@@ -58,9 +58,15 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
  */
 public class VectorizedColumnReader {
   /**
-   * The number of remaining values in the current page.
+   * Total number of values read.
    */
-  private int remainingValuesInPage;
+  private long valuesRead;
+
+  /**
+   * value that indicates the end of the current page. That is,
+   * if valuesRead == endOfPageValueCount, we are at the end of the page.
+   */
+  private long endOfPageValueCount;
 
   /**
    * The dictionary, if this column has dictionary encoding.
@@ -96,6 +102,11 @@ public class VectorizedColumnReader {
    * Total number of values in this column (in this row group).
    */
   private final long totalValueCount;
+
+  /**
+   * Total values in the current page.
+   */
+  private int pageValueCount;
 
   /**
    * Vectorized RLE decoder for repetition levels
@@ -249,13 +260,15 @@ public class VectorizedColumnReader {
     }
     while (total > 0) {
       // Compute the number of values we want to read in this page.
-      if (remainingValuesInPage == 0) {
+      int leftInPage = (int) (endOfPageValueCount - valuesRead);
+      if (leftInPage == 0) {
         readPage();
+        leftInPage = (int) (endOfPageValueCount - valuesRead);
       }
 
       int numRecords, num;
       if (maxRepLevel == 0) {
-        numRecords = num = Math.min(total, remainingValuesInPage);
+        numRecords = num = Math.min(total, leftInPage);
       } else {
         // For complex types, we first read repetition levels and gather two values:
         //   1. the total number of leaf values read
@@ -343,7 +356,7 @@ public class VectorizedColumnReader {
         }
       }
 
-      remainingValuesInPage -= num;
+      valuesRead += num;
       rowId += num;
       total -= numRecords;
     }
@@ -874,10 +887,8 @@ public class VectorizedColumnReader {
     });
   }
 
-  private void initDataReader(
-      int pageValueCount,
-      Encoding dataEncoding,
-      ByteBufferInputStream in) throws IOException {
+  private void initDataReader(Encoding dataEncoding, ByteBufferInputStream in) throws IOException {
+    this.endOfPageValueCount = valuesRead + pageValueCount;
     if (dataEncoding.usesDictionary()) {
       this.dataColumn = null;
       if (dictionary == null) {
@@ -908,7 +919,7 @@ public class VectorizedColumnReader {
   }
 
   private void readPageV1(DataPageV1 page) throws IOException {
-    this.remainingValuesInPage = page.getValueCount();
+    this.pageValueCount = page.getValueCount();
 
     // Initialize the decoders.
     if (page.getDlEncoding() != Encoding.RLE && descriptor.getMaxDefinitionLevel() != 0) {
@@ -923,27 +934,27 @@ public class VectorizedColumnReader {
       BytesInput bytes = page.getBytes();
       ByteBufferInputStream in = bytes.toInputStream();
 
-      repColumn.initFromPage(remainingValuesInPage, in);
-      defColumn.initFromPage(remainingValuesInPage, in);
-      initDataReader(remainingValuesInPage, page.getValueEncoding(), in);
+      repColumn.initFromPage(pageValueCount, in);
+      defColumn.initFromPage(pageValueCount, in);
+      initDataReader(page.getValueEncoding(), in);
     } catch (IOException e) {
       throw new IOException("could not read page " + page + " in col " + descriptor, e);
     }
   }
 
   private void readPageV2(DataPageV2 page) throws IOException {
-    this.remainingValuesInPage = page.getValueCount();
+    this.pageValueCount = page.getValueCount();
 
     int defLevelBitWidth = BytesUtils.getWidthFromMaxInt(maxDefLevel);
     // do not read the length from the stream. v2 pages handle dividing the page bytes.
     defColumn = new VectorizedRleValuesReader(defLevelBitWidth, false);
-    defColumn.initFromPage(remainingValuesInPage, page.getDefinitionLevels().toInputStream());
+    defColumn.initFromPage(pageValueCount, page.getDefinitionLevels().toInputStream());
 
     int repLevelBitWidth = BytesUtils.getWidthFromMaxInt(maxRepLevel);
     repColumn = new VectorizedRleValuesReader(repLevelBitWidth, false);
-    repColumn.initFromPage(remainingValuesInPage, page.getRepetitionLevels().toInputStream());
+    repColumn.initFromPage(pageValueCount, page.getRepetitionLevels().toInputStream());
     try {
-      initDataReader(remainingValuesInPage, page.getDataEncoding(), page.getData().toInputStream());
+      initDataReader(page.getDataEncoding(), page.getData().toInputStream());
     } catch (IOException e) {
       throw new IOException("could not read page " + page + " in col " + descriptor, e);
     }
