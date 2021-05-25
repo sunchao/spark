@@ -35,7 +35,6 @@ import org.apache.spark.sql.execution.vectorized.ColumnVectorUtils;
 import org.apache.spark.sql.execution.vectorized.WritableColumnVector;
 import org.apache.spark.sql.execution.vectorized.OffHeapColumnVector;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
-import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -253,9 +252,10 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     // Initialize missing columns with nulls.
     for (ParquetReadState state : readStates) {
       for (ParquetReadState leafState : state.getLeaves()) {
-        if (missingColumns.contains(leafState.columnInfo)) {
-          leafState.vector.putNulls(0, capacity);
-          leafState.vector.setIsConstant();
+        if (missingColumns.contains(leafState.getColumnInfo())) {
+          WritableColumnVector vector = leafState.getValueVector();
+          vector.putNulls(0, capacity);
+          vector.setIsConstant();
         }
       }
     }
@@ -301,8 +301,10 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     int num = (int) Math.min(capacity, totalCountLoadedSoFar - rowsReturned);
     for (ParquetReadState state : readStates) {
       for (ParquetReadState leafState : state.getLeaves()) {
-        if (leafState.columnReader != null) {
-          leafState.columnReader.readBatch(num, leafState);
+        VectorizedColumnReader columnReader = leafState.getColumnReader();
+        if (columnReader != null) {
+          columnReader.readBatch(num, leafState.getValueVector(),
+              leafState.getRepetitionLevelVector(), leafState.getDefinitionLevelVector());
         }
       }
       state.finish();
@@ -350,7 +352,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
 
     for (ParquetReadState state : readStates) {
       for (ParquetReadState leafState: state.getLeaves()) {
-        ParquetPrimitiveReadInfo readInfo = (ParquetPrimitiveReadInfo) leafState.columnInfo;
+        ParquetPrimitiveReadInfo readInfo = (ParquetPrimitiveReadInfo) leafState.getColumnInfo();
         if (missingColumns.contains(readInfo)) continue;
         ColumnDescriptor descriptor = readInfo.descriptor();
         VectorizedColumnReader reader = new VectorizedColumnReader(

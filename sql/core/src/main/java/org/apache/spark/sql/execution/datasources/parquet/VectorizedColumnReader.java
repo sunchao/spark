@@ -248,7 +248,11 @@ public class VectorizedColumnReader {
   /**
    * Reads `total` values from this columnReader into column.
    */
-  void readBatch(int total, ParquetReadState column) throws IOException {
+  void readBatch(
+      int total,
+      WritableColumnVector values,
+      WritableColumnVector repetitionLevels,
+      WritableColumnVector definitionLevels) throws IOException {
     int rowId = 0;
     WritableColumnVector dictionaryIds = null;
     if (dictionary != null) {
@@ -256,7 +260,7 @@ public class VectorizedColumnReader {
       // decode all previous dictionary encoded pages if we ever encounter a non-dictionary encoded
       // page.
       // TODO: this won't work for nested types
-      dictionaryIds = column.vector.reserveDictionaryIds(total);
+      dictionaryIds = values.reserveDictionaryIds(total);
     }
     while (total > 0) {
       // Compute the number of values we want to read in this page.
@@ -276,8 +280,7 @@ public class VectorizedColumnReader {
         // For instance, if we are reading ints from a `array<int>`, then 1) represents how many
         // ints we've read from the current page, and 2) represents how many `array<int>` we've
         // read from the current page. The latter is used to compare with the batch size `total`.
-        Tuple2<Integer, Integer> t = repColumn.readRepetitionLevels(
-            total, column.repetitionLevels, rowId);
+        Tuple2<Integer, Integer> t = repColumn.readRepetitionLevels(total, repetitionLevels, rowId);
         num = t._1;
         numRecords = t._2;
       }
@@ -286,12 +289,12 @@ public class VectorizedColumnReader {
         descriptor.getPrimitiveType().getPrimitiveTypeName();
       if (isCurrentPageDictionaryEncoded) {
         // Read and decode dictionary ids.
-        defColumn.readIntegers(num, dictionaryIds, column.vector, column.definitionLevels, rowId,
+        defColumn.readIntegers(num, dictionaryIds, values, definitionLevels, rowId,
             maxDefLevel, (VectorizedValuesReader) dataColumn);
 
         // TIMESTAMP_MILLIS encoded as INT64 can't be lazily decoded as we need to post process
         // the values to add microseconds precision.
-        if (column.vector.hasDictionary() || (rowId == 0 && isLazyDecodingSupported(typeName))) {
+        if (values.hasDictionary() || (rowId == 0 && isLazyDecodingSupported(typeName))) {
           // Column vector supports lazy decoding of dictionary values so just set the dictionary.
           // We can't do this if rowId != 0 AND the column doesn't have a dictionary (i.e. some
           // non-dictionary encoded values have already been added).
@@ -314,41 +317,41 @@ public class VectorizedColumnReader {
           boolean isUnsignedInt64 = isUnsignedIntTypeMatched(64);
 
           boolean needTransform = castLongToInt || isUnsignedInt32 || isUnsignedInt64;
-          column.vector.setDictionary(new ParquetDictionary(dictionary, needTransform));
+          values.setDictionary(new ParquetDictionary(dictionary, needTransform));
         } else {
-          decodeDictionaryIds(rowId, num, column.vector, dictionaryIds);
+          decodeDictionaryIds(rowId, num, values, dictionaryIds);
         }
       } else {
-        if (column.vector.hasDictionary() && rowId != 0) {
+        if (values.hasDictionary() && rowId != 0) {
           // This batch already has dictionary encoded values but this new page is not. The batch
           // does not support a mix of dictionary and not so we will decode the dictionary.
-          decodeDictionaryIds(0, rowId, column.vector, column.vector.getDictionaryIds());
+          decodeDictionaryIds(0, rowId, values, values.getDictionaryIds());
         }
-        column.vector.setDictionary(null);
+        values.setDictionary(null);
         switch (typeName) {
           case BOOLEAN:
-            readBooleanBatch(rowId, num, column.vector, column.definitionLevels);
+            readBooleanBatch(rowId, num, values, definitionLevels);
             break;
           case INT32:
-            readIntBatch(rowId, num, column.vector, column.definitionLevels);
+            readIntBatch(rowId, num, values, definitionLevels);
             break;
           case INT64:
-            readLongBatch(rowId, num, column.vector, column.definitionLevels);
+            readLongBatch(rowId, num, values, definitionLevels);
             break;
           case INT96:
-            readBinaryBatch(rowId, num, column.vector, column.definitionLevels);
+            readBinaryBatch(rowId, num, values, definitionLevels);
             break;
           case FLOAT:
-            readFloatBatch(rowId, num, column.vector, column.definitionLevels);
+            readFloatBatch(rowId, num, values, definitionLevels);
             break;
           case DOUBLE:
-            readDoubleBatch(rowId, num, column.vector, column.definitionLevels);
+            readDoubleBatch(rowId, num, values, definitionLevels);
             break;
           case BINARY:
-            readBinaryBatch(rowId, num, column.vector, column.definitionLevels);
+            readBinaryBatch(rowId, num, values, definitionLevels);
             break;
           case FIXED_LEN_BYTE_ARRAY:
-            readFixedLenByteArrayBatch(rowId, num, column.vector, column.definitionLevels,
+            readFixedLenByteArrayBatch(rowId, num, values, definitionLevels,
                 descriptor.getPrimitiveType().getTypeLength());
             break;
           default:
@@ -360,8 +363,8 @@ public class VectorizedColumnReader {
       rowId += num;
       total -= numRecords;
     }
-    column.repetitionLevels.setNumValues(rowId);
-    column.definitionLevels.setNumValues(rowId);
+    repetitionLevels.setNumValues(rowId);
+    definitionLevels.setNumValues(rowId);
   }
 
   private boolean shouldConvertTimestamps() {

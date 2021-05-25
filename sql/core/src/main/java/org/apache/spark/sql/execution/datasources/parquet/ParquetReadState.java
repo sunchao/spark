@@ -31,8 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 class ParquetReadState {
-  final ParquetReadInfo columnInfo;
-  final WritableColumnVector vector;
+  private final ParquetReadInfo columnInfo;
+  private final WritableColumnVector vector;
   private final List<ParquetReadState> children;
 
   /**
@@ -40,14 +40,14 @@ class ParquetReadState {
    * these are allocated only for leaf states; for non-leaf states, they simply maintain
    * references to that of the former.
    */
-  WritableColumnVector repetitionLevels;
-  WritableColumnVector definitionLevels;
+  private WritableColumnVector repetitionLevels;
+  private WritableColumnVector definitionLevels;
 
   /** whether this column is primitive (i.e., leaf column) */
   private final boolean isPrimitive;
 
   /** reader for this column - only set if 'isPrimitive' is true */
-  VectorizedColumnReader columnReader;
+  private VectorizedColumnReader columnReader;
 
   ParquetReadState(
       ParquetReadInfo columnInfo,
@@ -93,6 +93,26 @@ class ParquetReadState {
         }
       }
     }
+  }
+
+  public ParquetReadInfo getColumnInfo() {
+    return this.columnInfo;
+  }
+
+  public WritableColumnVector getValueVector() {
+    return this.vector;
+  }
+
+  public WritableColumnVector getRepetitionLevelVector() {
+    return this.repetitionLevels;
+  }
+
+  public WritableColumnVector getDefinitionLevelVector() {
+    return this.definitionLevels;
+  }
+
+  public VectorizedColumnReader getColumnReader() {
+    return this.columnReader;
   }
 
   public void setColumnReader(VectorizedColumnReader reader) {
