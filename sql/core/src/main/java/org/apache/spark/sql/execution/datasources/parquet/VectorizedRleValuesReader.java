@@ -674,7 +674,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
         case PACKED:
           for (int i = 0; i < n; ++i) {
             int currentValue = currentBuffer[currentBufferIdx++];
-            if (currentBuffer[currentBufferIdx++] == level) {
+            if (currentValue == level) {
               c.putDouble(rowId + i, data.readDouble());
             } else {
               c.putNull(rowId + i);
