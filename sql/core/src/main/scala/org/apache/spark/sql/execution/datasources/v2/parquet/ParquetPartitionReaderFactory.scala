@@ -123,7 +123,7 @@ case class ParquetPartitionReaderFactory(
       file: PartitionedFile,
       buildReaderFunc: (
         FileSplit, InternalRow, TaskAttemptContextImpl,
-          Option[FilterPredicate], Option[ZoneId],
+          Option[FilterPredicate], Boolean, Option[ZoneId],
           LegacyBehaviorPolicy.Value,
           LegacyBehaviorPolicy.Value) => RecordReader[Void, T]): RecordReader[Void, T] = {
     val conf = broadcastedConf.value.value
@@ -162,6 +162,8 @@ case class ParquetPartitionReaderFactory(
         None
       }
 
+    val enableNewReader = conf.getBoolean(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key, false)
+
     val attemptId = new TaskAttemptID(new TaskID(new JobID(), TaskType.MAP, 0), 0)
     val hadoopAttemptContext = new TaskAttemptContextImpl(conf, attemptId)
 
@@ -181,6 +183,7 @@ case class ParquetPartitionReaderFactory(
       file.partitionValues,
       hadoopAttemptContext,
       pushed,
+      enableNewReader,
       convertTz,
       datetimeRebaseMode,
       int96RebaseMode)
@@ -197,6 +200,7 @@ case class ParquetPartitionReaderFactory(
       partitionValues: InternalRow,
       hadoopAttemptContext: TaskAttemptContextImpl,
       pushed: Option[FilterPredicate],
+      enableNewReader: Boolean,
       convertTz: Option[ZoneId],
       datetimeRebaseMode: LegacyBehaviorPolicy.Value,
       int96RebaseMode: LegacyBehaviorPolicy.Value): RecordReader[Void, InternalRow] = {
@@ -232,6 +236,7 @@ case class ParquetPartitionReaderFactory(
       partitionValues: InternalRow,
       hadoopAttemptContext: TaskAttemptContextImpl,
       pushed: Option[FilterPredicate],
+      enableNewReader: Boolean,
       convertTz: Option[ZoneId],
       datetimeRebaseMode: LegacyBehaviorPolicy.Value,
       int96RebaseMode: LegacyBehaviorPolicy.Value): VectorizedParquetRecordReader = {
@@ -240,6 +245,7 @@ case class ParquetPartitionReaderFactory(
       convertTz.orNull,
       datetimeRebaseMode.toString,
       int96RebaseMode.toString,
+      enableNewReader,
       enableOffHeapColumnVector && taskContext.isDefined,
       capacity)
     val iter = new RecordReaderIterator(vectorizedReader)

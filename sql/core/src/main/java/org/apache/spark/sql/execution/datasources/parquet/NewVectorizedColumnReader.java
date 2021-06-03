@@ -45,7 +45,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 /**
  * Decoder to return values from a single column.
  */
-public class NewVectorizedColumnReader {
+public class NewVectorizedColumnReader implements BatchedColumnReader {
   /**
    * Total number of values read.
    */
@@ -162,7 +162,8 @@ public class NewVectorizedColumnReader {
   /**
    * Reads `total` values from this columnReader into column.
    */
-  void readBatch(int total, WritableColumnVector column) throws IOException {
+  @Override
+  public void readBatch(int total, WritableColumnVector column) throws IOException {
     int rowId = 0;
     WritableColumnVector dictionaryIds = null;
     ParquetVectorUpdater updater = updaterFactory.getUpdater(descriptor, column.dataType());

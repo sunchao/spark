@@ -65,7 +65,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
    * For each request column, the reader to read this column. This is NULL if this column
    * is missing from the file, in which case we populate the attribute with NULL.
    */
-  private NewVectorizedColumnReader[] columnReaders;
+  private BatchedColumnReader[] columnReaders;
 
   /**
    * The number of rows that have been returned.
@@ -126,22 +126,30 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
    */
   private final MemoryMode MEMORY_MODE;
 
+  private final boolean useNewReader;
+
   public VectorizedParquetRecordReader(
       ZoneId convertTz,
       String datetimeRebaseMode,
       String int96RebaseMode,
+      boolean useNewReader,
       boolean useOffHeap,
       int capacity) {
     this.convertTz = convertTz;
     this.datetimeRebaseMode = datetimeRebaseMode;
     this.int96RebaseMode = int96RebaseMode;
+    this.useNewReader = useNewReader;
     MEMORY_MODE = useOffHeap ? MemoryMode.OFF_HEAP : MemoryMode.ON_HEAP;
     this.capacity = capacity;
   }
 
   // For test only.
+  public VectorizedParquetRecordReader(boolean useNewReader, boolean useOffHeap, int capacity) {
+    this(null, "CORRECTED", "LEGACY", useNewReader, useOffHeap, capacity);
+  }
+
   public VectorizedParquetRecordReader(boolean useOffHeap, int capacity) {
-    this(null, "CORRECTED", "LEGACY", useOffHeap, capacity);
+    this(null, "CORRECTED", "LEGACY", true, useOffHeap, capacity);
   }
 
   /**
@@ -327,16 +335,26 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     }
     List<ColumnDescriptor> columns = requestedSchema.getColumns();
     List<Type> types = requestedSchema.asGroupType().getFields();
-    columnReaders = new NewVectorizedColumnReader[columns.size()];
+    columnReaders = new BatchedColumnReader[columns.size()];
     for (int i = 0; i < columns.size(); ++i) {
       if (missingColumns[i]) continue;
-      columnReaders[i] = new NewVectorizedColumnReader(
-        columns.get(i),
-        types.get(i).getLogicalTypeAnnotation(),
-        pages.getPageReader(columns.get(i)),
-        convertTz,
-        datetimeRebaseMode,
-        int96RebaseMode);
+      if (useNewReader) {
+        columnReaders[i] = new NewVectorizedColumnReader(
+            columns.get(i),
+            types.get(i).getLogicalTypeAnnotation(),
+            pages.getPageReader(columns.get(i)),
+            convertTz,
+            datetimeRebaseMode,
+            int96RebaseMode);
+      } else {
+        columnReaders[i] = new VectorizedColumnReader(
+            columns.get(i),
+            types.get(i).getLogicalTypeAnnotation(),
+            pages.getPageReader(columns.get(i)),
+            convertTz,
+            datetimeRebaseMode,
+            int96RebaseMode);
+      }
     }
     totalCountLoadedSoFar += pages.getRowCount();
   }

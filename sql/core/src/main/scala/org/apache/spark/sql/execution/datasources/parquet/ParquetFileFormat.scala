@@ -217,6 +217,9 @@ class ParquetFileFormat
     hadoopConf.setBoolean(
       SQLConf.CASE_SENSITIVE.key,
       sparkSession.sessionState.conf.caseSensitiveAnalysis)
+    hadoopConf.setBoolean(
+      SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key,
+      sparkSession.sessionState.conf.parquetNewVectorizedReaderEnabled)
 
     ParquetWriteSupport.setSchema(requiredSchema, hadoopConf)
 
@@ -303,6 +306,9 @@ class ParquetFileFormat
         footerFileMetaData.getKeyValueMetaData.get,
         int96RebaseModeInRead)
 
+      val enableNewReader = sharedConf.getBoolean(
+        SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key, false)
+
       val attemptId = new TaskAttemptID(new TaskID(new JobID(), TaskType.MAP, 0), 0)
       val hadoopAttemptContext =
         new TaskAttemptContextImpl(broadcastedHadoopConf.value.value, attemptId)
@@ -318,6 +324,7 @@ class ParquetFileFormat
           convertTz.orNull,
           datetimeRebaseMode.toString,
           int96RebaseMode.toString,
+          enableNewReader,
           enableOffHeapColumnVector && taskContext.isDefined,
           capacity)
         val iter = new RecordReaderIterator(vectorizedReader)

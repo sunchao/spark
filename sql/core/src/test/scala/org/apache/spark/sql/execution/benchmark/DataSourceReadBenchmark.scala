@@ -223,6 +223,184 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
     }
   }
 
+  def newParquetReaderBenchmark(values: Int, dataType: DataType): Unit = {
+    // Benchmarks running through spark sql.
+    val sqlBenchmark = new Benchmark(
+      s"New Parquet Reader ${dataType.sql} Column Scan",
+      values,
+      output = output)
+
+    // Benchmarks driving reader component directly.
+    val parquetReaderBenchmark = new Benchmark(
+      s"Parquet Reader Single ${dataType.sql} Column Scan",
+      values,
+      output = output)
+
+    withTempPath { dir =>
+      withTempTable("t1", "csvTable", "jsonTable", "parquetTable", "orcTable") {
+        import spark.implicits._
+        spark.range(values).map(_ => Random.nextLong).createOrReplaceTempView("t1")
+
+        prepareTable(dir, spark.sql(s"SELECT CAST(value as ${dataType.sql}) id FROM t1"))
+
+        sqlBenchmark.addCase("SQL Parquet Vectorized") { _ =>
+          spark.sql("select sum(id) from parquetTable").noop()
+        }
+
+        sqlBenchmark.addCase("SQL Parquet Vectorized - New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql("select sum(id) from parquetTable").noop()
+          }
+        }
+
+        sqlBenchmark.addCase("SQL Parquet MR") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_ENABLED.key -> "false") {
+            spark.sql("select sum(id) from parquetTable").noop()
+          }
+        }
+
+        sqlBenchmark.run()
+
+        // Driving the parquet reader in batch mode directly.
+        val files = SpecificParquetRecordReaderBase.listDirectory(new File(dir, "parquet")).toArray
+        val enableOffHeapColumnVector = spark.sessionState.conf.offHeapColumnVectorEnabled
+        val vectorizedReaderBatchSize = spark.sessionState.conf.parquetVectorizedReaderBatchSize
+        parquetReaderBenchmark.addCase("ParquetReader Vectorized") { _ =>
+          var longSum = 0L
+          var doubleSum = 0.0
+          val aggregateValue: (ColumnVector, Int) => Unit = dataType match {
+            case ByteType => (col: ColumnVector, i: Int) => longSum += col.getByte(i)
+            case ShortType => (col: ColumnVector, i: Int) => longSum += col.getShort(i)
+            case IntegerType => (col: ColumnVector, i: Int) => longSum += col.getInt(i)
+            case LongType => (col: ColumnVector, i: Int) => longSum += col.getLong(i)
+            case FloatType => (col: ColumnVector, i: Int) => doubleSum += col.getFloat(i)
+            case DoubleType => (col: ColumnVector, i: Int) => doubleSum += col.getDouble(i)
+          }
+
+          files.map(_.asInstanceOf[String]).foreach { p =>
+            val reader = new VectorizedParquetRecordReader(
+              false, enableOffHeapColumnVector, vectorizedReaderBatchSize)
+            try {
+              reader.initialize(p, ("id" :: Nil).asJava)
+              val batch = reader.resultBatch()
+              val col = batch.column(0)
+              while (reader.nextBatch()) {
+                val numRows = batch.numRows()
+                var i = 0
+                while (i < numRows) {
+                  if (!col.isNullAt(i)) aggregateValue(col, i)
+                  i += 1
+                }
+              }
+            } finally {
+              reader.close()
+            }
+          }
+        }
+
+        parquetReaderBenchmark.addCase("ParquetReader Vectorized New Reader") { _ =>
+          var longSum = 0L
+          var doubleSum = 0.0
+          val aggregateValue: (ColumnVector, Int) => Unit = dataType match {
+            case ByteType => (col: ColumnVector, i: Int) => longSum += col.getByte(i)
+            case ShortType => (col: ColumnVector, i: Int) => longSum += col.getShort(i)
+            case IntegerType => (col: ColumnVector, i: Int) => longSum += col.getInt(i)
+            case LongType => (col: ColumnVector, i: Int) => longSum += col.getLong(i)
+            case FloatType => (col: ColumnVector, i: Int) => doubleSum += col.getFloat(i)
+            case DoubleType => (col: ColumnVector, i: Int) => doubleSum += col.getDouble(i)
+          }
+
+          files.map(_.asInstanceOf[String]).foreach { p =>
+            val reader = new VectorizedParquetRecordReader(
+              true, enableOffHeapColumnVector, vectorizedReaderBatchSize)
+            try {
+              reader.initialize(p, ("id" :: Nil).asJava)
+              val batch = reader.resultBatch()
+              val col = batch.column(0)
+              while (reader.nextBatch()) {
+                val numRows = batch.numRows()
+                var i = 0
+                while (i < numRows) {
+                  if (!col.isNullAt(i)) aggregateValue(col, i)
+                  i += 1
+                }
+              }
+            } finally {
+              reader.close()
+            }
+          }
+        }
+
+        // Decoding in vectorized but having the reader return rows.
+        parquetReaderBenchmark.addCase("ParquetReader Vectorized -> Row") { num =>
+          var longSum = 0L
+          var doubleSum = 0.0
+          val aggregateValue: (InternalRow) => Unit = dataType match {
+            case ByteType => (col: InternalRow) => longSum += col.getByte(0)
+            case ShortType => (col: InternalRow) => longSum += col.getShort(0)
+            case IntegerType => (col: InternalRow) => longSum += col.getInt(0)
+            case LongType => (col: InternalRow) => longSum += col.getLong(0)
+            case FloatType => (col: InternalRow) => doubleSum += col.getFloat(0)
+            case DoubleType => (col: InternalRow) => doubleSum += col.getDouble(0)
+          }
+
+          files.map(_.asInstanceOf[String]).foreach { p =>
+            val reader = new VectorizedParquetRecordReader(
+              false, enableOffHeapColumnVector, vectorizedReaderBatchSize)
+            try {
+              reader.initialize(p, ("id" :: Nil).asJava)
+              val batch = reader.resultBatch()
+              while (reader.nextBatch()) {
+                val it = batch.rowIterator()
+                while (it.hasNext) {
+                  val record = it.next()
+                  if (!record.isNullAt(0)) aggregateValue(record)
+                }
+              }
+            } finally {
+              reader.close()
+            }
+          }
+        }
+
+        // Decoding in vectorized but having the reader return rows.
+        parquetReaderBenchmark.addCase("ParquetReader Vectorized -> Row - New Reader") { num =>
+          var longSum = 0L
+          var doubleSum = 0.0
+          val aggregateValue: (InternalRow) => Unit = dataType match {
+            case ByteType => (col: InternalRow) => longSum += col.getByte(0)
+            case ShortType => (col: InternalRow) => longSum += col.getShort(0)
+            case IntegerType => (col: InternalRow) => longSum += col.getInt(0)
+            case LongType => (col: InternalRow) => longSum += col.getLong(0)
+            case FloatType => (col: InternalRow) => doubleSum += col.getFloat(0)
+            case DoubleType => (col: InternalRow) => doubleSum += col.getDouble(0)
+          }
+
+          files.map(_.asInstanceOf[String]).foreach { p =>
+            val reader = new VectorizedParquetRecordReader(
+              true, enableOffHeapColumnVector, vectorizedReaderBatchSize)
+            try {
+              reader.initialize(p, ("id" :: Nil).asJava)
+              val batch = reader.resultBatch()
+              while (reader.nextBatch()) {
+                val it = batch.rowIterator()
+                while (it.hasNext) {
+                  val record = it.next()
+                  if (!record.isNullAt(0)) aggregateValue(record)
+                }
+              }
+            } finally {
+              reader.close()
+            }
+          }
+        }
+
+        parquetReaderBenchmark.run()
+      }
+    }
+  }
+
+
   def intStringScanBenchmark(values: Int): Unit = {
     val benchmark = new Benchmark("Int and String Scan", values, output = output)
 
@@ -235,31 +413,19 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
           dir,
           spark.sql("SELECT CAST(value AS INT) AS c1, CAST(value as STRING) AS c2 FROM t1"))
 
-        benchmark.addCase("SQL CSV") { _ =>
-          spark.sql("select sum(c1), sum(length(c2)) from csvTable").noop()
-        }
-
-        benchmark.addCase("SQL Json") { _ =>
-          spark.sql("select sum(c1), sum(length(c2)) from jsonTable").noop()
-        }
-
         benchmark.addCase("SQL Parquet Vectorized") { _ =>
           spark.sql("select sum(c1), sum(length(c2)) from parquetTable").noop()
+        }
+
+        benchmark.addCase("SQL Parquet Vectorized New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql("select sum(c1), sum(length(c2)) from parquetTable").noop()
+          }
         }
 
         benchmark.addCase("SQL Parquet MR") { _ =>
           withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_ENABLED.key -> "false") {
             spark.sql("select sum(c1), sum(length(c2)) from parquetTable").noop()
-          }
-        }
-
-        benchmark.addCase("SQL ORC Vectorized") { _ =>
-          spark.sql("SELECT sum(c1), sum(length(c2)) FROM orcTable").noop()
-        }
-
-        benchmark.addCase("SQL ORC MR") { _ =>
-          withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> "false") {
-            spark.sql("SELECT sum(c1), sum(length(c2)) FROM orcTable").noop()
           }
         }
 
@@ -280,31 +446,19 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
           dir,
           spark.sql("select cast((value % 200) + 10000 as STRING) as c1 from t1"))
 
-        benchmark.addCase("SQL CSV") { _ =>
-          spark.sql("select sum(length(c1)) from csvTable").noop()
-        }
-
-        benchmark.addCase("SQL Json") { _ =>
-          spark.sql("select sum(length(c1)) from jsonTable").noop()
-        }
-
         benchmark.addCase("SQL Parquet Vectorized") { _ =>
           spark.sql("select sum(length(c1)) from parquetTable").noop()
+        }
+
+        benchmark.addCase("SQL Parquet Vectorized New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql("select sum(length(c1)) from parquetTable").noop()
+          }
         }
 
         benchmark.addCase("SQL Parquet MR") { _ =>
           withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_ENABLED.key -> "false") {
             spark.sql("select sum(length(c1)) from parquetTable").noop()
-          }
-        }
-
-        benchmark.addCase("SQL ORC Vectorized") { _ =>
-          spark.sql("select sum(length(c1)) from orcTable").noop()
-        }
-
-        benchmark.addCase("SQL ORC MR") { _ =>
-          withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> "false") {
-            spark.sql("select sum(length(c1)) from orcTable").noop()
           }
         }
 
@@ -323,16 +477,14 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
 
         prepareTable(dir, spark.sql("SELECT value % 2 AS p, value AS id FROM t1"), Some("p"))
 
-        benchmark.addCase("Data column - CSV") { _ =>
-          spark.sql("select sum(id) from csvTable").noop()
-        }
-
-        benchmark.addCase("Data column - Json") { _ =>
-          spark.sql("select sum(id) from jsonTable").noop()
-        }
-
         benchmark.addCase("Data column - Parquet Vectorized") { _ =>
           spark.sql("select sum(id) from parquetTable").noop()
+        }
+
+        benchmark.addCase("Data column - Parquet Vectorized New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql("select sum(id) from parquetTable").noop()
+          }
         }
 
         benchmark.addCase("Data column - Parquet MR") { _ =>
@@ -341,26 +493,14 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
           }
         }
 
-        benchmark.addCase("Data column - ORC Vectorized") { _ =>
-          spark.sql("SELECT sum(id) FROM orcTable").noop()
-        }
-
-        benchmark.addCase("Data column - ORC MR") { _ =>
-          withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> "false") {
-            spark.sql("SELECT sum(id) FROM orcTable").noop()
-          }
-        }
-
-        benchmark.addCase("Partition column - CSV") { _ =>
-          spark.sql("select sum(p) from csvTable").noop()
-        }
-
-        benchmark.addCase("Partition column - Json") { _ =>
-          spark.sql("select sum(p) from jsonTable").noop()
-        }
-
         benchmark.addCase("Partition column - Parquet Vectorized") { _ =>
           spark.sql("select sum(p) from parquetTable").noop()
+        }
+
+        benchmark.addCase("Partition column - Parquet Vectorized New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql("select sum(p) from parquetTable").noop()
+          }
         }
 
         benchmark.addCase("Partition column - Parquet MR") { _ =>
@@ -369,41 +509,19 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
           }
         }
 
-        benchmark.addCase("Partition column - ORC Vectorized") { _ =>
-          spark.sql("SELECT sum(p) FROM orcTable").noop()
-        }
-
-        benchmark.addCase("Partition column - ORC MR") { _ =>
-          withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> "false") {
-            spark.sql("SELECT sum(p) FROM orcTable").noop()
-          }
-        }
-
-        benchmark.addCase("Both columns - CSV") { _ =>
-          spark.sql("select sum(p), sum(id) from csvTable").noop()
-        }
-
-        benchmark.addCase("Both columns - Json") { _ =>
-          spark.sql("select sum(p), sum(id) from jsonTable").noop()
-        }
-
         benchmark.addCase("Both columns - Parquet Vectorized") { _ =>
           spark.sql("select sum(p), sum(id) from parquetTable").noop()
+        }
+
+        benchmark.addCase("Both columns - Parquet Vectorized New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql("select sum(p), sum(id) from parquetTable").noop()
+          }
         }
 
         benchmark.addCase("Both columns - Parquet MR") { _ =>
           withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_ENABLED.key -> "false") {
             spark.sql("select sum(p), sum(id) from parquetTable").noop()
-          }
-        }
-
-        benchmark.addCase("Both columns - ORC Vectorized") { _ =>
-          spark.sql("SELECT sum(p), sum(id) FROM orcTable").noop()
-        }
-
-        benchmark.addCase("Both columns - ORC MR") { _ =>
-          withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> "false") {
-            spark.sql("SELECT sum(p), sum(id) FROM orcTable").noop()
           }
         }
 
@@ -427,19 +545,16 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
             s"SELECT IF(RAND(1) < $fractionOfNulls, NULL, CAST(id as STRING)) AS c1, " +
             s"IF(RAND(2) < $fractionOfNulls, NULL, CAST(id as STRING)) AS c2 FROM t1"))
 
-        benchmark.addCase("SQL CSV") { _ =>
-          spark.sql("select sum(length(c2)) from csvTable where c1 is " +
-            "not NULL and c2 is not NULL").noop()
-        }
-
-        benchmark.addCase("SQL Json") { _ =>
-          spark.sql("select sum(length(c2)) from jsonTable where c1 is " +
-            "not NULL and c2 is not NULL").noop()
-        }
-
         benchmark.addCase("SQL Parquet Vectorized") { _ =>
           spark.sql("select sum(length(c2)) from parquetTable where c1 is " +
             "not NULL and c2 is not NULL").noop()
+        }
+
+        benchmark.addCase("SQL Parquet Vectorized New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql("select sum(length(c2)) from parquetTable where c1 is " +
+                "not NULL and c2 is not NULL").noop()
+          }
         }
 
         benchmark.addCase("SQL Parquet MR") { _ =>
@@ -452,11 +567,12 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
         val files = SpecificParquetRecordReaderBase.listDirectory(new File(dir, "parquet")).toArray
         val enableOffHeapColumnVector = spark.sessionState.conf.offHeapColumnVectorEnabled
         val vectorizedReaderBatchSize = spark.sessionState.conf.parquetVectorizedReaderBatchSize
+
         benchmark.addCase("ParquetReader Vectorized") { num =>
           var sum = 0
           files.map(_.asInstanceOf[String]).foreach { p =>
             val reader = new VectorizedParquetRecordReader(
-              enableOffHeapColumnVector, vectorizedReaderBatchSize)
+              false, enableOffHeapColumnVector, vectorizedReaderBatchSize)
             try {
               reader.initialize(p, ("c1" :: "c2" :: Nil).asJava)
               val batch = reader.resultBatch()
@@ -474,15 +590,25 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
           }
         }
 
-        benchmark.addCase("SQL ORC Vectorized") { _ =>
-          spark.sql("SELECT SUM(LENGTH(c2)) FROM orcTable " +
-            "WHERE c1 IS NOT NULL AND c2 IS NOT NULL").noop()
-        }
-
-        benchmark.addCase("SQL ORC MR") { _ =>
-          withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> "false") {
-            spark.sql("SELECT SUM(LENGTH(c2)) FROM orcTable " +
-              "WHERE c1 IS NOT NULL AND c2 IS NOT NULL").noop()
+        benchmark.addCase("ParquetReader Vectorized New Reader") { num =>
+          var sum = 0
+          files.map(_.asInstanceOf[String]).foreach { p =>
+            val reader = new VectorizedParquetRecordReader(
+              true, enableOffHeapColumnVector, vectorizedReaderBatchSize)
+            try {
+              reader.initialize(p, ("c1" :: "c2" :: Nil).asJava)
+              val batch = reader.resultBatch()
+              while (reader.nextBatch()) {
+                val rowIterator = batch.rowIterator()
+                while (rowIterator.hasNext) {
+                  val row = rowIterator.next()
+                  val value = row.getUTF8String(0)
+                  if (!row.isNullAt(0) && !row.isNullAt(1)) sum += value.numBytes()
+                }
+              }
+            } finally {
+              reader.close()
+            }
           }
         }
 
@@ -507,31 +633,19 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
 
         prepareTable(dir, spark.sql("SELECT * FROM t1"))
 
-        benchmark.addCase("SQL CSV") { _ =>
-          spark.sql(s"SELECT sum(c$middle) FROM csvTable").noop()
-        }
-
-        benchmark.addCase("SQL Json") { _ =>
-          spark.sql(s"SELECT sum(c$middle) FROM jsonTable").noop()
-        }
-
         benchmark.addCase("SQL Parquet Vectorized") { _ =>
           spark.sql(s"SELECT sum(c$middle) FROM parquetTable").noop()
+        }
+
+        benchmark.addCase("SQL Parquet Vectorized New Reader") { _ =>
+          withSQLConf(SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> "true") {
+            spark.sql(s"SELECT sum(c$middle) FROM parquetTable").noop()
+          }
         }
 
         benchmark.addCase("SQL Parquet MR") { _ =>
           withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_ENABLED.key -> "false") {
             spark.sql(s"SELECT sum(c$middle) FROM parquetTable").noop()
-          }
-        }
-
-        benchmark.addCase("SQL ORC Vectorized") { _ =>
-          spark.sql(s"SELECT sum(c$middle) FROM orcTable").noop()
-        }
-
-        benchmark.addCase("SQL ORC MR") { _ =>
-          withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> "false") {
-            spark.sql(s"SELECT sum(c$middle) FROM orcTable").noop()
           }
         }
 
@@ -541,9 +655,9 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
   }
 
   override def runBenchmarkSuite(mainArgs: Array[String]): Unit = {
-    runBenchmark("SQL Single Numeric Column Scan") {
+    runBenchmark("New Parquet Reader Benchmark") {
       Seq(ByteType, ShortType, IntegerType, LongType, FloatType, DoubleType).foreach {
-        dataType => numericScanBenchmark(1024 * 1024 * 15, dataType)
+        dataType => newParquetReaderBenchmark(1024 * 1024 * 15, dataType)
       }
     }
     runBenchmark("Int and String Scan") {

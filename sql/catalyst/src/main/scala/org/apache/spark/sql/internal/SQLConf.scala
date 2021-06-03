@@ -814,6 +814,13 @@ object SQLConf {
     .stringConf
     .createWithDefault("org.apache.parquet.hadoop.ParquetOutputCommitter")
 
+  val PARQUET_VECTORIZED_NEW_ENABLED =
+    buildConf("spark.sql.parquet.newVectorizedReader.enabled")
+        .doc("Enables new Parquet vectorized reader.")
+        .version("3.2.0")
+        .booleanConf
+        .createWithDefault(false)
+
   val PARQUET_VECTORIZED_READER_ENABLED =
     buildConf("spark.sql.parquet.enableVectorizedReader")
       .doc("Enables vectorized parquet decoding.")
@@ -3442,6 +3449,8 @@ class SQLConf extends Serializable with Logging {
     getConf(ORC_VECTORIZED_READER_NESTED_COLUMN_ENABLED)
 
   def parquetCompressionCodec: String = getConf(PARQUET_COMPRESSION)
+
+  def parquetNewVectorizedReaderEnabled: Boolean = getConf(PARQUET_VECTORIZED_NEW_ENABLED)
 
   def parquetVectorizedReaderEnabled: Boolean = getConf(PARQUET_VECTORIZED_READER_ENABLED)
 

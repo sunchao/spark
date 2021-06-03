@@ -56,7 +56,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 /**
  * Decoder to return values from a single column.
  */
-public class VectorizedColumnReader {
+public class VectorizedColumnReader implements BatchedColumnReader {
   /**
    * Total number of values read.
    */
@@ -237,7 +237,8 @@ public class VectorizedColumnReader {
   /**
    * Reads `total` values from this columnReader into column.
    */
-  void readBatch(int total, WritableColumnVector column) throws IOException {
+  @Override
+  public void readBatch(int total, WritableColumnVector column) throws IOException {
     int rowId = 0;
     WritableColumnVector dictionaryIds = null;
     if (dictionary != null) {
