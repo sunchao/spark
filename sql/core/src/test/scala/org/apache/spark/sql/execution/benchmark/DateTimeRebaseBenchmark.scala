@@ -119,12 +119,14 @@ object DateTimeRebaseBenchmark extends SqlBasedBenchmark {
       modernDates: Boolean,
       dateTime: DateTime,
       mode: Option[LegacyBehaviorPolicy.Value] = None,
-      vec: Option[Boolean] = None): String = {
+      vec: Option[Boolean] = None,
+      newReader: Option[Boolean] = None): String = {
     val period = if (modernDates) "after" else "before"
     val year = if (dateTime == DATE) 1582 else 1900
     val vecFlag = vec.map(flagToStr).map(flag => s", vec $flag").getOrElse("")
+    val newReaderFlag = newReader.map(flagToStr).map(flag => s", new reader $flag").getOrElse("")
     val rebaseFlag = mode.map(_.toString).map(m => s", rebase $m").getOrElse("")
-    s"$period $year$vecFlag$rebaseFlag"
+    s"$period $year$vecFlag$newReaderFlag$rebaseFlag"
   }
 
   private def getPath(
@@ -182,59 +184,23 @@ object DateTimeRebaseBenchmark extends SqlBasedBenchmark {
               val benchmark2 = new Benchmark(
                 s"Load $dateTime from parquet", rowsNum, output = output)
               Seq(true, false).foreach { modernDates =>
-                Seq(false, true).foreach { vec =>
-                  LegacyBehaviorPolicy.values
+                LegacyBehaviorPolicy.values
                     .filterNot(v => !modernDates && v == LegacyBehaviorPolicy.EXCEPTION)
                     .foreach { mode =>
-                    val name = caseName(modernDates, dateTime, Some(mode), Some(vec))
-                    benchmark2.addCase(name, 3) { _ =>
-                      withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_ENABLED.key -> vec.toString) {
-                        spark.read
-                          .format("parquet")
-                          .load(getPath(path, dateTime, modernDates, Some(mode)))
-                          .noop()
+                      Seq(false, true).foreach { newReader =>
+                        val name = caseName(modernDates, dateTime, Some(mode), Some(true),
+                          Some(newReader))
+                        benchmark2.addCase(name, 3) { _ =>
+                          withSQLConf(
+                            SQLConf.PARQUET_VECTORIZED_NEW_ENABLED.key -> newReader.toString) {
+                            spark.read
+                                .format("parquet")
+                                .load(getPath(path, dateTime, modernDates, Some(mode)))
+                                .noop()
+                          }
+                        }
                       }
                     }
-                  }
-                }
-              }
-              benchmark2.run()
-            }
-          }
-        }
-
-        withTempPath { path =>
-          runBenchmark("Rebasing dates/timestamps in ORC datasource") {
-            Seq(DATE, TIMESTAMP).foreach { dateTime =>
-              val benchmark = new Benchmark(s"Save $dateTime to ORC", rowsNum, output = output)
-              benchmarkInputs(benchmark, rowsNum, dateTime)
-              Seq(true, false).foreach { modernDates =>
-                benchmark.addCase(caseName(modernDates, dateTime), 1) { _ =>
-                  genDF(rowsNum, dateTime, modernDates)
-                    .write
-                    .mode("overwrite")
-                    .format("orc")
-                    .save(getPath(path, dateTime, modernDates))
-                }
-              }
-              benchmark.run()
-
-              val benchmark2 = new Benchmark(
-                s"Load $dateTime from ORC",
-                rowsNum,
-                output = output)
-              Seq(true, false).foreach { modernDates =>
-                Seq(false, true).foreach { vec =>
-                  benchmark2.addCase(caseName(modernDates, dateTime, vec = Some(vec)), 3) { _ =>
-                    withSQLConf(SQLConf.ORC_VECTORIZED_READER_ENABLED.key -> vec.toString) {
-                      spark
-                        .read
-                        .format("orc")
-                        .load(getPath(path, dateTime, modernDates))
-                        .noop()
-                    }
-                  }
-                }
               }
               benchmark2.run()
             }
