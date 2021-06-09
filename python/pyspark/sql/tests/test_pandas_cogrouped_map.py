@@ -225,6 +225,7 @@ class CogroupedMapInPandasTests(ReusedSQLTestCase):
             .groupby('id') \
             .cogroup(right.groupby('id')) \
             .applyInPandas(right_assign_key, 'id long, k int, v int, key long') \
+            .sort(['id']) \
             .toPandas()
 
         expected = left.toPandas() if isLeft else right.toPandas()
