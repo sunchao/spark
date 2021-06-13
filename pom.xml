@@ -192,6 +192,7 @@
     <jpam.version>1.1</jpam.version>
     <selenium.version>3.141.59</selenium.version>
     <htmlunit.version>2.50.0</htmlunit.version>
+    <aciparquet.kms.version>1.1.2-apple</aciparquet.kms.version>
     <maven-antrun.version>1.8</maven-antrun.version>
     <commons-crypto.version>1.1.0</commons-crypto.version>
     <commons-cli.version>1.2</commons-cli.version>
@@ -2479,6 +2480,11 @@
             <artifactId>netty-common</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.parquet</groupId>
+        <artifactId>parquet-kms-apple</artifactId>
+        <version>${aciparquet.kms.version}</version>
       </dependency>
       <dependency>
         <groupId>com.univocity</groupId>
