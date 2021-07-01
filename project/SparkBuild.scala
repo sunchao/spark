@@ -839,7 +839,7 @@ object Assembly {
     (assembly / test) := {},
     hadoopVersion := {
       sys.props.get("hadoop.version")
-        .getOrElse(SbtPomKeys.effectivePom.value.getProperties.get("hadoop.version").asInstanceOf[String])
+        .getOrElse("3.1.1")
     },
     (assembly / assemblyJarName) := {
       lazy val hadoopVersionValue = hadoopVersion.value
