@@ -101,6 +101,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
       .set(STORAGE_UNROLL_MEMORY_THRESHOLD, 512L)
       .set(Network.RPC_ASK_TIMEOUT, "5s")
       .set(PUSH_BASED_SHUFFLE_ENABLED, true)
+      .set(STORAGE_BLOCKMANAGER_HEARTBEAT_TIMEOUT.key, "5s")
+      .set("spark.shuffle.readHostLocalDisk", "true")
+      .set("spark.storage.localDiskByExecutors.cacheSize", "1000")
   }
 
   private def makeSortShuffleManager(conf: Option[SparkConf] = None): SortShuffleManager = {
