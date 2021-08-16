@@ -95,6 +95,7 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
       .build();
     ParquetFileReader fileReader = new ParquetFileReader(
         HadoopInputFile.fromPath(file, configuration), options);
+    this.reader = new ParquetRowGroupReaderImpl(fileReader);
     this.fileSchema = fileReader.getFileMetaData().getSchema();
     Map<String, String> fileMetadata = fileReader.getFileMetaData().getKeyValueMetaData();
     ReadSupport<T> readSupport = getReadSupportInstance(getReadSupportClass(configuration));
@@ -112,7 +113,6 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
         Option.apply(sparkRequestedSchema), caseSensitive);
     this.sparkSchema = (StructType) parquetSchemaInfo.sparkType();
     this.totalRowCount = fileReader.getFilteredRecordCount();
-    this.reader = new ParquetRowGroupReaderImpl(fileReader);
 
     // For test purpose.
     // If the last external accumulator is `NumRowGroupsAccumulator`, the row group number to read
