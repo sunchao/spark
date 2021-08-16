@@ -34,7 +34,7 @@ import java.util.List;
  * Contains necessary information representing a Parquet column, either of primitive or nested type.
  */
 final class ParquetColumn {
-  private final ParquetTypeInfo columnInfo;
+  private final ParquetType columnInfo;
   private final List<ParquetColumn> children;
   private final WritableColumnVector vector;
 
@@ -53,7 +53,7 @@ final class ParquetColumn {
   private VectorizedColumnReader columnReader;
 
   ParquetColumn(
-      ParquetTypeInfo columnInfo,
+      ParquetType columnInfo,
       WritableColumnVector vector,
       int capacity,
       MemoryMode memoryMode) {
@@ -71,7 +71,7 @@ final class ParquetColumn {
       repetitionLevels = allocateLevelsVector(capacity, memoryMode);
       definitionLevels = allocateLevelsVector(capacity, memoryMode);
     } else {
-      ParquetGroupTypeInfo groupInfo = (ParquetGroupTypeInfo) columnInfo;
+      ParquetComplexType groupInfo = (ParquetComplexType) columnInfo;
       if (sparkType instanceof ArrayType) {
         ParquetColumn childState = new ParquetColumn(groupInfo.children().apply(0),
           vector.getChild(0), capacity, memoryMode);
@@ -126,7 +126,7 @@ final class ParquetColumn {
     }
   }
 
-  ParquetTypeInfo getColumnInfo() {
+  ParquetType getColumnInfo() {
     return this.columnInfo;
   }
 

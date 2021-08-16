@@ -93,7 +93,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
    * For each leaf column, if it is in the set, it means the column is missing in the file and
    * we'll instead return NULLs.
    */
-  private Set<ParquetTypeInfo> missingColumns;
+  private Set<ParquetType> missingColumns;
 
   /**
    * The timezone that timestamp INT96 values should be converted to. Null if no conversion. Here to
@@ -337,7 +337,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
 
   private void initializeInternal() throws IOException, UnsupportedOperationException {
     // Check that the requested schema is supported.
-    List<ParquetPrimitiveTypeInfo> leafColInfoList =
+    List<ParquetPrimitiveType> leafColInfoList =
         JavaConverters.seqAsJavaList(parquetSchemaInfo.leaves());
     missingColumns = new HashSet<>();
     for (int i = 0; i < leafColInfoList.size(); i++) {
@@ -368,11 +368,11 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
 
     for (ParquetColumn col : columns) {
       for (ParquetColumn leafCol: col.getLeaves()) {
-        ParquetPrimitiveTypeInfo colInfo = (ParquetPrimitiveTypeInfo) leafCol.getColumnInfo();
+        ParquetPrimitiveType colInfo = (ParquetPrimitiveType) leafCol.getColumnInfo();
         if (missingColumns.contains(colInfo)) continue;
-        ColumnDescriptor descriptor = colInfo.descriptor();
         VectorizedColumnReader reader = new VectorizedColumnReader(
-            descriptor, pages, convertTz, datetimeRebaseMode, int96RebaseMode);
+          colInfo.descriptor(), colInfo.required(), pages, convertTz, datetimeRebaseMode,
+          int96RebaseMode);
         leafCol.setColumnReader(reader);
       }
     }

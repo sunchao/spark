@@ -519,7 +519,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
           if (currentValue == state.maxDefinitionLevel) {
             updater.readValues(num, state.valueOffset, values, valueReader);
             state.valueOffset += num;
-          } else if (currentValue == state.maxDefinitionLevel - 1) {
+          } else if (!state.isRequired && currentValue == state.maxDefinitionLevel - 1) {
             nulls.putNulls(state.valueOffset, num);
             state.valueOffset += num;
           }
@@ -530,7 +530,7 @@ public final class VectorizedRleValuesReader extends ValuesReader
             int currentValue = currentBuffer[currentBufferIdx++];
             if (currentValue == state.maxDefinitionLevel) {
               updater.readValue(state.valueOffset++, values, valueReader);
-            } else if (currentValue == state.maxDefinitionLevel - 1) {
+            } else if (!state.isRequired && currentValue == state.maxDefinitionLevel - 1) {
               // only add null if this represents a null element, but not the case when a
               // collection is null or empty.
               nulls.putNull(state.valueOffset++);

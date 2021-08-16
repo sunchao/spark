@@ -69,7 +69,7 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
   protected MessageType fileSchema;
   protected MessageType requestedSchema;
   protected StructType sparkSchema;
-  protected ParquetGroupTypeInfo parquetSchemaInfo;
+  protected ParquetComplexType parquetSchemaInfo;
 
   /**
    * The total number of rows this RecordReader will eventually read. The sum of the
