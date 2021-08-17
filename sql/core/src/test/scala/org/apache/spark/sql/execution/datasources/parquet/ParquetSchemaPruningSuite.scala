@@ -18,7 +18,7 @@
 package org.apache.spark.sql.execution.datasources.parquet
 
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper
 import org.apache.spark.sql.execution.datasources.SchemaPruningSuite
@@ -40,8 +40,40 @@ abstract class ParquetSchemaPruningSuite extends SchemaPruningSuite with Adaptiv
 class ParquetV1SchemaPruningSuite extends ParquetSchemaPruningSuite {
   override protected def sparkConf: SparkConf =
     super
-      .sparkConf
-      .set(SQLConf.USE_V1_SOURCE_LIST, "parquet")
+        .sparkConf
+        .set(SQLConf.USE_V1_SOURCE_LIST, "parquet")
+
+  test(s"Spark vectorized reader - without partition data column - test") {
+    withSQLConf(vectorizedReaderEnabledKey -> "true") {
+      withContacts {
+        val query =
+          sql("select id, name.last, name.middle, name.first, relatives[''].last, " +
+              "friends[0].last, " +
+              "pets, address from contacts where p=2")
+        checkScan(query,
+          "struct<id:int,name:struct<first:string,middle:string,last:string>,address:string," +
+              "pets:int,friends:array<struct<last:string>>," +
+              "relatives:map<string,struct<last:string>>>")
+        checkAnswer(query.orderBy("id"),
+          Row(2, "Jones", null, "Janet", null, null, null, "567 Maple Drive") ::
+              Row(3, "Jones", null, "Jim", null, null, null, "6242 Ash Street") :: Nil)
+      }
+    }
+  }
+
+  test(s"Spark vectorized reader - single complex field array and its parent struct array") {
+    withSQLConf(vectorizedReaderEnabledKey -> "true") {
+      withContacts {
+        val query = sql("select friends.middle, friends from contacts where p=1")
+        checkScan(query,
+          "struct<friends:array<struct<first:string,middle:string,last:string>>>")
+        checkAnswer(query.orderBy("id"),
+          Row(Array("Z."), Array(Row("Susan", "Z.", "Smith"))) ::
+              Row(Array.empty[String], Array.empty[Row]) ::
+              Nil)
+      }
+    }
+  }
 }
 
 @ExtendedSQLTest

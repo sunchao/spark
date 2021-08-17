@@ -33,12 +33,13 @@ trait ParquetType {
   def repetitionLevel: Int
   def definitionLevel: Int
   def required: Boolean
+  def path: Seq[String]
 
   def withNewType(dt: DataType): ParquetType = this match {
-    case ParquetComplexType(_, repetitionLevel, definitionLevel, required, children) =>
-      ParquetComplexType(dt, repetitionLevel, definitionLevel, required, children)
-    case ParquetPrimitiveType(_, desc, repetitionLevel, definitionLevel, required) =>
-      ParquetPrimitiveType(dt, desc, repetitionLevel, definitionLevel, required)
+    case ParquetComplexType(_, repetitionLevel, definitionLevel, required, path, children) =>
+      ParquetComplexType(dt, repetitionLevel, definitionLevel, required, path, children)
+    case ParquetPrimitiveType(_, desc, repetitionLevel, definitionLevel, required, path) =>
+      ParquetPrimitiveType(dt, desc, repetitionLevel, definitionLevel, required, path)
   }
 
   def isPrimitive: Boolean = this match {
@@ -68,13 +69,15 @@ case class ParquetPrimitiveType(
     descriptor: ColumnDescriptor,
     repetitionLevel: Int,
     definitionLevel: Int,
-    required: Boolean)
+    required: Boolean,
+    path: Seq[String])
   extends ParquetType
 
 object ParquetPrimitiveType {
   def apply(sparkType: DataType, column: PrimitiveColumnIO): ParquetPrimitiveType = {
     this(sparkType, column.getColumnDescriptor, ColumnIOUtil.getRepetitionLevel(column),
-      ColumnIOUtil.getDefinitionLevel(column), column.getType.isRepetition(Repetition.REQUIRED))
+      ColumnIOUtil.getDefinitionLevel(column), column.getType.isRepetition(Repetition.REQUIRED),
+      ColumnIOUtil.getFieldPath(column))
   }
 }
 
@@ -86,6 +89,7 @@ case class ParquetComplexType(
     repetitionLevel: Int,
     definitionLevel: Int,
     required: Boolean,
+    path: Seq[String],
     children: Seq[ParquetType])
   extends ParquetType
 
@@ -96,7 +100,7 @@ object ParquetComplexType {
       children: Seq[ParquetType]): ParquetComplexType = {
     this(sparkType, ColumnIOUtil.getRepetitionLevel(column),
       ColumnIOUtil.getDefinitionLevel(column), column.getType.isRepetition(Repetition.REQUIRED),
-      children)
+      ColumnIOUtil.getFieldPath(column), children)
   }
 }
 

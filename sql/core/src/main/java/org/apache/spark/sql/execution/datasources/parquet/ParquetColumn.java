@@ -99,6 +99,13 @@ final class ParquetColumn {
   }
 
   /**
+   * Returns all the children of this column.
+   */
+  List<ParquetColumn> getChildren() {
+    return children;
+  }
+
+  /**
    * Get all the leaf columns in depth-first order.
    */
   List<ParquetColumn> getLeaves() {

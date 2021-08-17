@@ -119,14 +119,12 @@ class ParquetToSparkSchemaConverter(
           val arrayType = ArrayType(fieldType, containsNull = false)
           (StructField(field.getType.getName, arrayType, nullable = false),
               ParquetComplexType(arrayType, convertedField.repetitionLevel - 1,
-                convertedField.definitionLevel - 1, required = true,
+                convertedField.definitionLevel - 1, required = true, convertedField.path,
                 Seq(convertedField)))
       }
     }
 
-    val res = ParquetComplexType(StructType(converted.map(_._1)), groupColumn,
-      converted.map(_._2))
-    res
+    ParquetComplexType(StructType(converted.map(_._1)), groupColumn, converted.map(_._2))
   }
 
   private def isSameFieldName(left: String, right: String, caseSensitive: Boolean): Boolean =

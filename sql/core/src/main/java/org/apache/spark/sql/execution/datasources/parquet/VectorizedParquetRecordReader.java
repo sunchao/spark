@@ -29,7 +29,9 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
 import org.apache.spark.memory.MemoryMode;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.vectorized.ColumnVectorUtils;
@@ -248,7 +250,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
 
     columns = new ParquetColumn[sparkSchema.fields().length];
     for (int i = 0; i < columns.length; i++) {
-      columns[i] = new ParquetColumn(parquetSchemaInfo.children().apply(i),
+      columns[i] = new ParquetColumn(requestedSchema.children().apply(i),
           columnVectors[i], capacity, memMode);
     }
 
@@ -261,14 +263,21 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     }
 
     // Initialize missing columns with nulls.
-    for (ParquetColumn col : columns) {
-      for (ParquetColumn leafCol : col.getLeaves()) {
-        if (missingColumns.contains(leafCol.getColumnInfo())) {
-          WritableColumnVector vector = leafCol.getValueVector();
-          vector.putNulls(0, capacity);
-          vector.setIsConstant();
-        }
-      }
+    for (ParquetColumn column : columns) {
+      initMissingColumn(column, false);
+    }
+  }
+
+  private void initMissingColumn(ParquetColumn column, boolean isParentMissing) {
+    ParquetType columnType = column.getColumnInfo();
+    boolean isMissingColumn = isParentMissing || missingColumns.contains(columnType);
+    if (isMissingColumn) {
+      WritableColumnVector vector = column.getValueVector();
+      vector.putNulls(0, capacity);
+      vector.setIsConstant();
+    }
+    for (ParquetColumn childColumn : column.getChildren()) {
+      initMissingColumn(childColumn, isMissingColumn);
     }
   }
 
@@ -336,26 +345,57 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
   }
 
   private void initializeInternal() throws IOException, UnsupportedOperationException {
-    // Check that the requested schema is supported.
-    List<ParquetPrimitiveType> leafColInfoList =
-        JavaConverters.seqAsJavaList(parquetSchemaInfo.leaves());
     missingColumns = new HashSet<>();
-    for (int i = 0; i < leafColInfoList.size(); i++) {
-      ColumnDescriptor desc = leafColInfoList.get(i).descriptor();
-      if (fileSchema.containsPath(desc.getPath())) {
+    for (ParquetType columnType : JavaConverters.seqAsJavaList(requestedSchema.children())) {
+      setUpMissingColumn(columnType);
+    }
+  }
+
+  private void setUpMissingColumn(ParquetType columnType) throws IOException {
+    String[] path = JavaConverters.seqAsJavaList(columnType.path()).toArray(new String[0]);
+    if (containsPath(fileSchema, path)) {
+      if (columnType.isPrimitive()) {
+        ParquetPrimitiveType leaf = (ParquetPrimitiveType) columnType;
+        ColumnDescriptor desc = leaf.descriptor();
         ColumnDescriptor fd = fileSchema.getColumnDescription(desc.getPath());
         if (!fd.equals(desc)) {
           throw new UnsupportedOperationException("Schema evolution not supported.");
         }
       } else {
-        if (leafColInfoList.get(i).required()) {
-          // Column is missing in data but the required data is non-nullable. This file is invalid.
-          throw new IOException("Required column is missing in data file. Col: " +
-              Arrays.toString(desc.getPath()));
+        ParquetComplexType nonLeafType = (ParquetComplexType) columnType;
+        for (ParquetType childType : JavaConverters.seqAsJavaList(nonLeafType.children())) {
+          setUpMissingColumn(childType);
         }
-        missingColumns.add(leafColInfoList.get(i));
+      }
+    } else { // a missing column which is either primitive or complex
+      if (columnType.required()) {
+        // Column is missing in data but the required data is non-nullable. This file is invalid.
+        throw new IOException("Required column is missing in data file. Col: " +
+          Arrays.toString(path));
+      }
+      missingColumns.add(columnType);
+    }
+  }
+
+  /**
+   * Checks whether the given 'path' exists in 'parquetType'. The difference between this and
+   * {@link MessageType#containsPath(String[])} is that the latter only support paths to leaf
+   * nodes, while this support paths both to leaf and non-leaf nodes.
+   */
+  private boolean containsPath(Type parquetType, String[] path) {
+    return containsPath(parquetType, path, 0);
+  }
+
+  private boolean containsPath(Type parquetType, String[] path, int depth) {
+    if (path.length == depth) return true;
+    if (parquetType instanceof GroupType) {
+      String fieldName = path[depth];
+      GroupType parquetGroupType = (GroupType) parquetType;
+      if (parquetGroupType.containsField(fieldName)) {
+        return containsPath(parquetGroupType.getType(fieldName), path, depth + 1);
       }
     }
+    return false;
   }
 
   private void checkEndOfRowGroup() throws IOException {
@@ -365,17 +405,26 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
       throw new IOException("expecting more rows but reached last block. Read "
           + rowsReturned + " out of " + totalRowCount);
     }
-
-    for (ParquetColumn col : columns) {
-      for (ParquetColumn leafCol: col.getLeaves()) {
-        ParquetPrimitiveType colInfo = (ParquetPrimitiveType) leafCol.getColumnInfo();
-        if (missingColumns.contains(colInfo)) continue;
-        VectorizedColumnReader reader = new VectorizedColumnReader(
-          colInfo.descriptor(), colInfo.required(), pages, convertTz, datetimeRebaseMode,
-          int96RebaseMode);
-        leafCol.setColumnReader(reader);
-      }
+    for (ParquetColumn column : columns) {
+      initColumnReader(pages, column);
     }
     totalCountLoadedSoFar += pages.getRowCount();
+  }
+
+  private void initColumnReader(PageReadStore pages, ParquetColumn column) throws IOException {
+    if (!missingColumns.contains(column.getColumnInfo())) {
+      if (column.getColumnInfo().isPrimitive()) {
+        ParquetPrimitiveType colType = (ParquetPrimitiveType) column.getColumnInfo();
+        VectorizedColumnReader reader = new VectorizedColumnReader(
+          colType.descriptor(), colType.required(), pages, convertTz, datetimeRebaseMode,
+          int96RebaseMode);
+        column.setColumnReader(reader);
+      } else {
+        // not in missing columns and is a complex type: this must be a struct
+        for (ParquetColumn childCol : column.getChildren()) {
+          initColumnReader(pages, childCol);
+        }
+      }
+    }
   }
 }
