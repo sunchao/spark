@@ -220,6 +220,8 @@
       <properties>
         <extra.source.dir>src/hadoop-3/main/scala</extra.source.dir>
         <extra.testsource.dir>src/hadoop-3/test/scala</extra.testsource.dir>
+        <extra.java.source.dir>src/hadoop-3/main/java</extra.java.source.dir>
+        <extra.java.testsource.dir>src/hadoop-3/test/java</extra.java.testsource.dir>
       </properties>
 
       <build>
@@ -237,6 +239,7 @@
                 <configuration>
                   <sources>
                     <source>${extra.source.dir}</source>
+                    <source>${extra.java.source.dir}</source>
                   </sources>
                 </configuration>
               </execution>
@@ -249,6 +252,7 @@
                 <configuration>
                   <sources>
                     <source>${extra.testsource.dir}</source>
+                    <source>${extra.java.testsource.dir}</source>
                   </sources>
                 </configuration>
               </execution>
