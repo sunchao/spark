@@ -42,6 +42,13 @@ trait ParquetType {
       ParquetPrimitiveType(dt, desc, repetitionLevel, definitionLevel, required, path)
   }
 
+  def withRequired(required: Boolean): ParquetType = this match {
+    case ParquetComplexType(dt, repetitionLevel, definitionLevel, _, path, children) =>
+      ParquetComplexType(dt, repetitionLevel, definitionLevel, required, path, children)
+    case ParquetPrimitiveType(dt, desc, repetitionLevel, definitionLevel, _, path) =>
+      ParquetPrimitiveType(dt, desc, repetitionLevel, definitionLevel, required, path)
+  }
+
   def isPrimitive: Boolean = this match {
     case _: ParquetPrimitiveType => true
     case _ => false

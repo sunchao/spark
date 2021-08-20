@@ -237,7 +237,7 @@ final class ParquetColumn {
     for (; idx < repetitionLevels.getElementsAppended(); idx++) {
       if (repetitionLevels.getInt(idx) <= maxRepetitionLevel) {
         break;
-      } else {
+      } else if (repetitionLevels.getInt(idx) <= maxRepetitionLevel + 1) {
         size++;
       }
     }

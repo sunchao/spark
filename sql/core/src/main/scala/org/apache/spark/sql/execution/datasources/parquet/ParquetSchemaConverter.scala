@@ -29,7 +29,6 @@ import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
 
-
 /**
  * This converter class is used to convert Parquet [[MessageType]] to Spark SQL [[StructType]].
  *
@@ -116,11 +115,11 @@ class ParquetToSparkSchemaConverter(
           // A repeated field that is neither contained by a `LIST`- or `MAP`-annotated group nor
           // annotated by `LIST` or `MAP` should be interpreted as a required list of required
           // elements where the element type is the type of the field.
-          val arrayType = ArrayType(fieldType, containsNull = false)
+          val arrayType = ArrayType(convertedField.sparkType, containsNull = false)
           (StructField(field.getType.getName, arrayType, nullable = false),
               ParquetComplexType(arrayType, convertedField.repetitionLevel - 1,
                 convertedField.definitionLevel - 1, required = true, convertedField.path,
-                Seq(convertedField)))
+                Seq(convertedField.withRequired(true))))
       }
     }
 
@@ -293,8 +292,9 @@ class ParquetToSparkSchemaConverter(
         val sparkReadElementType = sparkReadType.map(_.asInstanceOf[ArrayType].elementType)
 
         if (isElementType(repeatedType, field.getName)) {
-          val converted = convertField(repeated, sparkReadElementType)
+          var converted = convertField(repeated, sparkReadElementType)
           val convertedType = sparkReadElementType.getOrElse(converted.sparkType)
+          if (repeatedType.isPrimitive) converted = converted.withRequired(true)
           ParquetComplexType(ArrayType(convertedType, containsNull = false),
             groupColumn, Seq(converted))
         } else {

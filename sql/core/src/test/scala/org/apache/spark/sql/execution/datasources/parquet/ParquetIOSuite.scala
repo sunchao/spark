@@ -18,16 +18,14 @@
 package org.apache.spark.sql.execution.datasources.parquet
 
 import java.util.Locale
-
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe.TypeTag
-
 import com.google.common.primitives.UnsignedLong
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
-import org.apache.parquet.column.{Encoding, ParquetProperties}
+import org.apache.hadoop.fs.{Path, FileSystem}
+import org.apache.hadoop.mapreduce.{TaskAttemptContext, JobContext}
+import org.apache.parquet.column.{ParquetProperties, Encoding}
 import org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0
 import org.apache.parquet.example.data.Group
 import org.apache.parquet.example.data.simple.{SimpleGroup, SimpleGroupFactory}
@@ -35,12 +33,11 @@ import org.apache.parquet.hadoop._
 import org.apache.parquet.hadoop.example.ExampleParquetWriter
 import org.apache.parquet.hadoop.metadata.CompressionCodecName
 import org.apache.parquet.hadoop.metadata.CompressionCodecName.GZIP
-import org.apache.parquet.schema.{MessageType, MessageTypeParser}
-
+import org.apache.parquet.schema.{MessageTypeParser, MessageType}
 import org.apache.spark.{SPARK_VERSION_SHORT, SparkException}
 import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.{InternalRow, ScalaReflection}
-import org.apache.spark.sql.catalyst.expressions.{GenericInternalRow, UnsafeRow}
+import org.apache.spark.sql.catalyst.{ScalaReflection, InternalRow}
+import org.apache.spark.sql.catalyst.expressions.{GenericInternalRow, UnsafeRow, CodegenObjectFactoryMode}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.execution.datasources.SQLHadoopMapReduceCommitProtocol
 import org.apache.spark.sql.functions._
@@ -303,6 +300,26 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
         readParquetFile(file) { df =>
           checkAnswer(df.sort("_1"),
             Row(null) :: Row(Seq()) :: Row(Seq(null)) :: Row(Seq("a", "b", "c")) :: Nil
+          )
+        }
+      }
+    }
+  }
+
+  test("vectorized reader: array of array") {
+    val codeGenFactoryMode = CodegenObjectFactoryMode.NO_CODEGEN
+    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true",
+        SQLConf.WHOLESTAGE_CODEGEN_ENABLED.key -> "false",
+        SQLConf.CODEGEN_FACTORY_MODE.key -> codeGenFactoryMode.toString) {
+      val data = Seq(
+        Tuple1(Seq(Seq(0, 1), Seq(2, 3))),
+        Tuple1(Seq(Seq(4, 5), Seq(6, 7)))
+      )
+
+      withParquetFile(data) { file =>
+        readParquetFile(file) { df =>
+          checkAnswer(df.sort("_1"),
+            Row(Seq(Seq(0, 1), Seq(2, 3))) :: Row(Seq(Seq(4, 5), Seq(6, 7))) :: Nil
           )
         }
       }
