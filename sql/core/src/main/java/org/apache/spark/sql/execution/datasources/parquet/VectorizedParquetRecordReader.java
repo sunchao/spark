@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -355,15 +356,13 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     String[] path = JavaConverters.seqAsJavaList(columnType.path()).toArray(new String[0]);
     if (containsPath(fileSchema, path)) {
       if (columnType.isPrimitive()) {
-        ParquetPrimitiveType leaf = (ParquetPrimitiveType) columnType;
-        ColumnDescriptor desc = leaf.descriptor();
+        ColumnDescriptor desc = columnType.descriptor().get();
         ColumnDescriptor fd = fileSchema.getColumnDescription(desc.getPath());
         if (!fd.equals(desc)) {
           throw new UnsupportedOperationException("Schema evolution not supported.");
         }
       } else {
-        ParquetComplexType nonLeafType = (ParquetComplexType) columnType;
-        for (ParquetType childType : JavaConverters.seqAsJavaList(nonLeafType.children())) {
+        for (ParquetType childType : JavaConverters.seqAsJavaList(columnType.children())) {
           setUpMissingColumn(childType);
         }
       }
@@ -414,9 +413,10 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
   private void initColumnReader(PageReadStore pages, ParquetColumn column) throws IOException {
     if (!missingColumns.contains(column.getColumnInfo())) {
       if (column.getColumnInfo().isPrimitive()) {
-        ParquetPrimitiveType colType = (ParquetPrimitiveType) column.getColumnInfo();
+        ParquetType colType = column.getColumnInfo();
+        Preconditions.checkArgument(colType.isPrimitive());
         VectorizedColumnReader reader = new VectorizedColumnReader(
-          colType.descriptor(), colType.required(), pages, convertTz, datetimeRebaseMode,
+          colType.descriptor().get(), colType.required(), pages, convertTz, datetimeRebaseMode,
           int96RebaseMode);
         column.setColumnReader(reader);
       } else {

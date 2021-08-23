@@ -68,7 +68,7 @@ import org.apache.spark.util.AccumulatorV2;
 public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Void, T> {
   protected MessageType fileSchema;
   protected MessageType requestedParquetSchema;
-  protected ParquetComplexType requestedSchema;
+  protected ParquetType requestedSchema;
   protected StructType sparkSchema;
 
   /**

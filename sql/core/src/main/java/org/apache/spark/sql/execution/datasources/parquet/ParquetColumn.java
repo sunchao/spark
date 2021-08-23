@@ -71,24 +71,23 @@ final class ParquetColumn {
       repetitionLevels = allocateLevelsVector(capacity, memoryMode);
       definitionLevels = allocateLevelsVector(capacity, memoryMode);
     } else {
-      ParquetComplexType groupInfo = (ParquetComplexType) columnInfo;
       if (sparkType instanceof ArrayType) {
-        ParquetColumn childState = new ParquetColumn(groupInfo.children().apply(0),
+        ParquetColumn childState = new ParquetColumn(columnInfo.children().apply(0),
           vector.getChild(0), capacity, memoryMode);
         this.repetitionLevels = childState.repetitionLevels;
         this.definitionLevels = childState.definitionLevels;
         children.add(childState);
       } else if (sparkType instanceof MapType) {
-        ParquetColumn childState = new ParquetColumn(groupInfo.children().apply(0),
+        ParquetColumn childState = new ParquetColumn(columnInfo.children().apply(0),
           vector.getChild(0), capacity, memoryMode);
         this.repetitionLevels = childState.repetitionLevels;
         this.definitionLevels = childState.definitionLevels;
         children.add(childState);
-        children.add(new ParquetColumn(groupInfo.children().apply(1), vector.getChild(1),
+        children.add(new ParquetColumn(columnInfo.children().apply(1), vector.getChild(1),
           capacity, memoryMode));
       } else if (sparkType instanceof StructType) {
-        for (int i = 0; i < groupInfo.children().length(); i++) {
-          ParquetColumn childState = new ParquetColumn(groupInfo.children().apply(i),
+        for (int i = 0; i < columnInfo.children().length(); i++) {
+          ParquetColumn childState = new ParquetColumn(columnInfo.children().apply(i),
             vector.getChild(i), capacity, memoryMode);
           this.repetitionLevels = childState.repetitionLevels;
           this.definitionLevels = childState.definitionLevels;

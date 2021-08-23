@@ -77,7 +77,7 @@ class ParquetToSparkSchemaConverter(
   def convertTypeInfo(
       parquetSchema: MessageType,
       sparkReadSchema: Option[StructType] = None,
-      caseSensitive: Boolean = true): ParquetComplexType = {
+      caseSensitive: Boolean = true): ParquetType = {
     val column = new ColumnIOFactory().getColumnIO(parquetSchema)
     convertInternal(column, sparkReadSchema, caseSensitive)
   }
@@ -85,7 +85,7 @@ class ParquetToSparkSchemaConverter(
   private def convertInternal(
       groupColumn: GroupColumnIO,
       sparkReadSchema: Option[StructType] = None,
-      caseSensitive: Boolean = true): ParquetComplexType = {
+      caseSensitive: Boolean = true): ParquetType = {
     val converted = (0 until groupColumn.getChildrenCount).map { i =>
       val field = groupColumn.getChild(i)
       var sparkReadType = sparkReadSchema.flatMap { schema =>
@@ -104,7 +104,7 @@ class ParquetToSparkSchemaConverter(
       val fieldType = sparkReadType.getOrElse(convertedField.sparkType)
 
       // adjust converted Spark type by checking if the read schema contains the field
-      convertedField = convertedField.withNewType(fieldType)
+      convertedField = convertedField.copy(sparkType = fieldType)
 
       field.getType.getRepetition match {
         case OPTIONAL | REQUIRED =>
@@ -117,13 +117,13 @@ class ParquetToSparkSchemaConverter(
           // elements where the element type is the type of the field.
           val arrayType = ArrayType(convertedField.sparkType, containsNull = false)
           (StructField(field.getType.getName, arrayType, nullable = false),
-              ParquetComplexType(arrayType, convertedField.repetitionLevel - 1,
+              ParquetType(arrayType, None, convertedField.repetitionLevel - 1,
                 convertedField.definitionLevel - 1, required = true, convertedField.path,
-                Seq(convertedField.withRequired(true))))
+                Seq(convertedField.copy(required = true))))
       }
     }
 
-    ParquetComplexType(StructType(converted.map(_._1)), groupColumn, converted.map(_._2))
+    ParquetType(StructType(converted.map(_._1)), groupColumn, converted.map(_._2))
   }
 
   private def isSameFieldName(left: String, right: String, caseSensitive: Boolean): Boolean =
@@ -142,7 +142,7 @@ class ParquetToSparkSchemaConverter(
 
   private def convertPrimitiveField(
       primitiveColumn: PrimitiveColumnIO,
-      sparkReadType: Option[DataType] = None): ParquetPrimitiveType = {
+      sparkReadType: Option[DataType] = None): ParquetType = {
     val parquetType = primitiveColumn.getType.asPrimitiveType()
     val typeAnnotation = primitiveColumn.getType.getLogicalTypeAnnotation
     val typeName = primitiveColumn.getPrimitive
@@ -255,16 +255,15 @@ class ParquetToSparkSchemaConverter(
       case _ => illegalType()
     })
 
-    ParquetPrimitiveType(sparkType, primitiveColumn)
+    ParquetType(sparkType, primitiveColumn)
   }
 
   private def convertGroupField(
       groupColumn: GroupColumnIO,
-      sparkReadType: Option[DataType] = None): ParquetComplexType = {
+      sparkReadType: Option[DataType] = None): ParquetType = {
     val field = groupColumn.getType.asGroupType()
     Option(field.getLogicalTypeAnnotation).fold(
-      convertInternal(groupColumn, sparkReadType.map(_.asInstanceOf[StructType]))
-        .asInstanceOf[ParquetComplexType]) {
+      convertInternal(groupColumn, sparkReadType.map(_.asInstanceOf[StructType]))) {
       // A Parquet list is represented as a 3-level structure:
       //
       //   <list-repetition> group <name> (LIST) {
@@ -294,8 +293,8 @@ class ParquetToSparkSchemaConverter(
         if (isElementType(repeatedType, field.getName)) {
           var converted = convertField(repeated, sparkReadElementType)
           val convertedType = sparkReadElementType.getOrElse(converted.sparkType)
-          if (repeatedType.isPrimitive) converted = converted.withRequired(true)
-          ParquetComplexType(ArrayType(convertedType, containsNull = false),
+          if (repeatedType.isPrimitive) converted = converted.copy(required = true)
+          ParquetType(ArrayType(convertedType, containsNull = false),
             groupColumn, Seq(converted))
         } else {
           val element = repeated.asInstanceOf[GroupColumnIO].getChild(0)
@@ -303,7 +302,7 @@ class ParquetToSparkSchemaConverter(
           val optional = elementType.isRepetition(OPTIONAL)
           val converted = convertField(element, sparkReadElementType)
           val convertedType = sparkReadElementType.getOrElse(converted.sparkType)
-          ParquetComplexType(ArrayType(convertedType, containsNull = optional),
+          ParquetType(ArrayType(convertedType, containsNull = optional),
             groupColumn, Seq(converted))
         }
 
@@ -335,7 +334,7 @@ class ParquetToSparkSchemaConverter(
         val convertedValue = convertField(value, sparkReadValueType)
         val convertedKeyType = sparkReadKeyType.getOrElse(convertedKey.sparkType)
         val convertedValueType = sparkReadValueType.getOrElse(convertedValue.sparkType)
-        ParquetComplexType(
+        ParquetType(
           MapType(convertedKeyType, convertedValueType,
             valueContainsNull = valueOptional),
           groupColumn, Seq(convertedKey, convertedValue))
