@@ -641,7 +641,7 @@ abstract class SchemaPruningSuite
     }
   }
 
-  protected def withContacts(testThunk: => Unit): Unit = {
+  private def withContacts(testThunk: => Unit): Unit = {
     withTempPath { dir =>
       val path = dir.getCanonicalPath
 

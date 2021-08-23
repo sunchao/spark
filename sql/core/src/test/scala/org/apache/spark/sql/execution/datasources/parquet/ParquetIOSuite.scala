@@ -18,14 +18,16 @@
 package org.apache.spark.sql.execution.datasources.parquet
 
 import java.util.Locale
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe.TypeTag
+
 import com.google.common.primitives.UnsignedLong
-import org.apache.hadoop.fs.{Path, FileSystem}
-import org.apache.hadoop.mapreduce.{TaskAttemptContext, JobContext}
-import org.apache.parquet.column.{ParquetProperties, Encoding}
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
+import org.apache.parquet.column.{Encoding, ParquetProperties}
 import org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0
 import org.apache.parquet.example.data.Group
 import org.apache.parquet.example.data.simple.{SimpleGroup, SimpleGroupFactory}
@@ -33,11 +35,12 @@ import org.apache.parquet.hadoop._
 import org.apache.parquet.hadoop.example.ExampleParquetWriter
 import org.apache.parquet.hadoop.metadata.CompressionCodecName
 import org.apache.parquet.hadoop.metadata.CompressionCodecName.GZIP
-import org.apache.parquet.schema.{MessageTypeParser, MessageType}
+import org.apache.parquet.schema.{MessageType, MessageTypeParser}
+
 import org.apache.spark.{SPARK_VERSION_SHORT, SparkException}
 import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.{ScalaReflection, InternalRow}
-import org.apache.spark.sql.catalyst.expressions.{GenericInternalRow, UnsafeRow, CodegenObjectFactoryMode}
+import org.apache.spark.sql.catalyst.{InternalRow, ScalaReflection}
+import org.apache.spark.sql.catalyst.expressions.{CodegenObjectFactoryMode, GenericInternalRow, UnsafeRow}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.execution.datasources.SQLHadoopMapReduceCommitProtocol
 import org.apache.spark.sql.functions._
@@ -306,11 +309,33 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
     }
   }
 
-  test("vectorized reader: array of array") {
+  test("vectorized reader: missing array") {
     val codeGenFactoryMode = CodegenObjectFactoryMode.NO_CODEGEN
     withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true",
         SQLConf.WHOLESTAGE_CODEGEN_ENABLED.key -> "false",
         SQLConf.CODEGEN_FACTORY_MODE.key -> codeGenFactoryMode.toString) {
+      val data = Seq(
+        Tuple1(null),
+        Tuple1(Seq()),
+        Tuple1(Seq("a", "b", "c")),
+        Tuple1(Seq(null))
+      )
+
+      val readSchema = new StructType().add("_2", new ArrayType(
+        new StructType().add("a", LongType, nullable = true),
+        containsNull = true)
+      )
+
+      withParquetFile(data) { file =>
+        checkAnswer(spark.read.schema(readSchema).parquet(file),
+          Row(null) :: Row(null) :: Row(null) :: Row(null) :: Nil
+        )
+      }
+    }
+  }
+
+  test("vectorized reader: array of array") {
+    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
       val data = Seq(
         Tuple1(Seq(Seq(0, 1), Seq(2, 3))),
         Tuple1(Seq(Seq(4, 5), Seq(6, 7)))
@@ -322,6 +347,26 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
             Row(Seq(Seq(0, 1), Seq(2, 3))) :: Row(Seq(Seq(4, 5), Seq(6, 7))) :: Nil
           )
         }
+      }
+    }
+  }
+
+  test("vectorized reader: array of struct") {
+    val data = Seq(
+      Tuple1(Tuple2("a", null)),
+      Tuple1(null),
+      Tuple1(Tuple2(null, null)),
+      Tuple1(Tuple2(null, Seq("b", "c"))),
+      Tuple1(Tuple2("d", Seq("e", "f"))),
+      Tuple1(null)
+    )
+
+    withParquetFile(data) { file =>
+      readParquetFile(file) { df =>
+        checkAnswer(df,
+          Row(Row("a", null)) :: Row(null) :: Row(Row(null, null)) ::
+              Row(Row(null, Seq("b", "c"))) :: Row(Row("d", Seq("e", "f"))) :: Row(null) :: Nil
+        )
       }
     }
   }
@@ -413,7 +458,6 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
       }
     }
   }
-
 
   test("vectorized reader: required array with optional elements") {
     withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
@@ -509,6 +553,50 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
             Row(null) :: Row(Row(1, "a")) :: Row(Row(2, null)) :: Nil
           )
         }
+      }
+    }
+  }
+
+  test("vectorized reader: missing all struct fields") {
+    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
+      val data = Seq(
+        Tuple1((1, "a")),
+        Tuple1((2, null)),
+        Tuple1(null)
+      )
+
+      val readSchema = new StructType().add("_1",
+        new StructType()
+            .add("_3", IntegerType, nullable = true)
+            .add("_4", LongType, nullable = true),
+        nullable = true)
+
+      withParquetFile(data) { file =>
+        checkAnswer(spark.read.schema(readSchema).parquet(file),
+          Row(null) :: Row(null) :: Row(null) :: Nil
+        )
+      }
+    }
+  }
+
+  test("vectorized reader: missing some struct fields") {
+    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
+      val data = Seq(
+        Tuple1((1, "a")),
+        Tuple1((2, null)),
+        Tuple1(null)
+      )
+
+      val readSchema = new StructType().add("_1",
+        new StructType()
+            .add("_1", IntegerType, nullable = true)
+            .add("_3", LongType, nullable = true),
+        nullable = true)
+
+      withParquetFile(data) { file =>
+        checkAnswer(spark.read.schema(readSchema).parquet(file),
+          Row(null) :: Row(Row(1, null)) :: Row(Row(2, null)) :: Nil
+        )
       }
     }
   }

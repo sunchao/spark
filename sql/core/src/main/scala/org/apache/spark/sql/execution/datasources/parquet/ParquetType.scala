@@ -18,8 +18,9 @@
 package org.apache.spark.sql.execution.datasources.parquet
 
 import scala.collection.mutable
+
 import org.apache.parquet.column.ColumnDescriptor
-import org.apache.parquet.io.{GroupColumnIO, ColumnIOUtil, PrimitiveColumnIO}
+import org.apache.parquet.io.{ColumnIOUtil, GroupColumnIO, PrimitiveColumnIO}
 import org.apache.parquet.schema.Type.Repetition
 
 import org.apache.spark.sql.types.DataType

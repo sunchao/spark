@@ -51,7 +51,7 @@ public abstract class WritableColumnVector extends ColumnVector {
    * Resets this column for writing. The currently stored values are no longer accessible.
    */
   public void reset() {
-    if (isConstant) return;
+    if (isConstant || isAllNull) return;
 
     if (childColumns != null) {
       for (WritableColumnVector c: childColumns) {
@@ -119,7 +119,7 @@ public abstract class WritableColumnVector extends ColumnVector {
 
   @Override
   public boolean hasNull() {
-    return numNulls > 0;
+    return isAllNull || numNulls > 0;
   }
 
   @Override
@@ -674,6 +674,10 @@ public abstract class WritableColumnVector extends ColumnVector {
   @Override
   public WritableColumnVector getChild(int ordinal) { return childColumns[ordinal]; }
 
+  public int getNumChildren() {
+    return childColumns.length;
+  }
+
   /**
    * Returns the elements appended.
    */
@@ -691,6 +695,17 @@ public abstract class WritableColumnVector extends ColumnVector {
    * Marks this column as being constant.
    */
   public final void setIsConstant() { isConstant = true; }
+
+  /**
+   * Marks this column only contain null values.
+   */
+  public final void setAllNull() {
+    isAllNull = true;
+  }
+
+  public final boolean isAllNull() {
+    return isAllNull;
+  }
 
   /**
    * Maximum number of rows that can be stored in this column.
@@ -713,6 +728,11 @@ public abstract class WritableColumnVector extends ColumnVector {
    * across resets.
    */
   protected boolean isConstant;
+
+  /**
+   * True if this column's values are all null.
+   */
+  protected boolean isAllNull;
 
   /**
    * Default size of each array length value. This grows as necessary.

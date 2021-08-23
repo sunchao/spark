@@ -68,13 +68,6 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
   private int numBatched = 0;
 
   /**
-   * Column vectors for the top-level fields, including partition columns.
-   * Note the size of this array is not the same as `columnReaders` above when nested type is
-   * present: the former has length equal to the number of leaf nodes in the schema.
-   */
-  private WritableColumnVector[] columnVectors;
-
-  /**
    * Encapsulate writable column vectors with other Parquet related info such as
    * repetition / definition levels.
    * Note the length of this is NOT the same as `columnVectors`: the former includes partition
@@ -242,6 +235,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
       }
     }
 
+    WritableColumnVector[] columnVectors;
     if (memMode == MemoryMode.OFF_HEAP) {
       columnVectors = OffHeapColumnVector.allocateColumns(capacity, batchSchema);
     } else {
@@ -252,7 +246,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     columns = new ParquetColumn[sparkSchema.fields().length];
     for (int i = 0; i < columns.length; i++) {
       columns[i] = new ParquetColumn(requestedSchema.children().apply(i),
-          columnVectors[i], capacity, memMode);
+          columnVectors[i], capacity, memMode, missingColumns);
     }
 
     if (partitionColumns != null) {
@@ -261,24 +255,6 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
         ColumnVectorUtils.populate(columnVectors[i + partitionIdx], partitionValues, i);
         columnVectors[i + partitionIdx].setIsConstant();
       }
-    }
-
-    // Initialize missing columns with nulls.
-    for (ParquetColumn column : columns) {
-      initMissingColumn(column, false);
-    }
-  }
-
-  private void initMissingColumn(ParquetColumn column, boolean isParentMissing) {
-    ParquetType columnType = column.getColumnInfo();
-    boolean isMissingColumn = isParentMissing || missingColumns.contains(columnType);
-    if (isMissingColumn) {
-      WritableColumnVector vector = column.getValueVector();
-      vector.putNulls(0, capacity);
-      vector.setIsConstant();
-    }
-    for (ParquetColumn childColumn : column.getChildren()) {
-      initMissingColumn(childColumn, isMissingColumn);
     }
   }
 
@@ -311,15 +287,8 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
    * Advances to the next batch of rows. Returns false if there are no more.
    */
   public boolean nextBatch() throws IOException {
-    for (WritableColumnVector vector : columnVectors) {
-      vector.reset();
-    }
-    // also need to reset repetition & definition levels for all leaf columns
-    for (ParquetColumn col : columns) {
-      for (ParquetColumn leafCol : col.getLeaves()) {
-        leafCol.getRepetitionLevelVector().reset();
-        leafCol.getDefinitionLevelVector().reset();
-      }
+    for (ParquetColumn column : columns) {
+      column.reset();
     }
 
     columnarBatch.setNumRows(0);

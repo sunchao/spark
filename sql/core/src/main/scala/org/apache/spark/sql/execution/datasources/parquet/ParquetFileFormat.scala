@@ -170,14 +170,22 @@ class ParquetFileFormat
     val conf = sparkSession.sessionState.conf
     conf.parquetVectorizedReaderEnabled && conf.wholeStageEnabled &&
       schema.length <= conf.wholeStageMaxNumFields &&
-      schema.map(_.dataType).forall(isBatchReadSupported(sparkSession.sessionState.conf, _))
+        isBatchReadSupported(sparkSession.sessionState.conf, schema)
   }
 
   private def isBatchReadSupported(sqlConf: SQLConf, dt: DataType): Boolean = dt match {
     case _: AtomicType =>
       true
-    case _: ArrayType | _: MapType | _: StructType =>
-      sqlConf.parquetVectorizedReaderNestedColumnEnabled
+    case at: ArrayType =>
+      sqlConf.parquetVectorizedReaderNestedColumnEnabled &&
+          isBatchReadSupported(sqlConf, at.elementType)
+    case mt: MapType =>
+      sqlConf.parquetVectorizedReaderNestedColumnEnabled &&
+          isBatchReadSupported(sqlConf, mt.keyType) &&
+          isBatchReadSupported(sqlConf, mt.valueType)
+    case st: StructType =>
+      sqlConf.parquetVectorizedReaderNestedColumnEnabled &&
+          st.fields.forall(f => isBatchReadSupported(sqlConf, f.dataType))
     case _ =>
       false
   }
