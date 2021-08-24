@@ -161,17 +161,6 @@ final class ParquetReadState {
   }
 
   /**
-   * Advance the current offset and rowId to the new values.
-   */
-  void advanceOffsetAndRowId(int newOffset, long newRowId) {
-    rowsToReadInBatch -= (newOffset - levelOffset);
-    valuesToReadInPage -= (newRowId - rowId);
-    levelOffset = newOffset;
-    valueOffset = newOffset;
-    rowId = newRowId;
-  }
-
-  /**
    * Advance to the next range.
    */
   void nextRange() {

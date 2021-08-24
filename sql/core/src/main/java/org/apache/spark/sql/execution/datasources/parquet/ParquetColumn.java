@@ -204,17 +204,19 @@ final class ParquetColumn {
     //
     // `i` is the index over all leaf elements of this array, while `offset` is the index over
     // all top-level elements of this array.
-    for (int i = 0, rowId = 0, offset = 0; i < definitionLevels.getElementsAppended();
-         i = getNextCollectionStart(maxElementRepetitionLevel, i), rowId++) {
+    int rowId = 0;
+    for (int i = 0, offset = 0; i < definitionLevels.getElementsAppended();
+         i = getNextCollectionStart(maxElementRepetitionLevel, i)) {
       vector.reserve(rowId + 1);
       int definitionLevel = definitionLevels.getInt(i);
       if (definitionLevel == maxDefinitionLevel - 1) {
         // the collection is null
-        vector.putNull(rowId);
+        vector.putNull(rowId++);
       } else if (definitionLevel == maxDefinitionLevel) {
         // collection is defined but empty
         vector.putNotNull(rowId);
         vector.putArray(rowId, offset, 0);
+        rowId++;
       } else if (definitionLevel > maxDefinitionLevel) {
         // collection is defined and non-empty: find out how many top element there is till the
         // start of the next array.
@@ -222,8 +224,10 @@ final class ParquetColumn {
         int length = getCollectionSize(maxElementRepetitionLevel, i + 1);
         vector.putArray(rowId, offset, length);
         offset += length;
+        rowId++;
       }
     }
+    vector.addElementsAppended(rowId);
   }
 
   private void calculateStructOffsets() {
@@ -231,7 +235,9 @@ final class ParquetColumn {
     int maxDefinitionLevel = columnInfo.definitionLevel();
 
     vector.reserve(definitionLevels.getElementsAppended());
-    for (int i = 0, rowId = 0; i < definitionLevels.getElementsAppended(); i++) {
+    int rowId = 0;
+    int nonnullRowId = 0;
+    for (int i = 0; i < definitionLevels.getElementsAppended(); i++) {
       // if repetition level > maxRepetitionLevel, the value is a nested element (e.g., an array
       // element in struct<array<int>>), and we should skip the definition level since it doesn't
       // represent with the struct.
@@ -239,12 +245,16 @@ final class ParquetColumn {
         if (definitionLevels.getInt(i) == maxDefinitionLevel - 1) {
           // the struct is null
           vector.putNull(rowId);
-        } else {
+          rowId++;
+        } else if (definitionLevels.getInt(i) >= maxDefinitionLevel) {
           vector.putNotNull(rowId);
+          vector.putStruct(rowId, nonnullRowId);
+          rowId++;
+          nonnullRowId++;
         }
-        rowId++;
       }
     }
+    vector.addElementsAppended(rowId);
   }
 
   private static WritableColumnVector allocateLevelsVector(int capacity, MemoryMode memoryMode) {

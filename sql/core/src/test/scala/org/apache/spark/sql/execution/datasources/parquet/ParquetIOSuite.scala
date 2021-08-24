@@ -40,7 +40,7 @@ import org.apache.parquet.schema.{MessageType, MessageTypeParser}
 import org.apache.spark.{SPARK_VERSION_SHORT, SparkException}
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.{InternalRow, ScalaReflection}
-import org.apache.spark.sql.catalyst.expressions.{CodegenObjectFactoryMode, GenericInternalRow, UnsafeRow}
+import org.apache.spark.sql.catalyst.expressions.{GenericInternalRow, UnsafeRow}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.execution.datasources.SQLHadoopMapReduceCommitProtocol
 import org.apache.spark.sql.functions._
@@ -364,6 +364,36 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
     }
   }
 
+  test("vectorized reader: array of nested struct") {
+    val data = Seq(
+      Tuple1(Tuple2("a", null)),
+      Tuple1(Tuple2("b", Seq(Tuple2("c", "d")))),
+      Tuple1(null),
+      Tuple1(Tuple2("e", Seq(Tuple2("f", null), Tuple2(null, "g")))),
+      Tuple1(Tuple2(null, null)),
+      Tuple1(Tuple2(null, Seq(null))),
+      Tuple1(Tuple2(null, Seq(Tuple2(null, null), Tuple2("h", null), null))),
+      Tuple1(Tuple2("i", Seq())),
+      Tuple1(null)
+    )
+
+    withParquetFile(data) { file =>
+      readParquetFile(file) { df =>
+        checkAnswer(df,
+          Row(Row("a", null)) ::
+              Row(Row("b", Seq(Row("c", "d")))) ::
+              Row(null) ::
+              Row(Row("e", Seq(Row("f", null), Row(null, "g")))) ::
+              Row(Row(null, null)) ::
+              Row(Row(null, Seq(null))) ::
+              Row(Row(null, Seq(Row(null, null), Row("h", null), null))) ::
+              Row(Row("i", Seq())) ::
+              Row(null) ::
+              Nil)
+      }
+    }
+  }
+
   test("vectorized reader: required array with required elements") {
     Seq(true, false).foreach { dictionaryEnabled =>
       def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
@@ -526,15 +556,17 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
 
   test("vectorized reader: struct") {
     val data = Seq(
+      Tuple1(null),
       Tuple1((1, "a")),
       Tuple1((2, null)),
+      Tuple1((3, "b")),
       Tuple1(null)
     )
 
     withParquetFile(data) { file =>
       readParquetFile(file) { df =>
         checkAnswer(df.sort("_1"),
-          Row(null) :: Row(Row(1, "a")) :: Row(Row(2, null)) :: Nil
+          Row(null) :: Row(null) :: Row(Row(1, "a")) :: Row(Row(2, null)) :: Row(Row(3, "b")) :: Nil
         )
       }
     }
