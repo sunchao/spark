@@ -291,29 +291,24 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
   }
 
   test("vectorized reader: array") {
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
-      val data = Seq(
-        Tuple1(null),
-        Tuple1(Seq()),
-        Tuple1(Seq("a", "b", "c")),
-        Tuple1(Seq(null))
-      )
+    val data = Seq(
+      Tuple1(null),
+      Tuple1(Seq()),
+      Tuple1(Seq("a", "b", "c")),
+      Tuple1(Seq(null))
+    )
 
-      withParquetFile(data) { file =>
-        readParquetFile(file) { df =>
-          checkAnswer(df.sort("_1"),
-            Row(null) :: Row(Seq()) :: Row(Seq(null)) :: Row(Seq("a", "b", "c")) :: Nil
-          )
-        }
+    withParquetFile(data) { file =>
+      readParquetFile(file) { df =>
+        checkAnswer(df.sort("_1"),
+          Row(null) :: Row(Seq()) :: Row(Seq(null)) :: Row(Seq("a", "b", "c")) :: Nil
+        )
       }
     }
   }
 
   test("vectorized reader: missing array") {
-    val codeGenFactoryMode = CodegenObjectFactoryMode.NO_CODEGEN
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true",
-        SQLConf.WHOLESTAGE_CODEGEN_ENABLED.key -> "false",
-        SQLConf.CODEGEN_FACTORY_MODE.key -> codeGenFactoryMode.toString) {
+    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
       val data = Seq(
         Tuple1(null),
         Tuple1(Seq()),
@@ -335,18 +330,16 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
   }
 
   test("vectorized reader: array of array") {
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
-      val data = Seq(
-        Tuple1(Seq(Seq(0, 1), Seq(2, 3))),
-        Tuple1(Seq(Seq(4, 5), Seq(6, 7)))
-      )
+    val data = Seq(
+      Tuple1(Seq(Seq(0, 1), Seq(2, 3))),
+      Tuple1(Seq(Seq(4, 5), Seq(6, 7)))
+    )
 
-      withParquetFile(data) { file =>
-        readParquetFile(file) { df =>
-          checkAnswer(df.sort("_1"),
-            Row(Seq(Seq(0, 1), Seq(2, 3))) :: Row(Seq(Seq(4, 5), Seq(6, 7))) :: Nil
-          )
-        }
+    withParquetFile(data) { file =>
+      readParquetFile(file) { df =>
+        checkAnswer(df.sort("_1"),
+          Row(Seq(Seq(0, 1), Seq(2, 3))) :: Row(Seq(Seq(4, 5), Seq(6, 7))) :: Nil
+        )
       }
     }
   }
@@ -372,187 +365,177 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
   }
 
   test("vectorized reader: required array with required elements") {
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
-      Seq(true, false).foreach { dictionaryEnabled =>
-        def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
-          val schemaStr =
-            """message spark_schema {
-              |  required group _1 (LIST) {
-              |    repeated group list {
-              |      required binary element (UTF8);
-              |    }
-              |  }
-              |}
+    Seq(true, false).foreach { dictionaryEnabled =>
+      def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
+        val schemaStr =
+          """message spark_schema {
+            |  required group _1 (LIST) {
+            |    repeated group list {
+            |      required binary element (UTF8);
+            |    }
+            |  }
+            |}
             """.stripMargin
-          val schema = MessageTypeParser.parseMessageType(schemaStr)
-          val writer = createParquetWriter(schema, path, dictionaryEnabled)
+        val schema = MessageTypeParser.parseMessageType(schemaStr)
+        val writer = createParquetWriter(schema, path, dictionaryEnabled)
 
-          val factory = new SimpleGroupFactory(schema)
-          expected.foreach { values =>
-            val group = factory.newGroup()
-            val list = group.addGroup(0)
-            values.foreach { value =>
-              list.addGroup(0).append("element", value)
-            }
-            writer.write(group)
+        val factory = new SimpleGroupFactory(schema)
+        expected.foreach { values =>
+          val group = factory.newGroup()
+          val list = group.addGroup(0)
+          values.foreach { value =>
+            list.addGroup(0).append("element", value)
           }
-          writer.close()
+          writer.write(group)
         }
+        writer.close()
+      }
 
-        // write the following into the Parquet file:
-        //   0: [ "a", "b" ]
-        //   1: [ ]
-        //   2: [ "c", "d" ]
-        withTempDir { dir =>
-          val path = new Path(dir.toURI.toString, "part-r-0.parquet")
-          val expected = Seq(Seq("a", "b"), Seq(), Seq("c", "d"))
-          makeRawParquetFile(path, expected)
-          readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
-        }
+      // write the following into the Parquet file:
+      //   0: [ "a", "b" ]
+      //   1: [ ]
+      //   2: [ "c", "d" ]
+      withTempDir { dir =>
+        val path = new Path(dir.toURI.toString, "part-r-0.parquet")
+        val expected = Seq(Seq("a", "b"), Seq(), Seq("c", "d"))
+        makeRawParquetFile(path, expected)
+        readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
       }
     }
   }
 
   test("vectorized reader: optional array with required elements") {
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
-      Seq(true, false).foreach { dictionaryEnabled =>
-        def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
-          val schemaStr =
-            """message spark_schema {
-              |  optional group _1 (LIST) {
-              |    repeated group list {
-              |      required binary element (UTF8);
-              |    }
-              |  }
-              |}
+    Seq(true, false).foreach { dictionaryEnabled =>
+      def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
+        val schemaStr =
+          """message spark_schema {
+            |  optional group _1 (LIST) {
+            |    repeated group list {
+            |      required binary element (UTF8);
+            |    }
+            |  }
+            |}
             """.stripMargin
-          val schema = MessageTypeParser.parseMessageType(schemaStr)
-          val writer = createParquetWriter(schema, path, dictionaryEnabled)
+        val schema = MessageTypeParser.parseMessageType(schemaStr)
+        val writer = createParquetWriter(schema, path, dictionaryEnabled)
 
-          val factory = new SimpleGroupFactory(schema)
-          expected.foreach { values =>
-            val group = factory.newGroup()
-            if (values != null) {
-              val list = group.addGroup(0)
-              values.foreach { value =>
-                list.addGroup(0).append("element", value)
-              }
+        val factory = new SimpleGroupFactory(schema)
+        expected.foreach { values =>
+          val group = factory.newGroup()
+          if (values != null) {
+            val list = group.addGroup(0)
+            values.foreach { value =>
+              list.addGroup(0).append("element", value)
             }
-            writer.write(group)
           }
-          writer.close()
+          writer.write(group)
         }
+        writer.close()
+      }
 
-        // write the following into the Parquet file:
-        //   0: [ "a", "b" ]
-        //   1: null
-        //   2: [ "c", "d" ]
-        //   3: [ ]
-        //   4: [ "e", "f" ]
-        withTempDir { dir =>
-          val path = new Path(dir.toURI.toString, "part-r-0.parquet")
-          val expected = Seq(Seq("a", "b"), null, Seq("c", "d"), Seq(), Seq("e", "f"))
-          makeRawParquetFile(path, expected)
-          readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
-        }
+      // write the following into the Parquet file:
+      //   0: [ "a", "b" ]
+      //   1: null
+      //   2: [ "c", "d" ]
+      //   3: [ ]
+      //   4: [ "e", "f" ]
+      withTempDir { dir =>
+        val path = new Path(dir.toURI.toString, "part-r-0.parquet")
+        val expected = Seq(Seq("a", "b"), null, Seq("c", "d"), Seq(), Seq("e", "f"))
+        makeRawParquetFile(path, expected)
+        readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
       }
     }
   }
 
   test("vectorized reader: required array with optional elements") {
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
-      Seq(true, false).foreach { dictionaryEnabled =>
-        def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
-          val schemaStr =
-            """message spark_schema {
-              |  required group _1 (LIST) {
-              |    repeated group list {
-              |      optional binary element (UTF8);
-              |    }
-              |  }
-              |}
+    Seq(true, false).foreach { dictionaryEnabled =>
+      def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
+        val schemaStr =
+          """message spark_schema {
+            |  required group _1 (LIST) {
+            |    repeated group list {
+            |      optional binary element (UTF8);
+            |    }
+            |  }
+            |}
             """.stripMargin
-          val schema = MessageTypeParser.parseMessageType(schemaStr)
-          val writer = createParquetWriter(schema, path, dictionaryEnabled)
+        val schema = MessageTypeParser.parseMessageType(schemaStr)
+        val writer = createParquetWriter(schema, path, dictionaryEnabled)
 
-          val factory = new SimpleGroupFactory(schema)
-          expected.foreach { values =>
-            val group = factory.newGroup()
-            if (values != null) {
-              val list = group.addGroup(0)
-              values.foreach { value =>
-                val group = list.addGroup(0)
-                if (value != null) group.append("element", value)
-              }
+        val factory = new SimpleGroupFactory(schema)
+        expected.foreach { values =>
+          val group = factory.newGroup()
+          if (values != null) {
+            val list = group.addGroup(0)
+            values.foreach { value =>
+              val group = list.addGroup(0)
+              if (value != null) group.append("element", value)
             }
-            writer.write(group)
           }
-          writer.close()
+          writer.write(group)
         }
+        writer.close()
+      }
 
-        // write the following into the Parquet file:
-        //   0: [ "a", null ]
-        //   3: [ ]
-        //   4: [ null, "b" ]
-        withTempDir { dir =>
-          val path = new Path(dir.toURI.toString, "part-r-0.parquet")
-          val expected = Seq(Seq("a", null), Seq(), Seq(null, "b"))
-          makeRawParquetFile(path, expected)
-          readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
-        }
+      // write the following into the Parquet file:
+      //   0: [ "a", null ]
+      //   3: [ ]
+      //   4: [ null, "b" ]
+      withTempDir { dir =>
+        val path = new Path(dir.toURI.toString, "part-r-0.parquet")
+        val expected = Seq(Seq("a", null), Seq(), Seq(null, "b"))
+        makeRawParquetFile(path, expected)
+        readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
       }
     }
   }
 
   test("vectorized reader: required array with legacy format") {
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
-      Seq(true, false).foreach { dictionaryEnabled =>
-        def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
-          val schemaStr =
-            """message spark_schema {
-              |  repeated binary element (UTF8);
-              |}
+    Seq(true, false).foreach { dictionaryEnabled =>
+      def makeRawParquetFile(path: Path, expected: Seq[Seq[String]]): Unit = {
+        val schemaStr =
+          """message spark_schema {
+            |  repeated binary element (UTF8);
+            |}
             """.stripMargin
-          val schema = MessageTypeParser.parseMessageType(schemaStr)
-          val writer = createParquetWriter(schema, path, dictionaryEnabled)
+        val schema = MessageTypeParser.parseMessageType(schemaStr)
+        val writer = createParquetWriter(schema, path, dictionaryEnabled)
 
-          val factory = new SimpleGroupFactory(schema)
-          expected.foreach { values =>
-            val group = factory.newGroup()
-            values.foreach(group.append("element", _))
-            writer.write(group)
-          }
-          writer.close()
+        val factory = new SimpleGroupFactory(schema)
+        expected.foreach { values =>
+          val group = factory.newGroup()
+          values.foreach(group.append("element", _))
+          writer.write(group)
         }
+        writer.close()
+      }
 
-        // write the following into the Parquet file:
-        //   0: [ "a", "b" ]
-        //   3: [ ]
-        //   4: [ "c", "d" ]
-        withTempDir { dir =>
-          val path = new Path(dir.toURI.toString, "part-r-0.parquet")
-          val expected = Seq(Seq("a", "b"), Seq(), Seq("c", "d"))
-          makeRawParquetFile(path, expected)
-          readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
-        }
+      // write the following into the Parquet file:
+      //   0: [ "a", "b" ]
+      //   3: [ ]
+      //   4: [ "c", "d" ]
+      withTempDir { dir =>
+        val path = new Path(dir.toURI.toString, "part-r-0.parquet")
+        val expected = Seq(Seq("a", "b"), Seq(), Seq("c", "d"))
+        makeRawParquetFile(path, expected)
+        readParquetFile(path.toString) { df => checkAnswer(df, expected.map(Row(_))) }
       }
     }
   }
 
   test("vectorized reader: struct") {
-    withSQLConf(SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
-      val data = Seq(
-        Tuple1((1, "a")),
-        Tuple1((2, null)),
-        Tuple1(null)
-      )
+    val data = Seq(
+      Tuple1((1, "a")),
+      Tuple1((2, null)),
+      Tuple1(null)
+    )
 
-      withParquetFile(data) { file =>
-        readParquetFile(file) { df =>
-          checkAnswer(df.sort("_1"),
-            Row(null) :: Row(Row(1, "a")) :: Row(Row(2, null)) :: Nil
-          )
-        }
+    withParquetFile(data) { file =>
+      readParquetFile(file) { df =>
+        checkAnswer(df.sort("_1"),
+          Row(null) :: Row(Row(1, "a")) :: Row(Row(2, null)) :: Nil
+        )
       }
     }
   }

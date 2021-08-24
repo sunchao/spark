@@ -184,7 +184,8 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
           }
           builder.addFields(fileSchema.getType(s));
         }
-        this.requestedParquetSchema = builder.named(ParquetSchemaConverter.SPARK_PARQUET_SCHEMA_NAME());
+        this.requestedParquetSchema =
+          builder.named(ParquetSchemaConverter.SPARK_PARQUET_SCHEMA_NAME());
       } else {
         this.requestedParquetSchema = ParquetSchemaConverter.EMPTY_MESSAGE();
       }

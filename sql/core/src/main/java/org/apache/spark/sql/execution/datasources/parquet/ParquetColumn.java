@@ -27,7 +27,6 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.vectorized.ColumnVector;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -86,6 +85,8 @@ final class ParquetColumn {
         ParquetColumn childColumn = new ParquetColumn(columnInfo.children().apply(i),
           vector.getChild(i), capacity, memoryMode, missingColumns);
         children.add(childColumn);
+
+        // only use levels from non-missing child
         if (!childColumn.vector.isAllNull()) {
           this.repetitionLevels = childColumn.repetitionLevels;
           this.definitionLevels = childColumn.definitionLevels;
@@ -191,12 +192,16 @@ final class ParquetColumn {
     int maxDefinitionLevel = columnInfo.definitionLevel();
     int maxElementRepetitionLevel = columnInfo.repetitionLevel();
 
-    // There are 3 cases when calculating definition levels:
-    //   1. definitionLevel == maxDefinitionLevel ==> value is defined
-    //   2. definitionLevel == maxDefinitionLevel - 1 ==> value is null
-    //   3. definitionLevel < maxDefinitionLevel - 1 ==> value doesn't exist since one of its
-    //                                                   optional parent is null
-    //   4. definitionLevel > maxDefinitionLevel ==> value is a nested element
+    // There are 4 cases when calculating definition levels:
+    //   1. definitionLevel == maxDefinitionLevel
+    //     ==> value is defined and not null
+    //   2. definitionLevel == maxDefinitionLevel - 1
+    //     ==> value is null
+    //   3. definitionLevel < maxDefinitionLevel - 1
+    //     ==> value doesn't exist since one of its optional parent is null
+    //   4. definitionLevel > maxDefinitionLevel
+    //     ==> value is a nested element within an array or map
+    //
     // `i` is the index over all leaf elements of this array, while `offset` is the index over
     // all top-level elements of this array.
     for (int i = 0, rowId = 0, offset = 0; i < definitionLevels.getElementsAppended();
@@ -269,6 +274,29 @@ final class ParquetColumn {
       if (repetitionLevels.getInt(idx) <= maxRepetitionLevel) {
         break;
       } else if (repetitionLevels.getInt(idx) <= maxRepetitionLevel + 1) {
+        // only count elements which belong to the current collection
+        // For instance, suppose we have the following Parquet schema:
+        //
+        // message schema {                        max rl   max dl
+        //   optional group col (LIST) {              0        1
+        //     repeated group list {                  1        2
+        //       optional group element (LIST) {      1        3
+        //         repeated group list {              2        4
+        //           required int32 element;          2        4
+        //         }
+        //       }
+        //     }
+        //   }
+        // }
+        //
+        // For a list such as: [[[0, 1], [2, 3]], [[4, 5], [6, 7]]], the repetition & definition
+        // levels would be:
+        //
+        // repetition levels: [0, 2, 1, 2, 0, 2, 1, 2]
+        // definition levels: [2, 2, 2, 2, 2, 2, 2, 2]
+        //
+        // when calculating collection size for the outer array, we should only count repetition
+        // levels whose value is <= 1 (which is the max repetition level for the inner array)
         size++;
       }
     }
