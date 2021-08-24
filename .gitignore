@@ -111,3 +111,7 @@ spark-warehouse/
 
 # For Node.js
 node_modules
+
+# For RIO
+.dist
+.library
