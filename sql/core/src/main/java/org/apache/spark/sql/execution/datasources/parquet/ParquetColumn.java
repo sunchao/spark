@@ -17,6 +17,10 @@
 
 package org.apache.spark.sql.execution.datasources.parquet;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
 import com.google.common.base.Preconditions;
 import org.apache.spark.memory.MemoryMode;
 import org.apache.spark.sql.execution.vectorized.OffHeapColumnVector;
@@ -28,15 +32,11 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructType;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-
 /**
  * Contains necessary information representing a Parquet column, either of primitive or nested type.
  */
 final class ParquetColumn {
-  private final ParquetType columnInfo;
+  private final ParquetType type;
   private final List<ParquetColumn> children;
   private final WritableColumnVector vector;
 
@@ -55,23 +55,23 @@ final class ParquetColumn {
   private VectorizedColumnReader columnReader;
 
   ParquetColumn(
-      ParquetType columnInfo,
+      ParquetType type,
       WritableColumnVector vector,
       int capacity,
       MemoryMode memoryMode,
       Set<ParquetType> missingColumns) {
-    DataType sparkType = columnInfo.sparkType();
+    DataType sparkType = type.sparkType();
     if (!sparkType.sameType(vector.dataType())) {
-      throw new IllegalArgumentException("Spark type: " + columnInfo.sparkType() +
+      throw new IllegalArgumentException("Spark type: " + type.sparkType() +
         " doesn't match the type: " + vector.dataType() + " in column vector");
     }
 
-    this.columnInfo = columnInfo;
+    this.type = type;
     this.vector = vector;
     this.children = new ArrayList<>();
-    this.isPrimitive = columnInfo.isPrimitive();
+    this.isPrimitive = type.isPrimitive();
 
-    if (missingColumns.contains(columnInfo)) {
+    if (missingColumns.contains(type)) {
       vector.setAllNull();
       return;
     }
@@ -80,9 +80,9 @@ final class ParquetColumn {
       repetitionLevels = allocateLevelsVector(capacity, memoryMode);
       definitionLevels = allocateLevelsVector(capacity, memoryMode);
     } else {
-      Preconditions.checkArgument(columnInfo.children().size() == vector.getNumChildren());
-      for (int i = 0; i < columnInfo.children().size(); i++) {
-        ParquetColumn childColumn = new ParquetColumn(columnInfo.children().apply(i),
+      Preconditions.checkArgument(type.children().size() == vector.getNumChildren());
+      for (int i = 0; i < type.children().size(); i++) {
+        ParquetColumn childColumn = new ParquetColumn(type.children().apply(i),
           vector.getChild(i), capacity, memoryMode, missingColumns);
         children.add(childColumn);
 
@@ -94,7 +94,7 @@ final class ParquetColumn {
       }
 
       // this can happen if all the fields of a struct are missing, in which case we should mark
-      // the struct itself as a missing column too
+      // the struct itself as a missing column
       if (repetitionLevels == null) {
         vector.setAllNull();
       }
@@ -109,7 +109,7 @@ final class ParquetColumn {
   }
 
   /**
-   * Get all the leaf columns in depth-first order.
+   * Returns all the leaf columns in depth-first order.
    */
   List<ParquetColumn> getLeaves() {
     List<ParquetColumn> result = new ArrayList<>();
@@ -125,7 +125,7 @@ final class ParquetColumn {
     // nothing to do if the column itself is missing
     if (vector.isAllNull()) return;
 
-    DataType type = columnInfo.sparkType();
+    DataType type = this.type.sparkType();
     if (type instanceof ArrayType || type instanceof MapType) {
       for (ParquetColumn child : children) {
         child.assemble();
@@ -151,8 +151,8 @@ final class ParquetColumn {
     }
   }
 
-  ParquetType getColumnInfo() {
-    return this.columnInfo;
+  ParquetType getType() {
+    return this.type;
   }
 
   WritableColumnVector getValueVector() {
@@ -182,15 +182,15 @@ final class ParquetColumn {
     if (column.isPrimitive) {
       coll.add(column);
     } else {
-      for (ParquetColumn childCol : column.children) {
-        getLeavesHelper(childCol, coll);
+      for (ParquetColumn child : column.children) {
+        getLeavesHelper(child, coll);
       }
     }
   }
 
   private void calculateCollectionOffsets() {
-    int maxDefinitionLevel = columnInfo.definitionLevel();
-    int maxElementRepetitionLevel = columnInfo.repetitionLevel();
+    int maxDefinitionLevel = type.definitionLevel();
+    int maxElementRepetitionLevel = type.repetitionLevel();
 
     // There are 4 cases when calculating definition levels:
     //   1. definitionLevel == maxDefinitionLevel
@@ -231,8 +231,8 @@ final class ParquetColumn {
   }
 
   private void calculateStructOffsets() {
-    int maxRepetitionLevel = columnInfo.repetitionLevel();
-    int maxDefinitionLevel = columnInfo.definitionLevel();
+    int maxRepetitionLevel = type.repetitionLevel();
+    int maxDefinitionLevel = type.definitionLevel();
 
     vector.reserve(definitionLevels.getElementsAppended());
     int rowId = 0;

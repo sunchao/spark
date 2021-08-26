@@ -30,7 +30,7 @@ import org.apache.spark.sql.types.DataType
  */
 case class ParquetType(
     sparkType: DataType,
-    descriptor: Option[ColumnDescriptor],
+    descriptor: Option[ColumnDescriptor], // only set when this is a primitive type
     repetitionLevel: Int,
     definitionLevel: Int,
     required: Boolean,
@@ -40,7 +40,7 @@ case class ParquetType(
   def isPrimitive: Boolean = descriptor.nonEmpty
 
   /**
-   * Get all the leaves (i.e., primitive columns) of this, in a depth-first order.
+   * Returns all the leaves (i.e., primitive columns) of this, in depth-first order.
    */
   def leaves: Seq[ParquetType] = {
     val buffer = mutable.ArrayBuffer[ParquetType]()
@@ -54,15 +54,15 @@ case class ParquetType(
 }
 
 object ParquetType {
-  def apply(sparkType: DataType, column: PrimitiveColumnIO): ParquetType = {
-    this(sparkType, Some(column.getColumnDescriptor), ColumnIOUtil.getRepetitionLevel(column),
-      ColumnIOUtil.getDefinitionLevel(column), column.getType.isRepetition(Repetition.REQUIRED),
-      ColumnIOUtil.getFieldPath(column), Seq.empty)
+  def apply(sparkType: DataType, io: PrimitiveColumnIO): ParquetType = {
+    this(sparkType, Some(io.getColumnDescriptor), ColumnIOUtil.getRepetitionLevel(io),
+      ColumnIOUtil.getDefinitionLevel(io), io.getType.isRepetition(Repetition.REQUIRED),
+      ColumnIOUtil.getFieldPath(io), Seq.empty)
   }
 
-  def apply(sparkType: DataType, column: GroupColumnIO, children: Seq[ParquetType]): ParquetType = {
-    this(sparkType, None, ColumnIOUtil.getRepetitionLevel(column),
-      ColumnIOUtil.getDefinitionLevel(column), column.getType.isRepetition(Repetition.REQUIRED),
-      ColumnIOUtil.getFieldPath(column), children)
+  def apply(sparkType: DataType, io: GroupColumnIO, children: Seq[ParquetType]): ParquetType = {
+    this(sparkType, None, ColumnIOUtil.getRepetitionLevel(io),
+      ColumnIOUtil.getDefinitionLevel(io), io.getType.isRepetition(Repetition.REQUIRED),
+      ColumnIOUtil.getFieldPath(io), children)
   }
 }

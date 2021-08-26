@@ -380,9 +380,9 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
   }
 
   private void initColumnReader(PageReadStore pages, ParquetColumn column) throws IOException {
-    if (!missingColumns.contains(column.getColumnInfo())) {
-      if (column.getColumnInfo().isPrimitive()) {
-        ParquetType colType = column.getColumnInfo();
+    if (!missingColumns.contains(column.getType())) {
+      if (column.getType().isPrimitive()) {
+        ParquetType colType = column.getType();
         Preconditions.checkArgument(colType.isPrimitive());
         VectorizedColumnReader reader = new VectorizedColumnReader(
           colType.descriptor().get(), colType.required(), pages, convertTz, datetimeRebaseMode,

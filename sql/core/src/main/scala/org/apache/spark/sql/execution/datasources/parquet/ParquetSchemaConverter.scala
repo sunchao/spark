@@ -66,10 +66,10 @@ class ParquetToSparkSchemaConverter(
 
   /**
    * Convert `parquetSchema` into a [[ParquetType]] which contains its corresponding Spark
-   * SQL [[StructType]] alongside other information such as its maximum repetition and definition
-   * level, descriptor for primitive types, etc.
+   * SQL [[StructType]] along with other information such as the maximum repetition and definition
+   * level of each node, column descriptor for the leave nodes, etc.
    *
-   * If `sparkReadSchema` is not empty, when deriving Spark SQL type from a Parquet field it will
+   * If `sparkReadSchema` is not empty, when deriving Spark SQL type from a Parquet field this will
    * check if the same field also exists in the schema. If so, it will use the Spark SQL type.
    * This is necessary since conversion from Parquet to Spark could cause precision loss. For
    * instance, Spark read schema is smallint/tinyint but Parquet only support int.
@@ -92,6 +92,21 @@ class ParquetToSparkSchemaConverter(
         schema.find(f => isSameFieldName(f.name, field.getName, caseSensitive)).map(_.dataType)
       }
 
+      // if a field is repeated it means that it is neither contained by a `LIST` nor `MAP`
+      // annotated group (these are handled in `convertGroupField`), e.g.:
+      //
+      //  message schema {
+      //    repeated int32 int_array;
+      //  }
+      // or
+      //  message schema {
+      //    repeated group struct_array {
+      //      optional int32 field;
+      //    }
+      //  }
+      //
+      // the corresponding Spark read type should be an array and we should pass the element type
+      // to the group or primitive type conversion method.
       if (field.getType.getRepetition == REPEATED) {
         sparkReadType = sparkReadType.flatMap {
           case at: ArrayType => Some(at.elementType)
