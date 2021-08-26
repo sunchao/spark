@@ -95,6 +95,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
     doubleData = null;
     arrayLengths = null;
     arrayOffsets = null;
+    structOffsets = null;
   }
 
   //
@@ -535,7 +536,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
       }
       arrayLengths = newLengths;
       arrayOffsets = newOffsets;
-    } else if (type instanceof StructType) {
+    } else if (isStruct()) {
       int[] newOffsets = new int[newCapacity];
       if (this.structOffsets != null) {
         System.arraycopy(this.structOffsets, 0, newOffsets, 0, capacity);

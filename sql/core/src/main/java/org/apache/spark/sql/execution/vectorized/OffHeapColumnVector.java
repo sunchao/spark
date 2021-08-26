@@ -74,6 +74,7 @@ public final class OffHeapColumnVector extends WritableColumnVector {
     data = 0;
     lengthData = 0;
     offsetData = 0;
+    structOffsetData = 0;
 
     reserveInternal(capacity);
     reset();
@@ -94,10 +95,12 @@ public final class OffHeapColumnVector extends WritableColumnVector {
     Platform.freeMemory(data);
     Platform.freeMemory(lengthData);
     Platform.freeMemory(offsetData);
+    Platform.freeMemory(structOffsetData);
     nulls = 0;
     data = 0;
     lengthData = 0;
     offsetData = 0;
+    structOffsetData = 0;
   }
 
   //
@@ -546,7 +549,7 @@ public final class OffHeapColumnVector extends WritableColumnVector {
 
   @Override
   public void putStruct(int rowId, int offset) {
-    Platform.putInt(null, structOffsetData * 4L * rowId, offset);
+    Platform.putInt(null, structOffsetData + 4L * rowId, offset);
   }
 
   // Split out the slow path.
@@ -558,7 +561,7 @@ public final class OffHeapColumnVector extends WritableColumnVector {
           Platform.reallocateMemory(lengthData, oldCapacity * 4L, newCapacity * 4L);
       this.offsetData =
           Platform.reallocateMemory(offsetData, oldCapacity * 4L, newCapacity * 4L);
-    } else if (type instanceof StructType) {
+    } else if (isStruct()) {
       this.structOffsetData =
         Platform.reallocateMemory(structOffsetData, oldCapacity * 4L, newCapacity * 4L);
     } else if (type instanceof ByteType || type instanceof BooleanType) {

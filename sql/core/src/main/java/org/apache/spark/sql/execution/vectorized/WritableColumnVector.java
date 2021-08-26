@@ -443,6 +443,7 @@ public abstract class WritableColumnVector extends ColumnVector {
   }
 
   public final int appendNotNull() {
+    assert (!(dataType() instanceof StructType)); // Use appendStruct()
     reserve(elementsAppended + 1);
     putNotNull(elementsAppended);
     return elementsAppended++;
@@ -635,21 +636,23 @@ public abstract class WritableColumnVector extends ColumnVector {
    * common non-struct case.
    */
   public final int appendStruct(boolean isNull) {
+    reserve(elementsAppended + 1);
     if (isNull) {
       // This is the same as appendNull but without the assertion for struct types
-      reserve(elementsAppended + 1);
       putNull(elementsAppended);
-      elementsAppended++;
       for (WritableColumnVector c: childColumns) {
-        if (c.type instanceof StructType) {
+        if (c.isStruct()) {
           c.appendStruct(true);
         } else {
           c.appendNull();
         }
       }
     } else {
-      appendNotNull();
+      reserve(elementsAppended + 1);
+      putNotNull(elementsAppended);
     }
+    putStruct(elementsAppended, elementsAppended);
+    elementsAppended++;
     return elementsAppended;
   }
 
@@ -771,6 +774,10 @@ public abstract class WritableColumnVector extends ColumnVector {
   protected boolean isArray() {
     return type instanceof ArrayType || type instanceof BinaryType || type instanceof StringType ||
       DecimalType.isByteArrayDecimalType(type);
+  }
+
+  protected boolean isStruct() {
+    return type instanceof StructType || type instanceof CalendarIntervalType;
   }
 
   /**
