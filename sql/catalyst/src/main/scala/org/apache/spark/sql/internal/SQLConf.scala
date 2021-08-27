@@ -1411,6 +1411,14 @@ object SQLConf {
     .longConf
     .createWithDefault(4 * 1024 * 1024)
 
+  val FILES_S3C_ENABLED = buildConf("spark.sql.files.s3c.enabled")
+    .internal()
+    .doc("If true, use s3c at reading s3a files by replacing 's3a' prefix to 's3c' during " +
+      "creating partitioned files")
+    .version("3.3.0")
+    .booleanConf
+    .createWithDefault(false)
+
   val FILES_MIN_PARTITION_NUM = buildConf("spark.sql.files.minPartitionNum")
     .doc("The suggested (not guaranteed) minimum number of split file partitions. " +
       "If not set, the default value is `spark.default.parallelism`. This configuration is " +
@@ -3606,6 +3614,8 @@ class SQLConf extends Serializable with Logging {
   def filesMaxPartitionBytes: Long = getConf(FILES_MAX_PARTITION_BYTES)
 
   def filesOpenCostInBytes: Long = getConf(FILES_OPEN_COST_IN_BYTES)
+
+  def filesS3CEnabled: Boolean = getConf(FILES_S3C_ENABLED)
 
   def filesMinPartitionNum: Option[Int] = getConf(FILES_MIN_PARTITION_NUM)
 
