@@ -44,3 +44,4 @@ MINOR           SparkUI patch
 rdar://79891939 JSON Parse error: Unterminated string in Executor tab of running job's Spark UI
 MINOR           Add JDK11 options
 rdar://68238603 Support disable AJAX call on Stage Page
+rdar://83584068 Use Apple Hadoop 3.3.2.1-ea
