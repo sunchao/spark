@@ -349,13 +349,12 @@ builds:
         SCALA_VERSION: "2.12.15"
         HADOOP_BINARY_VERSION: "3.2"
         PUBLISH_JARS: true
-        MAVEN_OPTS: "-Xms6g -Xmx6g -Xss128M -XX:MaxMetaspaceSize=2048M -XX:+CMSClassUnloadingEnabled"
+        MAVEN_OPTS: "-Xms12g -Xmx12g -Xss128M -XX:MaxMetaspaceSize=4g -XX:+CMSClassUnloadingEnabled"
     build:
       template: freestyle:v4:publish
       steps:
         - ./dev/rio-maven-custom-build.sh --scala "$SCALA_BINARY_VERSION" --release --maven-opts "${MAVEN_OPTS}" --maven-params "-P hive,hadoop-cloud,hadoop-${HADOOP_BINARY_VERSION},hive-thriftserver,kinesis-asl,yarn,kubernetes"
-        - ci stage-lib --many-many-artifacts ".dist/local-repo/**/*.jar"
-        - ci stage-lib --many-many-artifacts ".dist/local-repo/**/*.pom"
+        - ci stage-lib --many-many-artifacts ".dist/local-repo/**/*" --exclude "**/*.xml" --exclude "**/*.md5" --exclude "**/*.sha1"
     package:
       release: true
       freeform:
@@ -376,7 +375,7 @@ builds:
         SCALA_VERSION: "2.12.15"
         HADOOP_BINARY_VERSION: "3.2"
         PUBLISH_JARS: false
-        MAVEN_OPTS: "-Xms6g -Xmx6g -Xss128M -XX:MaxMetaspaceSize=2048M -XX:+CMSClassUnloadingEnabled"
+        MAVEN_OPTS: "-Xms12g -Xmx12g -Xss128M -XX:MaxMetaspaceSize=4g -XX:+CMSClassUnloadingEnabled"
     build:
       template: freestyle:v4:publish
       steps:
