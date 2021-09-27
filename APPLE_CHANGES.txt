@@ -1,0 +1,46 @@
+# Fomr 3.3.0
+SPARK-36110     Upgrade SBT to 1.5.5
+SPARK-36805     Upgrade kubernetes-client to 5.7.3
+SPARK-34112     Upgrade ORC to 1.7.0
+SPARK-36808     Upgrade Kafka to 2.8.1
+SPARK-35334     Make Spark more resilient to intermittent K8s flakiness
+SPARK-36334     Add a new conf to allow K8s API server-side caching for pod listing
+SPARK-36137     HiveShim should fallback to getAllPartitionsOf even if directSQL is enabled in remote HMS
+MINOR           Add zstd-jni test dependency to avro module
+SPARK-36334     Allow equal resource version to update snapshot
+SPARK-35174     Avoid opening watch when waitAppCompletion is false
+
+# Internal Patches
+MINOR           Add rio.yml and dev scripts
+MINOR           Adjust test cases for RIO
+SPARK-17767     Support user-provided ExternalCatalog and SessionBuilder
+MINOR           Bump Hive version to 2.3.9.0-apple
+MINOR           Bump parquet to 1.12.0.12-apple
+MINOR           rdar://82806227 Support Apple repo in DependencyUtils for Ivy
+MINOR           Support JarvisSparkHadoopUtil
+MINOR           Added bindAddress in Mesos Executor Backend for now set to local host name
+MINOR           Use Utils.localHostName() for bindAddress
+rdar://64257964 add back http support so it works without hadoop configuration
+rdar://66576657 Add spark-avro to the tgz build to simplify kernels
+rdar://68926116 Add alternative conf name `spark.FsUrlStreamHandlerFactory.enabled`
+rdar://70562690 Update kubernetes Dockerfile in Apple Spark to AppleJDK
+rdar://79067466 Add awsappleconnect to Dockerfile
+rdar://80026960 Increase spark.scheduler.listenerbus.eventqueue.capacity to 1000000
+rdar://80541032 Disable spark.shuffle.readHostLocalDisk by default
+rdar://80115651 Make ExecutorPodsAllocator extendable
+rdar://82183532 Support CachedS3AFileSystem for S3
+rdar://82423473 Support `spark.sql.files.s3c.enabled` conf (#1174)
+rdar://82462712 Increase fs.s3a.connection.maximum and fs.s3a.committer.threads
+rdar://71465483 Add S3A I/O metrics to Prometheus
+rdar://72552554 Increase DEFAULT_MAX_CONSECUTIVE_STAGE_ATTEMPTS from 4 to 6
+rdar://72735876 Enable spark.metrics.appStatusSource.enabled by default
+MINOR           Use zstd as default compression codec
+rdar://71819374 Bridge in LZO codec family
+MINOR           Add parquet kms (#1092)
+MONOR           Forward port multiple containers and shuffle service from ACS 3.0
+rdar://82095645 Integrate ACI spark call home service listener
+MINOR           Use abstract storage as a replacement for window.localStorage
+MINOR           SparkUI patch
+rdar://79891939 JSON Parse error: Unterminated string in Executor tab of running job's Spark UI
+MINOR           Add JDK11 options
+rdar://68238603 Support disable AJAX call on Stage Page
