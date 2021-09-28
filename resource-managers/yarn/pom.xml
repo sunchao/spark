@@ -226,7 +226,6 @@
     <dependency>
       <groupId>${hive.group}</groupId>
       <artifactId>hive-exec</artifactId>
-      <classifier>${hive.classifier}</classifier>
       <scope>provided</scope>
     </dependency>
     <dependency>

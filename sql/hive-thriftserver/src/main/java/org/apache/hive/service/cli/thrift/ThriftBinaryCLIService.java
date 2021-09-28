@@ -121,15 +121,6 @@ public class ThriftBinaryCLIService extends ThriftCLIService {
   }
 
   @Override
-  public TGetQueryIdResp GetQueryId(TGetQueryIdReq req) throws TException {
-    try {
-      return new TGetQueryIdResp(cliService.getQueryId(req.getOperationHandle()));
-    } catch (HiveSQLException e) {
-      throw new TException(e);
-    }
-  }
-
-  @Override
   public void run() {
     try {
       server.serve();

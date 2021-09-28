@@ -419,6 +419,11 @@ public class ThriftCLIServiceClient extends CLIServiceClient {
   }
 
   @Override
+  public String getQueryId(TOperationHandle operationHandle) throws HiveSQLException {
+    throw new UnsupportedOperationException("not implemented");
+  }
+
+  @Override
   public void cancelDelegationToken(SessionHandle sessionHandle, HiveAuthFactory authFactory,
       String tokenStr) throws HiveSQLException {
     TCancelDelegationTokenReq cancelReq = new TCancelDelegationTokenReq(
@@ -486,15 +491,6 @@ public class ThriftCLIServiceClient extends CLIServiceClient {
     } catch (HiveSQLException e) {
       throw e;
     } catch (Exception e) {
-      throw new HiveSQLException(e);
-    }
-  }
-
-  @Override
-  public String getQueryId(TOperationHandle operationHandle) throws HiveSQLException {
-    try {
-      return cliService.GetQueryId(new TGetQueryIdReq(operationHandle)).getQueryId();
-    } catch (TException e) {
       throw new HiveSQLException(e);
     }
   }
