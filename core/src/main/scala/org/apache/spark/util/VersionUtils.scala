@@ -33,6 +33,16 @@ private[spark] object VersionUtils {
    */
   def isHadoop3: Boolean = majorVersion(VersionInfo.getVersion) == 3
 
+  def javaVersion(): Int = {
+    var version = System.getProperty("java.specification.version")
+    if (version.startsWith("1.")) version = version.substring(2, 3)
+    else {
+      val dot = version.indexOf(".")
+      if (dot != -1) version = version.substring(0, dot)
+    }
+    version.toInt
+  }
+
   /**
    * Given a Spark version string, return the major version number.
    * E.g., for 2.0.1-SNAPSHOT, return 2.

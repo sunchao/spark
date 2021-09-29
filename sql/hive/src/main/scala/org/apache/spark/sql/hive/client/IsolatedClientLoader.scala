@@ -25,7 +25,6 @@ import java.util
 import scala.util.Try
 
 import org.apache.commons.io.{FileUtils, IOUtils}
-import org.apache.commons.lang3.{JavaVersion, SystemUtils}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars
 import org.apache.hadoop.hive.shims.ShimLoader
@@ -232,7 +231,7 @@ private[hive] class IsolatedClientLoader(
           baseClassLoader
         } else {
           val rootClassLoader: ClassLoader =
-            if (SystemUtils.isJavaVersionAtLeast(JavaVersion.JAVA_9)) {
+            if (VersionUtils.javaVersion() >= 9) {
               // In Java 9, the boot classloader can see few JDK classes. The intended parent
               // classloader for delegation is now the platform classloader.
               // See http://java9.wtf/class-loading/

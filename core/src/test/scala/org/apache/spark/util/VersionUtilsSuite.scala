@@ -112,4 +112,14 @@ class VersionUtilsSuite extends SparkFunSuite {
       assert(VersionUtils.majorMinorPatchVersion(version).isEmpty, s"version $version")
     }
   }
+
+  test("Java version") {
+    val oldProperty = System.getProperty("java.specification.version")
+    Seq(("0.9", 0), ("1.1", 1), ("1.5", 5), ("1.8", 8), ("9", 9)).foreach {
+      case (version, result) =>
+        System.setProperty("java.specification.version", version)
+        assert(VersionUtils.javaVersion() == result)
+    }
+    System.setProperty("java.specification.version", oldProperty)
+  }
 }
