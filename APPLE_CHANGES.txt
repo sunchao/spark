@@ -1,4 +1,6 @@
-# Fomr 3.3.0
+This contains the changes after branching `v3.2.0-rc6`
+
+# From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
 SPARK-36805     Upgrade kubernetes-client to 5.7.3
 SPARK-34112     Upgrade ORC to 1.7.0
@@ -9,6 +11,10 @@ SPARK-36137     HiveShim should fallback to getAllPartitionsOf even if directSQL
 MINOR           Add zstd-jni test dependency to avro module
 SPARK-36334     Allow equal resource version to update snapshot
 SPARK-35174     Avoid opening watch when waitAppCompletion is false
+SPARK-36821     Make class ColumnarBatch extendable - addendum
+
+# From 3.2.1
+MINOR           Mention other Python dependency tools in documentation
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -45,3 +51,4 @@ rdar://79891939 JSON Parse error: Unterminated string in Executor tab of running
 MINOR           Add JDK11 options
 rdar://68238603 Support disable AJAX call on Stage Page
 rdar://83584068 Use Apple Hadoop 3.3.2.1-ea
+rdar://83700291 Use Apple Hadoop 3.3.2.2-ea
