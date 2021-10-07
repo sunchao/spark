@@ -14,7 +14,7 @@ SPARK-35174     Avoid opening watch when waitAppCompletion is false
 SPARK-36821     Make class ColumnarBatch extendable - addendum
 
 # From 3.2.1
-MINOR           Mention other Python dependency tools in documentation
+SPARK-36939     Add orphan migration page into list in PySpark documentation
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -52,3 +52,5 @@ MINOR           Add JDK11 options
 rdar://68238603 Support disable AJAX call on Stage Page
 rdar://83584068 Use Apple Hadoop 3.3.2.1-ea
 rdar://83700291 Use Apple Hadoop 3.3.2.2-ea
+rdar://83963418 Use Apple Hadoop 3.3.2.3-ea
+MINOR           Bump Hive version to 2.3.9.1-apple
