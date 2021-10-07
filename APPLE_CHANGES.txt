@@ -1,4 +1,4 @@
-This contains the changes after branching `v3.2.0-rc6`
+This contains the changes after branching `v3.2.0-rc7`
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -54,3 +54,4 @@ rdar://83584068 Use Apple Hadoop 3.3.2.1-ea
 rdar://83700291 Use Apple Hadoop 3.3.2.2-ea
 rdar://83963418 Use Apple Hadoop 3.3.2.3-ea
 MINOR           Bump Hive version to 2.3.9.1-apple
+MINOR           GzipCodec should be set with Configuration before using it
