@@ -387,6 +387,7 @@ Below is a list of all the keywords in Spark SQL.
 |EXTRACT|non-reserved|non-reserved|reserved|
 |FALSE|reserved|non-reserved|reserved|
 |FETCH|reserved|non-reserved|reserved|
+|FIELD|non-reserved|non-reserved|non-reserved|
 |FIELDS|non-reserved|non-reserved|non-reserved|
 |FILTER|reserved|non-reserved|reserved|
 |FILEFORMAT|non-reserved|non-reserved|non-reserved|

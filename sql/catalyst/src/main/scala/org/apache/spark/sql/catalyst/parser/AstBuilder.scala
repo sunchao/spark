@@ -3977,6 +3977,45 @@ class AstBuilder extends SqlBaseBaseVisitor[AnyRef] with SQLConfHelper with Logg
   }
 
   /**
+   * Create an [[AddPartitionField]] command.
+   */
+  override def visitAddPartitionField(
+      ctx: AddPartitionFieldContext): AddPartitionField = withOrigin(ctx) {
+    val table = createUnresolvedTable(
+      ctx.multipartIdentifier,
+      "ALTER TABLE ... ADD PARTITION FIELD")
+    val transform = visitTransform(ctx.transform)
+    val name = Option(ctx.name).map(_.getText)
+    AddPartitionField(table, transform, name)
+  }
+
+  /**
+   * Create a [[DropPartitionField]] command.
+   */
+  override def visitDropPartitionField(
+      ctx: DropPartitionFieldContext): DropPartitionField = withOrigin(ctx) {
+    val table = createUnresolvedTable(
+      ctx.multipartIdentifier,
+      "ALTER TABLE ... DROP PARTITION FIELD")
+    val transform = visitTransform(ctx.transform)
+    DropPartitionField(table, transform)
+  }
+
+  /**
+   * Create a [[ReplacePartitionField]] command.
+   */
+  override def visitReplacePartitionField(
+      ctx: ReplacePartitionFieldContext): ReplacePartitionField = withOrigin(ctx) {
+    val table = createUnresolvedTable(
+      ctx.multipartIdentifier,
+      "ALTER TABLE ... REPLACE PARTITION FIELD")
+    val removedTransform = visitTransform(ctx.transform(0))
+    val addedTransform = visitTransform(ctx.transform(1))
+    val name = Option(ctx.name).map(_.getText)
+    ReplacePartitionField(table, removedTransform, addedTransform, name)
+  }
+
+  /**
    * Create a [[DescribeColumn]] or [[DescribeRelation]] commands.
    */
   override def visitDescribeRelation(ctx: DescribeRelationContext): LogicalPlan = withOrigin(ctx) {
