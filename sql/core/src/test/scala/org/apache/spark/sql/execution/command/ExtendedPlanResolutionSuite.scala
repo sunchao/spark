@@ -26,16 +26,18 @@ import org.mockito.invocation.InvocationOnMock
 import org.apache.spark.sql.{AnalysisException, SaveMode}
 import org.apache.spark.sql.catalyst.analysis.{AnalysisTest, Analyzer, EmptyFunctionRegistry, NoSuchTableException, ResolveSessionCatalog}
 import org.apache.spark.sql.catalyst.catalog.{CatalogTable, CatalogTableType, InMemoryCatalog, SessionCatalog}
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, EqualTo, IntegerLiteral, LessThan, Literal, StringLiteral}
 import org.apache.spark.sql.catalyst.parser.{CatalystSqlParser, ParseException}
-import org.apache.spark.sql.catalyst.plans.logical.{AlterTableCommand, LocalRelation, LogicalPlan}
+import org.apache.spark.sql.catalyst.plans.logical.{AlterTableCommand, BinPack, LocalRelation, LogicalPlan, OptimizeTable, OrderBy}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.FakeV2Provider
 import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogNotFoundException, Identifier, Table, TableCapability, TableCatalog, TableChange, V1Table}
 import org.apache.spark.sql.connector.expressions.{FieldReference, SortOrder, Transform}
 import org.apache.spark.sql.connector.expressions.LogicalExpressions.{bucket, identity, sort}
-import org.apache.spark.sql.connector.expressions.NullOrdering.NULLS_FIRST
-import org.apache.spark.sql.connector.expressions.SortDirection.ASCENDING
+import org.apache.spark.sql.connector.expressions.NullOrdering.{NULLS_FIRST, NULLS_LAST}
+import org.apache.spark.sql.connector.expressions.SortDirection.{ASCENDING, DESCENDING}
 import org.apache.spark.sql.execution.datasources.CreateTable
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.SimpleScanSource
 import org.apache.spark.sql.types.StructType
@@ -359,5 +361,158 @@ class ExtendedPlanResolutionSuite extends AnalysisTest {
       parseAndResolve("ALTER TABLE v1Table REPLACE PARTITION FIELD bucket(8, s) WITH s")
     }
     assert(e3.message.contains("Cannot replace partition fields in v1 tables"))
+  }
+
+  test("optimize (default)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE TABLE $tableName"
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          assert(predicate == Literal.TrueLiteral, "predicate must be valid")
+          assert(strategy == BinPack, "strategy must be valid")
+          assert(options.isEmpty, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
+  }
+
+  test("optimize (default with predicate)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE TABLE $tableName WHERE s = 'key'"
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          predicate match {
+            case EqualTo(_: AttributeReference, StringLiteral("key")) =>
+            case _ => fail("predicate must be valid")
+          }
+          assert(strategy == BinPack, "strategy must be valid")
+          assert(options.isEmpty, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
+  }
+
+  test("optimize (default with options)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE $tableName OPTIONS ('p1'='v1', 'p2'='v2')"
+
+      val expectedOptions = Map("p1" -> "v1", "p2" -> "v2")
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          assert(predicate == Literal.TrueLiteral, "predicate must be valid")
+          assert(strategy == BinPack, "strategy must be valid")
+          assert(options == expectedOptions, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
+  }
+
+  test("optimize (bin-pack with predicate and options)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE $tableName WHERE i < 10 BINPACK OPTIONS ('p1'='v1', 'p2'='v2')"
+
+      val expectedOptions = Map("p1" -> "v1", "p2" -> "v2")
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          predicate match {
+            case LessThan(_: AttributeReference, IntegerLiteral(10)) =>
+            case _ => fail("predicate must be valid")
+          }
+          assert(strategy == BinPack, "strategy must be valid")
+          assert(options == expectedOptions, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
+  }
+
+  test("optimize (default order)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE $tableName ORDER"
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          assert(predicate == Literal.TrueLiteral, "predicate must be valid")
+          assert(strategy == OrderBy(Seq.empty), "strategy must be")
+          assert(options.isEmpty, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
+  }
+
+  test("optimize (default sort with predicate)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE $tableName WHERE i < 10 SORT"
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          predicate match {
+            case LessThan(_: AttributeReference, IntegerLiteral(10)) =>
+            case _ => fail("predicate must be valid")
+          }
+          assert(strategy == OrderBy(Seq.empty), "strategy must be valid")
+          assert(options.isEmpty, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
+  }
+
+  test("optimize (custom sort with predicate and options)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE $tableName WHERE i < 10 SORT BY i, bucket(8, s) OPTIONS ('p'='v')"
+
+      val expectedOrdering = Seq[SortOrder](
+        sort(identity(FieldReference("i")), ASCENDING, NULLS_FIRST),
+        sort(bucket(8, Array(FieldReference("s"))), ASCENDING, NULLS_FIRST)
+      )
+
+      val expectedOptions = Map("p" -> "v")
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          predicate match {
+            case LessThan(_: AttributeReference, IntegerLiteral(10)) =>
+            case _ => fail("predicate must be valid")
+          }
+          assert(strategy == OrderBy(expectedOrdering), "strategy must be valid")
+          assert(options == expectedOptions, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
+  }
+
+  test("optimize (custom order with predicate and options)") {
+    Seq("v2Table", "testcat.tab").foreach { tableName =>
+      val sql = s"OPTIMIZE $tableName WHERE i < 10 ORDER BY i DESC, bucket(8, s) OPTIONS ('p'='v')"
+
+      val expectedOrdering = Seq[SortOrder](
+        sort(identity(FieldReference("i")), DESCENDING, NULLS_LAST),
+        sort(bucket(8, Array(FieldReference("s"))), ASCENDING, NULLS_FIRST)
+      )
+
+      val expectedOptions = Map("p" -> "v")
+
+      parseAndResolve(sql) match {
+        case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
+          predicate match {
+            case LessThan(_: AttributeReference, IntegerLiteral(10)) =>
+            case _ => fail("predicate must be valid")
+          }
+          assert(strategy == OrderBy(expectedOrdering), "strategy must be valid")
+          assert(options == expectedOptions, "options must be valid")
+        case other =>
+          fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")
+      }
+    }
   }
 }

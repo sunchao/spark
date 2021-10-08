@@ -19,14 +19,14 @@ package org.apache.spark.sql.execution.datasources.v2
 
 import scala.collection.JavaConverters._
 
-import org.apache.spark.sql.{SparkSession, Strategy}
+import org.apache.spark.sql.{sources, AnalysisException, SparkSession, Strategy}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.{ResolvedNamespace, ResolvedPartitionSpec, ResolvedTable}
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, DynamicPruning, Expression, GenericInternalRow, NamedExpression, PredicateHelper, SubqueryExpression}
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.util.toPrettySQL
-import org.apache.spark.sql.connector.catalog.{CatalogV2Util, Identifier, StagingTableCatalog, SupportsNamespaces, SupportsPartitionManagement, SupportsWrite, Table, TableCapability, TableCatalog}
+import org.apache.spark.sql.connector.catalog.{CatalogV2Util, Identifier, StagingTableCatalog, SupportsNamespaces, SupportsOptimize, SupportsPartitionManagement, SupportsWrite, Table, TableCapability, TableCatalog}
 import org.apache.spark.sql.connector.read.LocalScan
 import org.apache.spark.sql.connector.read.streaming.{ContinuousStream, MicroBatchStream}
 import org.apache.spark.sql.connector.write.V1Write
@@ -435,6 +435,23 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
       val input = buildInternalRow(args)
       CallExec(c.output, procedure, input) :: Nil
 
+    case OptimizeTable(relation, predicate, strategy, options) =>
+      val (table, output) = relation match {
+        case DataSourceV2Relation(table, output, _, _, _) =>
+          table match {
+            case optimizable: SupportsOptimize =>
+              (optimizable, output)
+            case other =>
+              throw new AnalysisException(s"OPTIMIZE is not supported by table $other")
+          }
+        case _ =>
+          throw new AnalysisException("OPTIMIZE is only supported for v2 tables")
+      }
+      val predicates = splitConjunctivePredicates(predicate)
+      val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
+      val filters = toDataSourceFilters(normalizedPredicates)
+      OptimizeTableExec(table, filters, strategy, options) :: Nil
+
     case _ => Nil
   }
 
@@ -444,5 +461,19 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
       values(index) = exprs(index).eval()
     }
     new GenericInternalRow(values)
+  }
+
+  private def toDataSourceFilters(predicates: Seq[Expression]): Seq[sources.Filter] = {
+    predicates.flatMap { predicate =>
+      val translatedFilter = DataSourceStrategy.translateFilter(
+        predicate,
+        supportNestedPredicatePushdown = true)
+
+      if (translatedFilter.isEmpty) {
+        throw new AnalysisException(s"Could not translate $predicate to a data source filter")
+      }
+
+      translatedFilter
+    }
   }
 }

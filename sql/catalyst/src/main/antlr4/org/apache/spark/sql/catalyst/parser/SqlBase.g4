@@ -134,6 +134,10 @@ statement
     | SNAPSHOT TABLE source=multipartIdentifier AS target=multipartIdentifier
         (tableProvider)? (locationSpec)?
         (TBLPROPERTIES tableProps=tablePropertyList)?                  #snapshotTable
+    | OPTIMIZE TABLE? multipartIdentifier
+        whereClause?
+        optimizeStrategy?
+        (OPTIONS options=tablePropertyList)?                           #optimizeTable
     | replaceTableHeader ('(' colTypeList ')')? tableProvider?
         createTableClauses
         (AS? query)?                                                   #replaceTable
@@ -1075,6 +1079,11 @@ writeOrderField
     : transform direction=(ASC | DESC)? (NULLS nullOrder=(FIRST | LAST))?
     ;
 
+optimizeStrategy
+    : BINPACK
+    | (ORDER|SORT) (BY writeOrder)?
+    ;
+
 // When `SQL_standard_keyword_behavior=true`, there are 2 kinds of keywords in Spark SQL.
 // - Reserved keywords:
 //     Keywords that are reserved and can't be used as identifiers for table, view, column,
@@ -1097,6 +1106,7 @@ ansiNonReserved
     | ASC
     | AT
     | BETWEEN
+    | BINPACK
     | BUCKET
     | BUCKETS
     | BY
@@ -1192,6 +1202,7 @@ ansiNonReserved
     | NO
     | NULLS
     | OF
+    | OPTIMIZE
     | OPTION
     | OPTIONS
     | ORDERED
@@ -1330,6 +1341,7 @@ nonReserved
     | AT
     | AUTHORIZATION
     | BETWEEN
+    | BINPACK
     | BOTH
     | BUCKET
     | BUCKETS
@@ -1458,6 +1470,7 @@ nonReserved
     | NULLS
     | OF
     | ONLY
+    | OPTIMIZE
     | OPTION
     | OPTIONS
     | OR
@@ -1592,6 +1605,7 @@ ASC: 'ASC';
 AT: 'AT';
 AUTHORIZATION: 'AUTHORIZATION';
 BETWEEN: 'BETWEEN';
+BINPACK: 'BINPACK';
 BOTH: 'BOTH';
 BUCKET: 'BUCKET';
 BUCKETS: 'BUCKETS';
@@ -1730,6 +1744,7 @@ NULLS: 'NULLS';
 OF: 'OF';
 ON: 'ON';
 ONLY: 'ONLY';
+OPTIMIZE: 'OPTIMIZE';
 OPTION: 'OPTION';
 OPTIONS: 'OPTIONS';
 OR: 'OR';
