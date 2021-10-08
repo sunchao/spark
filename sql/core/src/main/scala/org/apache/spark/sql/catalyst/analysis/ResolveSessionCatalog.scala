@@ -225,6 +225,9 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
         ident.asIdentifier,
         convertTableProperties(s))
 
+    case SetWriteDistributionAndOrdering(ResolvedV1TableIdentifier(_), _, _) =>
+      throw new AnalysisException("Cannot set write distribution and ordering in v1 tables")
+
     case RefreshTable(ResolvedV1TableIdentifier(ident)) =>
       RefreshTableCommand(ident.asTableIdentifier)
 
