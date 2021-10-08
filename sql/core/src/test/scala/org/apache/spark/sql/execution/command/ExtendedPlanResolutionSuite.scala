@@ -515,4 +515,88 @@ class ExtendedPlanResolutionSuite extends AnalysisTest {
       }
     }
   }
+
+  test("alter table: set identifier fields in v2 tables") {
+    Seq("v2Table", "testcat.tab").foreach { t =>
+      val sql = s"ALTER TABLE $t SET IDENTIFIER FIELDS s"
+
+      val expectedChange = TableChange.setIdentifierFields(
+        Array(FieldReference("s"))
+      )
+
+      parseAndResolve(sql) match {
+        case a: AlterTableCommand =>
+          assert(a.changes.size == 1, "expected only one change")
+          assert(a.changes.head == expectedChange, "change must match")
+        case _ =>
+          fail("expected AlterTableCommand")
+      }
+    }
+  }
+
+  test("alter table: set identifier fields with parentheses in v2 tables") {
+    Seq("v2Table", "testcat.tab").foreach { t =>
+      val sql = s"ALTER TABLE $t SET IDENTIFIER FIELDS (i, s)"
+
+      val expectedChange = TableChange.setIdentifierFields(
+        Array(FieldReference("i"), FieldReference("s"))
+      )
+
+      parseAndResolve(sql) match {
+        case a: AlterTableCommand =>
+          assert(a.changes.size == 1, "expected only one change")
+          assert(a.changes.head == expectedChange, "change must match")
+        case _ =>
+          fail("expected AlterTableCommand")
+      }
+    }
+  }
+
+  test("alter table: drop identifier fields in v2 tables") {
+    Seq("v2Table", "testcat.tab").foreach { t =>
+      val sql = s"ALTER TABLE $t DROP IDENTIFIER FIELDS s"
+
+      val expectedChange = TableChange.dropIdentifierFields(
+        Array(FieldReference("s"))
+      )
+
+      parseAndResolve(sql) match {
+        case a: AlterTableCommand =>
+          assert(a.changes.size == 1, "expected only one change")
+          assert(a.changes.head == expectedChange, "change must match")
+        case _ =>
+          fail("expected AlterTableCommand")
+      }
+    }
+  }
+
+  test("alter table: drop identifier fields with parentheses in v2 tables") {
+    Seq("v2Table", "testcat.tab").foreach { t =>
+      val sql = s"ALTER TABLE $t DROP IDENTIFIER FIELDS (i, s)"
+
+      val expectedChange = TableChange.dropIdentifierFields(
+        Array(FieldReference("i"), FieldReference("s"))
+      )
+
+      parseAndResolve(sql) match {
+        case a: AlterTableCommand =>
+          assert(a.changes.size == 1, "expected only one change")
+          assert(a.changes.head == expectedChange, "change must match")
+        case _ =>
+          fail("expected AlterTableCommand")
+      }
+    }
+  }
+
+  test("alter table: cannot set/drop identifier fields for v1 tables") {
+    val e1 = intercept[AnalysisException] {
+      parseAndResolve("ALTER TABLE v1Table SET IDENTIFIER FIELDS s")
+    }
+    assert(e1.message.contains("Cannot set identifier fields in v1 tables"))
+
+    val e2 = intercept[AnalysisException] {
+      parseAndResolve("ALTER TABLE v1Table DROP IDENTIFIER FIELDS s")
+    }
+    assert(e2.message.contains("Cannot drop identifier fields in v1 tables"))
+  }
 }

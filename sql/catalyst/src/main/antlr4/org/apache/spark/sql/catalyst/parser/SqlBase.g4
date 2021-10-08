@@ -194,6 +194,18 @@ statement
     | ALTER TABLE multipartIdentifier
          REPLACE PARTITION FIELD transform
          WITH transform (AS name=identifier)?                          #replacePartitionField
+    | ALTER TABLE multipartIdentifier
+         SET IDENTIFIER_KW FIELDS
+         fieldNames=multipartIdentifierList                            #setIdentifierFields
+    | ALTER TABLE multipartIdentifier
+         SET IDENTIFIER_KW FIELDS
+         '(' fieldNames=multipartIdentifierList ')'                    #setIdentifierFields
+    | ALTER TABLE multipartIdentifier
+         DROP IDENTIFIER_KW FIELDS
+         fieldNames=multipartIdentifierList                            #dropIdentifierFields
+    | ALTER TABLE multipartIdentifier
+         DROP IDENTIFIER_KW FIELDS
+         '(' fieldNames=multipartIdentifierList ')'                    #dropIdentifierFields
     | DROP TABLE (IF EXISTS)? multipartIdentifier PURGE?               #dropTable
     | DROP VIEW (IF EXISTS)? multipartIdentifier                       #dropView
     | CREATE (OR REPLACE)? (GLOBAL? TEMPORARY)?
@@ -1165,6 +1177,7 @@ ansiNonReserved
     | GLOBAL
     | GROUPING
     | HOUR
+    | IDENTIFIER_KW
     | IF
     | IGNORE
     | IMPORT
@@ -1426,6 +1439,7 @@ nonReserved
     | GROUPING
     | HAVING
     | HOUR
+    | IDENTIFIER_KW
     | IF
     | IGNORE
     | IMPORT
@@ -1693,6 +1707,7 @@ GROUP: 'GROUP';
 GROUPING: 'GROUPING';
 HAVING: 'HAVING';
 HOUR: 'HOUR';
+IDENTIFIER_KW: 'IDENTIFIER';
 IF: 'IF';
 IGNORE: 'IGNORE';
 IMPORT: 'IMPORT';

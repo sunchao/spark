@@ -22,6 +22,7 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 
 import org.apache.spark.annotation.Evolving;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.DataType;
@@ -390,6 +391,66 @@ public interface TableChange {
     @Override
     public int hashCode() {
       return Objects.hash(removedTransform, addedTransform, name);
+    }
+  }
+
+  static TableChange setIdentifierFields(NamedReference[] fieldReferences) {
+    return new SetIdentifierFields(fieldReferences);
+  }
+
+  final class SetIdentifierFields implements TableChange {
+    private final NamedReference[] fieldReferences;
+
+    private SetIdentifierFields(NamedReference[] fieldReferences) {
+      this.fieldReferences = fieldReferences;
+    }
+
+    public NamedReference[] fieldReferences() {
+      return fieldReferences;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      SetIdentifierFields that = (SetIdentifierFields) o;
+      return Arrays.deepEquals(fieldReferences, that.fieldReferences);
+    }
+
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(fieldReferences);
+    }
+  }
+
+  static TableChange dropIdentifierFields(NamedReference[] fieldReferences) {
+    return new DropIdentifierFields(fieldReferences);
+  }
+
+  final class DropIdentifierFields implements TableChange {
+    private final NamedReference[] fieldReferences;
+
+    private DropIdentifierFields(NamedReference[] fieldReferences) {
+      this.fieldReferences = fieldReferences;
+    }
+
+    public NamedReference[] fieldNames() {
+      return fieldReferences;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      DropIdentifierFields that = (DropIdentifierFields) o;
+      return Arrays.deepEquals(fieldReferences, that.fieldReferences);
+    }
+
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(fieldReferences);
     }
   }
 

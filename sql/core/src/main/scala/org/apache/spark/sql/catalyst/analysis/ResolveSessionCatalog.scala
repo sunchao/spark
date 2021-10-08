@@ -237,6 +237,12 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
     case ReplacePartitionField(ResolvedV1TableIdentifier(_), _, _, _) =>
       throw new AnalysisException("Cannot replace partition fields in v1 tables")
 
+    case SetIdentifierFields(ResolvedV1TableIdentifier(_), _) =>
+      throw new AnalysisException("Cannot set identifier fields in v1 tables")
+
+    case DropIdentifierFields(ResolvedV1TableIdentifier(_), _) =>
+      throw new AnalysisException("Cannot drop identifier fields in v1 tables")
+
     case RefreshTable(ResolvedV1TableIdentifier(ident)) =>
       RefreshTableCommand(ident.asTableIdentifier)
 

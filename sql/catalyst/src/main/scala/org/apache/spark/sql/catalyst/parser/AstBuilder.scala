@@ -4016,6 +4016,31 @@ class AstBuilder extends SqlBaseBaseVisitor[AnyRef] with SQLConfHelper with Logg
   }
 
   /**
+   * Create a [[SetIdentifierFields]] command.
+   */
+  override def visitSetIdentifierFields(
+      ctx: SetIdentifierFieldsContext): SetIdentifierFields = withOrigin(ctx) {
+    val table = createUnresolvedTable(
+      ctx.multipartIdentifier,
+      "ALTER TABLE ... SET IDENTIFIER FIELDS")
+    val fieldNames = ctx.fieldNames.multipartIdentifier.asScala.map(typedVisit[Seq[String]])
+    SetIdentifierFields(table, fieldNames.map(UnresolvedFieldName).toSeq)
+  }
+
+
+  /**
+   * Create a [[DropIdentifierFields]] command.
+   */
+  override def visitDropIdentifierFields(
+      ctx: DropIdentifierFieldsContext): DropIdentifierFields = withOrigin(ctx) {
+    val table = createUnresolvedTable(
+      ctx.multipartIdentifier,
+      "ALTER TABLE ... DROP IDENTIFIER FIELDS")
+    val fieldNames = ctx.fieldNames.multipartIdentifier.asScala.map(typedVisit[Seq[String]])
+    DropIdentifierFields(table, fieldNames.map(UnresolvedFieldName).toSeq)
+  }
+
+  /**
    * Create an [[OptimizeTable]] command.
    */
   override def visitOptimizeTable(ctx: OptimizeTableContext): OptimizeTable = withOrigin(ctx) {
