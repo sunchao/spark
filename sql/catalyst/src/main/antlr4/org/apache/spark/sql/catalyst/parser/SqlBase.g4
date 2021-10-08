@@ -129,6 +129,11 @@ statement
         createFileFormat |
         locationSpec |
         (TBLPROPERTIES tableProps=tablePropertyList))*                 #createTableLike
+    | MIGRATE TABLE multipartIdentifier (tableProvider)?
+        (TBLPROPERTIES tableProps=tablePropertyList)?                  #migrateTable
+    | SNAPSHOT TABLE source=multipartIdentifier AS target=multipartIdentifier
+        (tableProvider)? (locationSpec)?
+        (TBLPROPERTIES tableProps=tablePropertyList)?                  #snapshotTable
     | replaceTableHeader ('(' colTypeList ')')? tableProvider?
         createTableClauses
         (AS? query)?                                                   #replaceTable
@@ -1146,6 +1151,7 @@ ansiNonReserved
     | MAP
     | MATCHED
     | MERGE
+    | MIGRATE
     | MINUTE
     | MONTH
     | MSCK
@@ -1204,6 +1210,7 @@ ansiNonReserved
     | SETS
     | SHOW
     | SKEWED
+    | SNAPSHOT
     | SORT
     | SORTED
     | START
@@ -1401,6 +1408,7 @@ nonReserved
     | MAP
     | MATCHED
     | MERGE
+    | MIGRATE
     | MINUTE
     | MONTH
     | MSCK
@@ -1468,6 +1476,7 @@ nonReserved
     | SETS
     | SHOW
     | SKEWED
+    | SNAPSHOT
     | SOME
     | SORT
     | SORTED
@@ -1663,6 +1672,7 @@ MACRO: 'MACRO';
 MAP: 'MAP';
 MATCHED: 'MATCHED';
 MERGE: 'MERGE';
+MIGRATE: 'MIGRATE';
 MINUTE: 'MINUTE';
 MONTH: 'MONTH';
 MSCK: 'MSCK';
@@ -1735,6 +1745,7 @@ SETMINUS: 'MINUS';
 SETS: 'SETS';
 SHOW: 'SHOW';
 SKEWED: 'SKEWED';
+SNAPSHOT: 'SNAPSHOT';
 SOME: 'SOME';
 SORT: 'SORT';
 SORTED: 'SORTED';

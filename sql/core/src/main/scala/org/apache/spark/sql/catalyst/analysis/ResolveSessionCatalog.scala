@@ -17,14 +17,14 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{AnalysisException, SaveMode}
 import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
 import org.apache.spark.sql.catalyst.catalog.{BucketSpec, CatalogStorageFormat, CatalogTable, CatalogTableType, CatalogUtils}
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute}
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.{quoteIfNeeded, toPrettySQL}
-import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogPlugin, CatalogV2Util, Identifier, LookupCatalog, SupportsNamespaces, V1Table}
+import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogPlugin, CatalogV2Util, Identifier, LookupCatalog, SupportsMigrate, SupportsNamespaces, SupportsSnapshot, V1Table}
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.command._
@@ -200,6 +200,30 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
           writeOptions = c.writeOptions,
           ignoreIfExists = c.ifNotExists)
       }
+
+    case m @ MigrateTableStatement(SessionCatalogAndTable(catalog, tbl), _, _) =>
+      if (!catalog.isInstanceOf[SupportsMigrate]) {
+        throw new AnalysisException(
+          s"Catalog ${catalog.name} does not support the MIGRATE command.")
+      }
+      MigrateTable(
+        catalog.asInstanceOf[SupportsMigrate],
+        tbl.asIdentifier,
+        convertTableProperties(m))
+
+    case s @ SnapshotTableStatement(
+        CatalogAndIdentifier(sourceCatalog, sourceIdent),
+        SessionCatalogAndTable(catalog, ident), _, _, _) =>
+      if (!catalog.isInstanceOf[SupportsSnapshot]) {
+        throw new AnalysisException(
+          s"Catalog ${catalog.name} does not support the SNAPSHOT command.")
+      }
+      SnapshotTable(
+        sourceCatalog.asTableCatalog,
+        sourceIdent,
+        catalog.asInstanceOf[SupportsSnapshot],
+        ident.asIdentifier,
+        convertTableProperties(s))
 
     case RefreshTable(ResolvedV1TableIdentifier(ident)) =>
       RefreshTableCommand(ident.asTableIdentifier)
