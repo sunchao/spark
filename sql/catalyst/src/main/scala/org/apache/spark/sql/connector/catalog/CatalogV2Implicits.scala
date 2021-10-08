@@ -92,6 +92,13 @@ private[sql] object CatalogV2Implicits {
       case _ =>
         throw QueryCompilationErrors.cannotUseCatalogError(plugin, "not a FunctionCatalog")
     }
+
+    def asProcedureCatalog: ProcedureCatalog = plugin match {
+      case procedureCatalog: ProcedureCatalog =>
+        procedureCatalog
+      case _ =>
+        throw QueryCompilationErrors.cannotUseCatalogError(plugin, "not a ProcedureCatalog")
+    }
   }
 
   implicit class NamespaceHelper(namespace: Array[String]) {

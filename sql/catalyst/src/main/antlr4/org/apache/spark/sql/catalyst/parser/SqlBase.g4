@@ -212,6 +212,8 @@ statement
         (LIKE? (multipartIdentifier | pattern=STRING))?                #showFunctions
     | SHOW CREATE TABLE multipartIdentifier (AS SERDE)?                #showCreateTable
     | SHOW CURRENT NAMESPACE                                           #showCurrentNamespace
+    | CALL multipartIdentifier
+        '(' (callArgument (',' callArgument)*)? ')'                    #call
     | (DESC | DESCRIBE) FUNCTION EXTENDED? describeFuncName            #describeFunction
     | (DESC | DESCRIBE) namespace EXTENDED?
         multipartIdentifier                                            #describeNamespace
@@ -776,6 +778,11 @@ transformArgument
     | constant
     ;
 
+callArgument
+    : expression                    #positionalArgument
+    | identifier '=>' expression    #namedArgument
+    ;
+
 expression
     : booleanExpression
     ;
@@ -1286,6 +1293,7 @@ nonReserved
     | BUCKETS
     | BY
     | CACHE
+    | CALL
     | CASCADE
     | CASE
     | CAST
@@ -1539,6 +1547,7 @@ BUCKET: 'BUCKET';
 BUCKETS: 'BUCKETS';
 BY: 'BY';
 CACHE: 'CACHE';
+CALL: 'CALL';
 CASCADE: 'CASCADE';
 CASE: 'CASE';
 CAST: 'CAST';
