@@ -15,6 +15,8 @@ SPARK-36821     Make class ColumnarBatch extendable - addendum
 
 # From 3.2.1
 SPARK-36939     Add orphan migration page into list in PySpark documentation
+SPARK-36717     Incorrect order of variable initialization may lead incorrect behavior
+SPARK-36900     Increase test memory to 6g for Java 11
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -55,3 +57,12 @@ rdar://83700291 Use Apple Hadoop 3.3.2.2-ea
 rdar://83963418 Use Apple Hadoop 3.3.2.3-ea
 MINOR           Bump Hive version to 2.3.9.1-apple
 MINOR           GzipCodec should be set with Configuration before using it
+rdar://84031512 Add stored procedure API (#1225)
+rdar://84031596 Add Migrate and Snapshot Catalog Support (#1226)
+rdar://84031628 Implement OrderAwareCoalesce (#1227)
+SPARK-35801     Add connector APIs for row-level operations
+rdar://74249791 ALTER TABLE ... WRITE command (#1231)
+rdar://84036066 Add partition evolution commands (#1232)
+rdar://78158423: Add OPTIMIZE command (#1233)
+rdar://84040595 Commands for setting/dropping identifier fields (#1234)
+rdar://84083676 Use Apple Hadoop 3.3.2.4-ea
