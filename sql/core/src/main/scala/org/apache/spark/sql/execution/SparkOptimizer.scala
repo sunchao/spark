@@ -25,8 +25,8 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.execution.datasources.PruneFileSourcePartitions
 import org.apache.spark.sql.execution.datasources.SchemaPruning
-import org.apache.spark.sql.execution.datasources.v2.{V2IcebergWrites, V2ScanRelationPushDown, V2Writes}
-import org.apache.spark.sql.execution.dynamicpruning.{CleanupDynamicPruningFilters, PartitionPruning}
+import org.apache.spark.sql.execution.datasources.v2.{OptimizeMetadataOnlyDeleteFromTable, ReplaceRewrittenRowLevelCommands, RowLevelCommandScanRelationPushDown, V2IcebergWrites, V2ScanRelationPushDown, V2Writes}
+import org.apache.spark.sql.execution.dynamicpruning.{CleanupDynamicPruningFilters, PartitionPruning, RowLevelCommandPruning}
 import org.apache.spark.sql.execution.python.{ExtractGroupingPythonUDFFromAggregate, ExtractPythonUDFFromAggregate, ExtractPythonUDFs}
 
 class SparkOptimizer(
@@ -37,18 +37,24 @@ class SparkOptimizer(
 
   override def earlyScanPushDownRules: Seq[Rule[LogicalPlan]] =
     // TODO: move SchemaPruning into catalyst
-    SchemaPruning :: V2ScanRelationPushDown :: V2Writes :: V2IcebergWrites ::
-    PruneFileSourcePartitions :: Nil
+    SchemaPruning :: RowLevelCommandScanRelationPushDown :: V2ScanRelationPushDown ::
+    V2Writes :: V2IcebergWrites :: PruneFileSourcePartitions :: Nil
+
+  override def preCBORules: Seq[Rule[LogicalPlan]] =
+    OptimizeMetadataOnlyDeleteFromTable :: Nil
 
   override def defaultBatches: Seq[Batch] = (preOptimizationBatches ++ super.defaultBatches :+
     Batch("Optimize Metadata Only Query", Once, OptimizeMetadataOnlyQuery(catalog)) :+
     Batch("PartitionPruning", Once,
-      PartitionPruning) :+
+      PartitionPruning,
+      RowLevelCommandPruning(OptimizeSubqueries)) :+
     Batch("Pushdown Filters from PartitionPruning", fixedPoint,
       PushDownPredicates) :+
     Batch("Cleanup filters that cannot be pushed down", Once,
       CleanupDynamicPruningFilters,
-      PruneFilters)) ++
+      PruneFilters) :+
+    Batch("Replace row-level commands with rewrite plans", Once,
+      ReplaceRewrittenRowLevelCommands)) ++
     postHocOptimizationBatches :+
     Batch("Extract Python UDFs", Once,
       ExtractPythonUDFFromJoinCondition,

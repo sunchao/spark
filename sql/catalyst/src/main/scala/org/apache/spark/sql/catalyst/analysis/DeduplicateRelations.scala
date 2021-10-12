@@ -71,7 +71,7 @@ object DeduplicateRelations extends Rule[LogicalPlan] {
           }
         }
         u.copy(children = newChildren)
-      case m @ MergeIntoTable(targetTable, sourceTable, _, _, _) if !m.duplicateResolved =>
+      case m @ MergeIntoTable(targetTable, sourceTable, _, _, _, _) if !m.duplicateResolved =>
         m.copy(sourceTable = dedupRight(targetTable, sourceTable))
     }
   }

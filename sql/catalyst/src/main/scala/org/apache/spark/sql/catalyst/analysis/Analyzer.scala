@@ -307,6 +307,10 @@ class Analyzer(override val catalogManager: CatalogManager)
       ResolveRandomSeed ::
       ResolveBinaryArithmetic ::
       ResolveUnion ::
+      AlignRowLevelCommandAssignments ::
+      RewriteDeleteFromTable ::
+      RewriteUpdateTable ::
+      RewriteMergeIntoTable ::
       typeCoercionRules ++
       Seq(ResolveWithCTE) ++
       extendedResolutionRules : _*),
@@ -1540,7 +1544,7 @@ class Analyzer(override val catalogManager: CatalogManager)
       case o: OptimizeTable if o.table.resolved =>
         o.copy(predicate = resolveExpressionByPlanOutput(o.predicate, o.table))
 
-      case m @ MergeIntoTable(targetTable, sourceTable, _, _, _)
+      case m @ MergeIntoTable(targetTable, sourceTable, _, _, _, _)
         if !m.resolved && targetTable.resolved && sourceTable.resolved =>
 
         EliminateSubqueryAliases(targetTable) match {
@@ -3332,7 +3336,7 @@ class Analyzer(override val catalogManager: CatalogManager)
    * - Insert aliases when column names do not match
    * - Detect plans that are not compatible with the output table and throw AnalysisException
    */
-  object ResolveOutputRelation extends Rule[LogicalPlan] {
+  object ResolveOutputRelation extends Rule[LogicalPlan] with IcebergSupport {
     override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperatorsWithPruning(
       _.containsPattern(COMMAND), ruleId) {
       case v2Write: V2WriteCommand
@@ -3351,10 +3355,11 @@ class Analyzer(override val catalogManager: CatalogManager)
           v2Write
         }
 
-      case u: UpdateTable if !u.skipSchemaResolution && u.resolved =>
+      case u: UpdateTable if !u.skipSchemaResolution && u.resolved && !isIcebergTable(u.table) =>
         resolveAssignments(u)
 
-      case m: MergeIntoTable if !m.skipSchemaResolution && m.resolved =>
+      case m: MergeIntoTable
+          if !m.skipSchemaResolution && m.resolved && !isIcebergTable(m.targetTable) =>
         resolveAssignments(m)
     }
 

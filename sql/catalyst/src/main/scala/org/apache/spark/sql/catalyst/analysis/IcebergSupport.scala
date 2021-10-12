@@ -23,15 +23,15 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 
 trait IcebergSupport {
 
-  protected def isIcebergRelation(plan: LogicalPlan): Boolean = {
-    def isIcebergTable(relation: DataSourceV2Relation): Boolean = relation.table match {
+  protected def isIcebergTable(plan: LogicalPlan): Boolean = {
+    def isIcebergRelation(relation: DataSourceV2Relation): Boolean = relation.table match {
       case _: org.apache.iceberg.spark.source.SparkTable => true
       case _ => false
     }
 
     plan match {
-      case s: SubqueryAlias => isIcebergRelation(s.child)
-      case r: DataSourceV2Relation => isIcebergTable(r)
+      case s: SubqueryAlias => isIcebergTable(s.child)
+      case r: DataSourceV2Relation => isIcebergRelation(r)
       case _ => false
     }
   }
