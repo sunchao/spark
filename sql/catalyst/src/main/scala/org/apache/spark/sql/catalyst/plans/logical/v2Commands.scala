@@ -24,7 +24,7 @@ import org.apache.spark.sql.catalyst.plans.DescribeCommandSchema
 import org.apache.spark.sql.catalyst.trees.BinaryLike
 import org.apache.spark.sql.catalyst.util.CharVarcharUtils
 import org.apache.spark.sql.connector.catalog._
-import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.connector.expressions.{SortOrder, Transform}
 import org.apache.spark.sql.connector.write.Write
 import org.apache.spark.sql.types.{BooleanType, DataType, MetadataBuilder, StringType, StructType}
 
@@ -198,7 +198,9 @@ case class CreateV2Table(
     tableSchema: StructType,
     partitioning: Seq[Transform],
     properties: Map[String, String],
-    ignoreIfExists: Boolean) extends LeafCommand with V2CreateTablePlan {
+    ignoreIfExists: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends LeafCommand with V2CreateTablePlan {
   override def withPartitioning(rewritten: Seq[Transform]): V2CreateTablePlan = {
     this.copy(partitioning = rewritten)
   }
@@ -214,7 +216,9 @@ case class CreateTableAsSelect(
     query: LogicalPlan,
     properties: Map[String, String],
     writeOptions: Map[String, String],
-    ignoreIfExists: Boolean) extends UnaryCommand with V2CreateTablePlan {
+    ignoreIfExists: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends UnaryCommand with V2CreateTablePlan {
 
   override def tableSchema: StructType = query.schema
   override def child: LogicalPlan = query
@@ -248,7 +252,9 @@ case class ReplaceTable(
     tableSchema: StructType,
     partitioning: Seq[Transform],
     properties: Map[String, String],
-    orCreate: Boolean) extends LeafCommand with V2CreateTablePlan {
+    orCreate: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends LeafCommand with V2CreateTablePlan {
   override def withPartitioning(rewritten: Seq[Transform]): V2CreateTablePlan = {
     this.copy(partitioning = rewritten)
   }
@@ -267,7 +273,9 @@ case class ReplaceTableAsSelect(
     query: LogicalPlan,
     properties: Map[String, String],
     writeOptions: Map[String, String],
-    orCreate: Boolean) extends UnaryCommand with V2CreateTablePlan {
+    orCreate: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends UnaryCommand with V2CreateTablePlan {
 
   override def tableSchema: StructType = query.schema
   override def child: LogicalPlan = query
