@@ -129,6 +129,11 @@
       <artifactId>xbean-asm9-shaded</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.apple.aci.datatables</groupId>
+      <artifactId>adt-spark3</artifactId>
+      <type>pom</type>
+    </dependency>
+    <dependency>
       <groupId>org.scalacheck</groupId>
       <artifactId>scalacheck_${scala.binary.version}</artifactId>
       <scope>test</scope>
