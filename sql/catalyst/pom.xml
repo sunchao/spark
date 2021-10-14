@@ -131,6 +131,11 @@
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-netty</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.apple.aci.datatables</groupId>
+      <artifactId>adt-spark3</artifactId>
+      <type>pom</type>
+    </dependency>
   </dependencies>
   <build>
     <outputDirectory>target/scala-${scala.binary.version}/classes</outputDirectory>
@@ -162,7 +167,7 @@
         <groupId>org.scalatest</groupId>
         <artifactId>scalatest-maven-plugin</artifactId>
         <configuration>
-          <argLine>-ea -Xmx6g -Xss4m -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dio.netty.tryReflectionSetAccessible=true</argLine>
+          <argLine>-ea -Xmx4g -Xss4m -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dio.netty.tryReflectionSetAccessible=true</argLine>
         </configuration>
       </plugin>
       <plugin>

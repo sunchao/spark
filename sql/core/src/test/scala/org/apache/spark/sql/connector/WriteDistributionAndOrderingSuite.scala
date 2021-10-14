@@ -687,7 +687,8 @@ class WriteDistributionAndOrderingSuite
       writeCommand: String = "append",
       expectAnalysisException: Boolean = false): Unit = {
 
-    catalog.createTable(ident, schema, Array.empty, emptyProps, tableDistribution,
+    catalog.createTableWithDistributionAndOrdering(
+      ident, schema, Array.empty, emptyProps, tableDistribution,
       tableOrdering, tableNumPartitions)
 
     val df = spark.createDataFrame(Seq((1, "a"), (2, "b"), (3, "c"))).toDF("id", "data")

@@ -20,7 +20,7 @@ package org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.connector.expressions.{Expression => V2Expression, FieldReference, IdentityTransform, NamedReference, NullOrdering => V2NullOrdering, SortDirection => V2SortDirection, SortValue}
+import org.apache.spark.sql.connector.expressions.{BucketTransform, DaysTransform, Expression => V2Expression, FieldReference, HoursTransform, IdentityTransform, MonthsTransform, NamedReference, NullOrdering => V2NullOrdering, SortDirection => V2SortDirection, SortValue, TruncateTransform, YearsTransform}
 import org.apache.spark.sql.errors.QueryCompilationErrors
 
 /**
@@ -51,6 +51,18 @@ object V2ExpressionUtils extends SQLConfHelper {
         SortOrder(catalystChild, toCatalyst(direction), toCatalyst(nullOrdering), Seq.empty)
       case IdentityTransform(ref) =>
         resolveRef[NamedExpression](ref, query)
+      case BucketTransform(numBuckets, ref) =>
+        IcebergBucketTransform(numBuckets, resolveRef[NamedExpression](ref, query))
+      case TruncateTransform(length, ref) =>
+        IcebergTruncateTransform(resolveRef[NamedExpression](ref, query), length)
+      case YearsTransform(ref) =>
+        IcebergYearTransform(resolveRef[NamedExpression](ref, query))
+      case MonthsTransform(ref) =>
+        IcebergMonthTransform(resolveRef[NamedExpression](ref, query))
+      case DaysTransform(ref) =>
+        IcebergDayTransform(resolveRef[NamedExpression](ref, query))
+      case HoursTransform(ref) =>
+        IcebergHourTransform(resolveRef[NamedExpression](ref, query))
       case ref: FieldReference =>
         resolveRef[NamedExpression](ref, query)
       case _ =>
