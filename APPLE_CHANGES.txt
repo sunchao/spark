@@ -16,7 +16,11 @@ SPARK-36821     Make class ColumnarBatch extendable - addendum
 # From 3.2.1
 SPARK-36939     Add orphan migration page into list in PySpark documentation
 SPARK-36717     Incorrect order of variable initialization may lead incorrect behavior
-SPARK-36900     Increase test memory to 6g for Java 11
+SPARK-36979     Add RewriteLateralSubquery rule into nonExcludableRules
+SPARK-36993     Fix json_tuple throw NPE if fields exist no foldable null value
+SPARK-36632     DivideYMInterval and DivideDTInterval should throw the same exception when divide by zero
+SPARK-37001     Disable two level of map for final hash aggregation by default
+SPARK-36905     Fix reading hive views without explicit column names
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -66,3 +70,13 @@ rdar://84036066 Add partition evolution commands (#1232)
 rdar://78158423: Add OPTIMIZE command (#1233)
 rdar://84040595 Commands for setting/dropping identifier fields (#1234)
 rdar://84083676 Use Apple Hadoop 3.3.2.4-ea
+rdar://84098233 Add ADT bundle (#1250)
+rdar://84101090 Add Iceberg expressions (#1251)
+rdar://84102488 Support ordering and distribution during table creation (#1252)
+SPARK-35801     Rewrite row-level commands (#1253)
+rdar://84260008 Generate token with runtime to avoid JVM dump to leak token (#1258)
+rdar://84272065 Use Apple Hadoop 3.3.2.5-ea
+rdar://84098233 Migrate to released ADT version (#1259)
+MINOR           Turn off nested Parquet reader by default
+SPARK-34863     Support complex types for Parquet vectorized reader (#1239)
+MINOR           Fix TableChange java linter
