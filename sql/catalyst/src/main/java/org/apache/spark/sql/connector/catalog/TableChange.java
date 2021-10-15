@@ -359,7 +359,8 @@ public interface TableChange {
     private final Transform addedTransform;
     private final String name;
 
-    private ReplacePartitionField(Transform removedTransform, Transform addedTransform, String name) {
+    private ReplacePartitionField(
+        Transform removedTransform, Transform addedTransform, String name) {
       this.removedTransform = removedTransform;
       this.addedTransform = addedTransform;
       this.name = name;
