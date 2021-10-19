@@ -1,4 +1,4 @@
-This contains the changes after branching `v3.2.0-rc7`
+This contains the changes after branching `v3.2.0`
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
