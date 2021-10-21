@@ -21,6 +21,17 @@ SPARK-36993     Fix json_tuple throw NPE if fields exist no foldable null value
 SPARK-36632     DivideYMInterval and DivideDTInterval should throw the same exception when divide by zero
 SPARK-37001     Disable two level of map for final hash aggregation by default
 SPARK-36905     Fix reading hive views without explicit column names
+SPARK-23626     Eagerly compute RDD.partitions on entire DAG when submitting job to DAGScheduler
+SPARK-37032     Fix broken SQL syntax link in SQL Reference page
+SPARK-37052     Spark should only pass --verbose argument to main class when is sql shell
+SPARK-37057     Fix wrong DocSearch facet filter in release-tag.sh
+SPARK-37049     executorIdleTimeout should check `creationTimestamp` instead of `startTime`
+SPARK-37064     Fix outer join return the wrong max rows if other side is empty
+SPARK-37046     Alter view does not preserve column case
+SPARK-37058     Add spark-shell command line unit test
+SPARK-37061     Fix CustomMetrics when using Inner Classes
+SPARK-37079     Fix DataFrameWriterV2.partitionedBy to send the arguments to JVM properly
+SPARK-37078     Support old 3-parameter Sink constructors
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -80,3 +91,5 @@ rdar://84098233 Migrate to released ADT version (#1259)
 MINOR           Turn off nested Parquet reader by default
 SPARK-34863     Support complex types for Parquet vectorized reader (#1239)
 MINOR           Fix TableChange java linter
+MINOR           Bump parquet-kms-apple to 1.1.3
+rdar://84490414 Use Apple Hadoop 3.3.2.6-ea
