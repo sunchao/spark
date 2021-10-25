@@ -120,14 +120,16 @@ builds:
     build:
       template: freestyle:v4:build
       steps:
-        - build/sbt -Phadoop-3.2 "sql/testOnly *.SQLQueryTestSuite"
+        - yum install -y python3
+        - build/sbt -Phadoop-3.2 "sql/testOnly *.SQLQueryTestSuite" "sql/testOnly *.ExpressionsSchemaSuite" "sql/testOnly *.ParquetV1FilterSuite" "sql/testOnly *.ParquetV2FilterSuite" "sql/testOnly *.ParquetV1SchemaPruningSuite" "sql/testOnly *.ParquetV2SchemaPruningSuite" "sql/testOnly org.apache.spark.sql.TPCDSQuery*"
 
   - name: apple-spark-2.12_3.2.0-snapshot-sql-2-pr
     branchName: branch-3.2.0-apple
     build:
       template: freestyle:v4:prb
       steps:
-        - build/sbt -Phadoop-3.2 "sql/testOnly *.SQLQueryTestSuite"
+        - yum install -y python3
+        - build/sbt -Phadoop-3.2 "sql/testOnly *.SQLQueryTestSuite" "sql/testOnly *.ExpressionsSchemaSuite" "sql/testOnly *.ParquetV1FilterSuite" "sql/testOnly *.ParquetV2FilterSuite" "sql/testOnly *.ParquetV1SchemaPruningSuite" "sql/testOnly *.ParquetV2SchemaPruningSuite"
 
   - name: apple-spark-2.12_3.2.0-snapshot-hadoop-cloud
     branchName: branch-3.2.0-apple
