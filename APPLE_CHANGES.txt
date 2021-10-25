@@ -32,6 +32,11 @@ SPARK-37058     Add spark-shell command line unit test
 SPARK-37061     Fix CustomMetrics when using Inner Classes
 SPARK-37079     Fix DataFrameWriterV2.partitionedBy to send the arguments to JVM properly
 SPARK-37078     Support old 3-parameter Sink constructors
+SPARK-33277     Writer thread must not access input after task completion listener returns
+SPARK-37069     Properly fallback when Hive.getWithoutRegisterFns is not available
+SPARK-37050     Update Conda installation instructions
+SPARK-37067     Use ZoneId.of() to handle timezone string in DatetimeUtils
+SPARK-37089     Do not register ParquetFileFormat completion listener lazily
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -93,3 +98,5 @@ SPARK-34863     Support complex types for Parquet vectorized reader (#1239)
 MINOR           Fix TableChange java linter
 MINOR           Bump parquet-kms-apple to 1.1.3
 rdar://84490414 Use Apple Hadoop 3.3.2.6-ea
+MINOR           Bump ADT version to 1.1.0 (#1270)
+rdar://84603326 Use Apple Hadoop 3.3.2.7-ea
