@@ -37,6 +37,15 @@ SPARK-37069     Properly fallback when Hive.getWithoutRegisterFns is not availab
 SPARK-37050     Update Conda installation instructions
 SPARK-37067     Use ZoneId.of() to handle timezone string in DatetimeUtils
 SPARK-37089     Do not register ParquetFileFormat completion listener lazily
+SPARK-37098     Alter table properties should invalidate cache
+SPARK-37121     Fix Python version detection bug in TestUtils used by HiveExternalCatalogVersionsSuite
+MINOR           Point to correct examples of Arbitrary Stateful Operations
+SPARK-37134     Clarify the options in "Using PySpark Native Features"
+SPARK-37117     Fix reading encrypted parquet files with external key material
+SPARK-37147     MetricsReporter producing NullPointerException when element 'triggerExecution' not present in Map[]
+MINOR           Remove unused config "pauseBackgroundWorkForCommit" from RocksDB
+MINOR           Correct typo in sql migration guide
+SPARK-37170     Pin PySpark version installed in the Binder environment for tagged commit
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -100,3 +109,6 @@ MINOR           Bump parquet-kms-apple to 1.1.3
 rdar://84490414 Use Apple Hadoop 3.3.2.6-ea
 MINOR           Bump ADT version to 1.1.0 (#1270)
 rdar://84603326 Use Apple Hadoop 3.3.2.7-ea
+MINOR           Update rio.yml
+rdar://84618469 use native parquet in predicate
+rdar://84771625 add ZORDER syntax support
