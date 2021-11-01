@@ -112,3 +112,4 @@ rdar://84603326 Use Apple Hadoop 3.3.2.7-ea
 MINOR           Update rio.yml
 rdar://84618469 use native parquet in predicate
 rdar://84771625 add ZORDER syntax support
+MINOR           Bump ADT version to 1.1.1
