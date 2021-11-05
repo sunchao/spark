@@ -844,7 +844,7 @@ object SQLConf {
       .internal()
       .intConf
       .checkValue(threshold => threshold >= 0, "The threshold must not be negative.")
-      .createWithDefault(10)
+      .createWithDefault(3000)
 
   val PARQUET_WRITE_LEGACY_FORMAT = buildConf("spark.sql.parquet.writeLegacyFormat")
     .doc("If true, data will be written in a way of Spark 1.4 and earlier. For example, decimal " +
@@ -873,6 +873,14 @@ object SQLConf {
       .version("2.0.0")
       .booleanConf
       .createWithDefault(true)
+
+  val PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED =
+    buildConf("spark.sql.parquet.enableNestedColumnVectorizedReader")
+      .doc("Enables vectorized Parquet decoding for nested columns (e.g., struct, list, map). " +
+          s"Note to enable this ${PARQUET_VECTORIZED_READER_ENABLED.key} also needs to be enabled.")
+      .version("3.3.0")
+      .booleanConf
+      .createWithDefault(false)
 
   val PARQUET_RECORD_FILTER_ENABLED = buildConf("spark.sql.parquet.recordLevelFilter.enabled")
     .doc("If true, enables Parquet's native record-level filtering using the pushed down " +
@@ -1700,6 +1708,16 @@ object SQLConf {
         "2nd-level, larger, slower map when 1st level is full or keys cannot be found. " +
         "When disabled, records go directly to the 2nd level.")
       .version("2.3.0")
+      .booleanConf
+      .createWithDefault(true)
+
+  val ENABLE_TWOLEVEL_AGG_MAP_PARTIAL_ONLY =
+    buildConf("spark.sql.codegen.aggregate.map.twolevel.partialOnly")
+      .internal()
+      .doc("Enable two-level aggregate hash map for partial aggregate only, " +
+        "because final aggregate might get more distinct keys compared to partial aggregate. " +
+        "Overhead of looking up 1st-level map might dominate when having a lot of distinct keys.")
+      .version("3.2.1")
       .booleanConf
       .createWithDefault(true)
 
@@ -3624,6 +3642,9 @@ class SQLConf extends Serializable with Logging {
   def parquetCompressionCodec: String = getConf(PARQUET_COMPRESSION)
 
   def parquetVectorizedReaderEnabled: Boolean = getConf(PARQUET_VECTORIZED_READER_ENABLED)
+
+  def parquetVectorizedReaderNestedColumnEnabled: Boolean =
+    getConf(PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED)
 
   def parquetVectorizedReaderBatchSize: Int = getConf(PARQUET_VECTORIZED_READER_BATCH_SIZE)
 

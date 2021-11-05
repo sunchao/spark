@@ -578,3 +578,4 @@ Below is a list of all the keywords in Spark SQL.
 |WRITE|non-reserved|non-reserved|non-reserved|
 |YEAR|non-reserved|non-reserved|non-reserved|
 |ZONE|non-reserved|non-reserved|non-reserved|
+|ZORDER|non-reserved|non-reserved|non-reserved|

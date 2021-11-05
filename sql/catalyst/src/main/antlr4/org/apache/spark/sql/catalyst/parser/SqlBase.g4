@@ -1095,6 +1095,7 @@ writeOrderField
 optimizeStrategy
     : BINPACK
     | (ORDER|SORT) (BY writeOrder)?
+    | ZORDER '(' columns=multipartIdentifierList ')'
     ;
 
 // When `SQL_standard_keyword_behavior=true`, there are 2 kinds of keywords in Spark SQL.
@@ -1308,6 +1309,7 @@ ansiNonReserved
     | WRITE
     | YEAR
     | ZONE
+    | ZORDER
 //--ANSI-NON-RESERVED-END
     ;
 
@@ -1595,6 +1597,7 @@ nonReserved
     | WRITE
     | YEAR
     | ZONE
+    | ZORDER
 //--DEFAULT-NON-RESERVED-END
     ;
 
@@ -1875,6 +1878,7 @@ WITH: 'WITH';
 WRITE: 'WRITE';
 YEAR: 'YEAR';
 ZONE: 'ZONE';
+ZORDER: 'ZORDER';
 //--SPARK-KEYWORD-LIST-END
 //============================
 // End of the keywords list

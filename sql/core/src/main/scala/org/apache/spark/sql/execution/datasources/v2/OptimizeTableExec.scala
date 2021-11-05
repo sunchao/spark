@@ -21,7 +21,7 @@ import scala.collection.JavaConverters._
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.plans.logical.{BinPack, OptimizeStrategy, OrderBy}
+import org.apache.spark.sql.catalyst.plans.logical.{BinPack, OptimizeStrategy, OrderBy, ZOrder}
 import org.apache.spark.sql.connector.catalog.SupportsOptimize
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
@@ -39,5 +39,8 @@ case class OptimizeTableExec(
       table.binPack(filters.toArray, new CaseInsensitiveStringMap(options.asJava))
     case OrderBy(ordering) =>
       table.orderBy(filters.toArray, ordering.toArray, new CaseInsensitiveStringMap(options.asJava))
+    case z @ ZOrder(_) =>
+      table.zOrder(
+        filters.toArray, z.colNames.toArray, new CaseInsensitiveStringMap(options.asJava))
   }
 }

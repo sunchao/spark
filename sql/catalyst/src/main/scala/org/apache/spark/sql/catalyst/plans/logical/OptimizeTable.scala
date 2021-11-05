@@ -17,7 +17,7 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.analysis.NamedRelation
+import org.apache.spark.sql.catalyst.analysis.{FieldName, NamedRelation}
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, AttributeSet, Expression}
 import org.apache.spark.sql.connector.catalog.SupportsOptimize
 import org.apache.spark.sql.connector.expressions.{SortOrder => V2SortOrder}
@@ -48,3 +48,12 @@ sealed trait OptimizeStrategy
 case object BinPack extends OptimizeStrategy
 
 case class OrderBy(ordering: Seq[V2SortOrder]) extends OptimizeStrategy
+
+case class ZOrder(columns: Seq[FieldName]) extends OptimizeStrategy {
+  private[sql] def colNames: Seq[Array[String]] = {
+    columns.foreach { col =>
+      require(col.resolved, s"FieldName $col should be resolved.")
+    }
+    columns.map(_.name.toArray)
+  }
+}
