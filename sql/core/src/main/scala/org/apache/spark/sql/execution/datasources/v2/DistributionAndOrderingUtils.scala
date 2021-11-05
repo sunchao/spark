@@ -20,12 +20,27 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.spark.sql.catalyst.expressions.{Expression, SortOrder}
 import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils.toCatalyst
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, RepartitionByExpression, Sort}
-import org.apache.spark.sql.connector.distributions.{ClusteredDistribution, OrderedDistribution, UnspecifiedDistribution}
+import org.apache.spark.sql.connector.distributions.{ClusteredDistribution, Distribution => V2Distribution, OrderedDistribution, UnspecifiedDistribution}
+import org.apache.spark.sql.connector.expressions.{SortOrder => V2SortOrder}
 import org.apache.spark.sql.connector.write.{RequiresDistributionAndOrdering, Write}
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
 
 object DistributionAndOrderingUtils {
+
+  // internal version used by rules specific to Iceberg
+  def prepareQuery(
+      distribution: V2Distribution,
+      ordering: Array[V2SortOrder],
+      query: LogicalPlan,
+      conf: SQLConf): LogicalPlan = {
+
+    val write = new RequiresDistributionAndOrdering {
+      override def requiredDistribution: V2Distribution = distribution
+      override def requiredOrdering: Array[V2SortOrder] = ordering
+    }
+    prepareQuery(write, query, conf)
+  }
 
   def prepareQuery(write: Write, query: LogicalPlan, conf: SQLConf): LogicalPlan = write match {
     case write: RequiresDistributionAndOrdering =>

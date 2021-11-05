@@ -418,6 +418,7 @@ createTableClauses
      (PARTITIONED BY partitioning=partitionFieldList) |
      skewSpec |
      bucketSpec |
+     writeSpec |
      rowFormat |
      createFileFormat |
      locationSpec |

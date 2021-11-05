@@ -31,11 +31,14 @@ import org.apache.spark.sql.catalyst.catalog.{BucketSpec, CatalogStorageFormat, 
 import org.apache.spark.sql.catalyst.expressions.{AnsiCast, AttributeReference, EqualTo, Expression, InSubquery, IntegerLiteral, ListQuery, Literal, StringLiteral}
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.parser.{CatalystSqlParser, ParseException}
-import org.apache.spark.sql.catalyst.plans.logical.{AlterColumn, AnalysisOnlyCommand, AppendData, Assignment, CreateTableAsSelect, CreateTableStatement, CreateV2Table, DeleteAction, DeleteFromTable, DescribeRelation, DropTable, InsertAction, LocalRelation, LogicalPlan, MergeIntoTable, OneRowRelation, Project, SetTableLocation, SetTableProperties, ShowTableProperties, SubqueryAlias, UnsetTableProperties, UpdateAction, UpdateTable}
+import org.apache.spark.sql.catalyst.plans.logical.{AlterColumn, AnalysisOnlyCommand, AppendData, Assignment, CreateTableAsSelect, CreateTableStatement, CreateV2Table, DeleteAction, DeleteFromTable, DescribeRelation, DropTable, InsertAction, LocalRelation, LogicalPlan, MergeIntoTable, OneRowRelation, Project, ReplaceTable, ReplaceTableAsSelect, SetTableLocation, SetTableProperties, ShowTableProperties, SubqueryAlias, UnsetTableProperties, UpdateAction, UpdateTable}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.FakeV2Provider
-import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogNotFoundException, Identifier, Table, TableCapability, TableCatalog, V1Table}
-import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogNotFoundException, Identifier, SupportsDelete, Table, TableCapability, TableCatalog, V1Table}
+import org.apache.spark.sql.connector.expressions.{FieldReference, Transform}
+import org.apache.spark.sql.connector.expressions.LogicalExpressions._
+import org.apache.spark.sql.connector.expressions.NullOrdering._
+import org.apache.spark.sql.connector.expressions.SortDirection._
 import org.apache.spark.sql.execution.datasources.CreateTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.internal.{HiveSerDe, SQLConf}
@@ -49,7 +52,7 @@ class PlanResolutionSuite extends AnalysisTest {
   private val v2Format = classOf[FakeV2Provider].getName
 
   private val table: Table = {
-    val t = mock(classOf[Table])
+    val t = mock(classOf[SupportsDelete])
     when(t.schema()).thenReturn(new StructType().add("i", "int").add("s", "string"))
     when(t.partitioning()).thenReturn(Array.empty[Transform])
     t
@@ -952,14 +955,15 @@ class PlanResolutionSuite extends AnalysisTest {
       val parsed4 = parseAndResolve(sql4)
 
       parsed1 match {
-        case DeleteFromTable(AsDataSourceV2Relation(_), None) =>
+        case DeleteFromTable(AsDataSourceV2Relation(_), None, _) =>
         case _ => fail("Expect DeleteFromTable, but got:\n" + parsed1.treeString)
       }
 
       parsed2 match {
         case DeleteFromTable(
           AsDataSourceV2Relation(_),
-          Some(EqualTo(name: UnresolvedAttribute, StringLiteral("Robert")))) =>
+          Some(EqualTo(name: UnresolvedAttribute, StringLiteral("Robert"))),
+          _) =>
           assert(name.name == "name")
         case _ => fail("Expect DeleteFromTable, but got:\n" + parsed2.treeString)
       }
@@ -967,7 +971,8 @@ class PlanResolutionSuite extends AnalysisTest {
       parsed3 match {
         case DeleteFromTable(
           SubqueryAlias(AliasIdentifier("t", Seq()), AsDataSourceV2Relation(_)),
-          Some(EqualTo(name: UnresolvedAttribute, StringLiteral("Robert")))) =>
+          Some(EqualTo(name: UnresolvedAttribute, StringLiteral("Robert"))),
+          _) =>
           assert(name.name == "t.name")
         case _ => fail("Expect DeleteFromTable, but got:\n" + parsed3.treeString)
       }
@@ -975,7 +980,8 @@ class PlanResolutionSuite extends AnalysisTest {
       parsed4 match {
         case DeleteFromTable(
             SubqueryAlias(AliasIdentifier("t", Seq()), AsDataSourceV2Relation(_)),
-            Some(InSubquery(values, query))) =>
+            Some(InSubquery(values, query)),
+            _) =>
           assert(values.size == 1 && values.head.isInstanceOf[UnresolvedAttribute])
           assert(values.head.asInstanceOf[UnresolvedAttribute].name == "t.name")
           query match {
@@ -1015,7 +1021,8 @@ class PlanResolutionSuite extends AnalysisTest {
             AsDataSourceV2Relation(_),
             Seq(Assignment(name: UnresolvedAttribute, StringLiteral("Robert")),
               Assignment(age: UnresolvedAttribute, IntegerLiteral(32))),
-            None) =>
+            None,
+            _) =>
           assert(name.name == "name")
           assert(age.name == "age")
 
@@ -1027,7 +1034,8 @@ class PlanResolutionSuite extends AnalysisTest {
             SubqueryAlias(AliasIdentifier("t", Seq()), AsDataSourceV2Relation(_)),
             Seq(Assignment(name: UnresolvedAttribute, StringLiteral("Robert")),
               Assignment(age: UnresolvedAttribute, IntegerLiteral(32))),
-            None) =>
+            None,
+            _) =>
           assert(name.name == "name")
           assert(age.name == "age")
 
@@ -1039,7 +1047,8 @@ class PlanResolutionSuite extends AnalysisTest {
             SubqueryAlias(AliasIdentifier("t", Seq()), AsDataSourceV2Relation(_)),
             Seq(Assignment(name: UnresolvedAttribute, StringLiteral("Robert")),
               Assignment(age: UnresolvedAttribute, IntegerLiteral(32))),
-            Some(EqualTo(p: UnresolvedAttribute, IntegerLiteral(1)))) =>
+            Some(EqualTo(p: UnresolvedAttribute, IntegerLiteral(1))),
+            _) =>
           assert(name.name == "name")
           assert(age.name == "age")
           assert(p.name == "p")
@@ -1050,7 +1059,7 @@ class PlanResolutionSuite extends AnalysisTest {
       parsed4 match {
         case UpdateTable(SubqueryAlias(AliasIdentifier("t", Seq()), AsDataSourceV2Relation(_)),
           Seq(Assignment(key: UnresolvedAttribute, IntegerLiteral(32))),
-          Some(InSubquery(values, query))) =>
+          Some(InSubquery(values, query)), _) =>
           assert(key.name == "t.age")
           assert(values.size == 1 && values.head.isInstanceOf[UnresolvedAttribute])
           assert(values.head.asInstanceOf[UnresolvedAttribute].name == "t.name")
@@ -1329,7 +1338,8 @@ class PlanResolutionSuite extends AnalysisTest {
                 UpdateAction(Some(EqualTo(ul: AttributeReference, StringLiteral("update"))),
                   updateAssigns)),
               Seq(InsertAction(Some(EqualTo(il: AttributeReference, StringLiteral("insert"))),
-                insertAssigns))) =>
+                insertAssigns)),
+              _) =>
             checkResolution(target, source, mergeCondition, Some(dl), Some(ul), Some(il),
               updateAssigns, insertAssigns)
 
@@ -1355,7 +1365,8 @@ class PlanResolutionSuite extends AnalysisTest {
                 UpdateAction(Some(EqualTo(ul: AttributeReference,
                   StringLiteral("update"))), updateAssigns)),
               Seq(InsertAction(Some(EqualTo(il: AttributeReference, StringLiteral("insert"))),
-                insertAssigns))) =>
+                insertAssigns)),
+              _) =>
             checkResolution(target, source, mergeCondition, Some(dl), Some(ul), Some(il),
               updateAssigns, insertAssigns, starInUpdate = true)
 
@@ -1376,7 +1387,8 @@ class PlanResolutionSuite extends AnalysisTest {
               SubqueryAlias(AliasIdentifier("source", Seq()), AsDataSourceV2Relation(source)),
               mergeCondition,
               Seq(UpdateAction(None, updateAssigns)),
-              Seq(InsertAction(None, insertAssigns))) =>
+              Seq(InsertAction(None, insertAssigns)),
+              _) =>
 
             checkResolution(target, source, mergeCondition, None, None, None,
               updateAssigns, insertAssigns, starInUpdate = true)
@@ -1400,7 +1412,8 @@ class PlanResolutionSuite extends AnalysisTest {
               SubqueryAlias(AliasIdentifier("source", Seq()), AsDataSourceV2Relation(source)),
               mergeCondition,
               Seq(DeleteAction(Some(_)), UpdateAction(None, updateAssigns)),
-              Seq(InsertAction(None, insertAssigns))) =>
+              Seq(InsertAction(None, insertAssigns)),
+              _) =>
             checkResolution(target, source, mergeCondition, None, None, None,
               updateAssigns, insertAssigns)
 
@@ -1427,7 +1440,8 @@ class PlanResolutionSuite extends AnalysisTest {
                 UpdateAction(Some(EqualTo(ul: AttributeReference, StringLiteral("update"))),
                   updateAssigns)),
               Seq(InsertAction(Some(EqualTo(il: AttributeReference, StringLiteral("insert"))),
-                insertAssigns))) =>
+                insertAssigns)),
+              _) =>
             checkResolution(target, source, mergeCondition, Some(dl), Some(ul), Some(il),
               updateAssigns, insertAssigns)
 
@@ -1456,7 +1470,8 @@ class PlanResolutionSuite extends AnalysisTest {
                 UpdateAction(Some(EqualTo(ul: AttributeReference, StringLiteral("update"))),
                   updateAssigns)),
               Seq(InsertAction(Some(EqualTo(il: AttributeReference, StringLiteral("insert"))),
-                insertAssigns))) =>
+                insertAssigns)),
+              _) =>
             assert(source.output.map(_.name) == Seq("s", "i"))
             checkResolution(target, source, mergeCondition, Some(dl), Some(ul), Some(il),
               updateAssigns, insertAssigns)
@@ -1489,7 +1504,8 @@ class PlanResolutionSuite extends AnalysisTest {
             Seq(DeleteAction(Some(_)), UpdateAction(None, updateAssigns)),
             Seq(InsertAction(
               Some(EqualTo(il: AttributeReference, StringLiteral("a"))),
-              insertAssigns))) =>
+              insertAssigns)),
+            _) =>
           val ti = target.output.find(_.name == "i").get
           val ts = target.output.find(_.name == "s").get
           val si = source.output.find(_.name == "i").get
@@ -1661,7 +1677,8 @@ class PlanResolutionSuite extends AnalysisTest {
           Seq(
             InsertAction(
               Some(EqualTo(il: UnresolvedAttribute, StringLiteral("insert"))),
-              insertAssigns))) =>
+              insertAssigns)),
+          _) =>
         assert(l.name == "target.i" && r.name == "source.i")
         assert(dl.name == "target.s")
         assert(ul.name == "target.s")
@@ -2310,6 +2327,274 @@ class PlanResolutionSuite extends AnalysisTest {
     val cmdAnalyzed = cmdNotAnalyzed.markAsAnalyzed()
     assert(cmdAnalyzed.innerChildren.length == 1)
     assert(cmdAnalyzed.children.isEmpty)
+  }
+
+  test("v2 table creation (global ordering)") {
+    val sql =
+      s"""
+         |CREATE TABLE IF NOT EXISTS mydb.table_name (
+         |    id bigint,
+         |    description string,
+         |    point struct<x: double, y: double>)
+         |USING parquet
+         |ORDERED BY id
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+      """.stripMargin
+
+    val expectedProperties = Map(
+      "p1" -> "v1",
+      "p2" -> "v2",
+      "provider" -> "parquet")
+
+    val expectedOrdering = Seq(
+      sort(identity(FieldReference("id")), ASCENDING, NULLS_FIRST)
+    )
+
+    parseAndResolve(sql, withDefault = true) match {
+      case create: CreateV2Table =>
+        assert(create.catalog.name == "testcat")
+        assert(create.tableName == Identifier.of(Array("mydb"), "table_name"))
+        assert(create.tableSchema == new StructType()
+          .add("id", LongType)
+          .add("description", StringType)
+          .add("point", new StructType().add("x", DoubleType).add("y", DoubleType)))
+        assert(create.partitioning.isEmpty)
+        assert(create.distributionMode == "range")
+        assert(create.ordering == expectedOrdering)
+        assert(create.properties == expectedProperties)
+        assert(create.ignoreIfExists)
+
+      case other =>
+        fail(s"Expected ${classOf[CreateV2Table].getName} but got ${other.getClass.getName}: $sql")
+    }
+  }
+
+  test("v2 table creation (hash distribution + local ordering)") {
+    val sql =
+      s"""
+         |CREATE TABLE IF NOT EXISTS mydb.table_name (
+         |    id bigint,
+         |    description string,
+         |    point struct<x: double, y: double>)
+         |USING parquet
+         |PARTITIONED BY (bucket(8, description))
+         |DISTRIBUTED BY PARTITION
+         |ORDERED BY id
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+      """.stripMargin
+
+    val expectedProperties = Map(
+      "p1" -> "v1",
+      "p2" -> "v2",
+      "provider" -> "parquet")
+
+    val expectedPartitioning = Seq(
+      bucket(8, Array(FieldReference("description")))
+    )
+
+    val expectedOrdering = Seq(
+      sort(identity(FieldReference("id")), ASCENDING, NULLS_FIRST)
+    )
+
+    parseAndResolve(sql, withDefault = true) match {
+      case create: CreateV2Table =>
+        assert(create.catalog.name == "testcat")
+        assert(create.tableName == Identifier.of(Array("mydb"), "table_name"))
+        assert(create.tableSchema == new StructType()
+          .add("id", LongType)
+          .add("description", StringType)
+          .add("point", new StructType().add("x", DoubleType).add("y", DoubleType)))
+        assert(create.partitioning == expectedPartitioning)
+        assert(create.distributionMode == "hash")
+        assert(create.ordering == expectedOrdering)
+        assert(create.properties == expectedProperties)
+        assert(create.ignoreIfExists)
+
+      case other =>
+        fail(s"Expected ${classOf[CreateV2Table].getName} but got ${other.getClass.getName}: $sql")
+    }
+  }
+
+  test("v2 table creation (local ordering)") {
+    val sql =
+      s"""
+         |CREATE TABLE IF NOT EXISTS mydb.table_name (
+         |    id bigint,
+         |    description string,
+         |    point struct<x: double, y: double>)
+         |USING parquet
+         |PARTITIONED BY (bucket(8, description))
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+         |LOCALLY ORDERED BY (id)
+      """.stripMargin
+
+    val expectedProperties = Map(
+      "p1" -> "v1",
+      "p2" -> "v2",
+      "provider" -> "parquet")
+
+    val expectedPartitioning = Seq(
+      bucket(8, Array(FieldReference("description")))
+    )
+
+    val expectedOrdering = Seq(
+      sort(identity(FieldReference("id")), ASCENDING, NULLS_FIRST)
+    )
+
+    parseAndResolve(sql, withDefault = true) match {
+      case create: CreateV2Table =>
+        assert(create.catalog.name == "testcat")
+        assert(create.tableName == Identifier.of(Array("mydb"), "table_name"))
+        assert(create.tableSchema == new StructType()
+          .add("id", LongType)
+          .add("description", StringType)
+          .add("point", new StructType().add("x", DoubleType).add("y", DoubleType)))
+        assert(create.partitioning == expectedPartitioning)
+        assert(create.distributionMode == "none")
+        assert(create.ordering == expectedOrdering)
+        assert(create.properties == expectedProperties)
+        assert(create.ignoreIfExists)
+
+      case other =>
+        fail(s"Expected ${classOf[CreateV2Table].getName} but got ${other.getClass.getName}: $sql")
+    }
+  }
+
+  test("v2 CTAS with no distribution and ordering") {
+    val sql =
+      s"""
+         |CREATE TABLE IF NOT EXISTS testcat.mydb.table_name
+         |USING parquet
+         |COMMENT 'table comment'
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+         |OPTIONS (path 's3://bucket/path/to/data', other 20)
+         |UNORDERED
+         |AS SELECT * FROM src
+      """.stripMargin
+
+    val expectedProperties = Map(
+      "p1" -> "v1",
+      "p2" -> "v2",
+      "option.other" -> "20",
+      "provider" -> "parquet",
+      "location" -> "s3://bucket/path/to/data",
+      "comment" -> "table comment",
+      "other" -> "20")
+
+    parseAndResolve(sql) match {
+      case ctas: CreateTableAsSelect =>
+        assert(ctas.catalog.name == "testcat")
+        assert(ctas.tableName == Identifier.of(Array("mydb"), "table_name"))
+        assert(ctas.properties == expectedProperties)
+        assert(ctas.writeOptions.isEmpty)
+        assert(ctas.partitioning.isEmpty)
+        assert(ctas.distributionMode == "none")
+        assert(ctas.ordering.isEmpty)
+        assert(ctas.ignoreIfExists)
+
+      case other =>
+        fail(s"Expected ${classOf[CreateTableAsSelect].getName} " +
+            s"but got ${other.getClass.getName}: $sql")
+    }
+  }
+
+  test("v2 table creation (invalid hash distribution)") {
+    val sql =
+      s"""
+         |CREATE TABLE testcat.tab (i INT, s STRING)
+         |USING $v2Format
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+         |DISTRIBUTED BY PARTITION
+         |AS SELECT * FROM src
+      """.stripMargin
+
+    val e = intercept[AnalysisException] {
+      parseAndResolve(sql)
+    }
+    assert(e.getMessage.contains("is supported only for partitioned tables"))
+  }
+
+
+  test("v2 replace table (global ordering)") {
+    val sql =
+      s"""
+         |REPLACE TABLE testcat.tab (i INT, s STRING)
+         |USING $v2Format
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+         |ORDERED BY (bucket(8, s) DESC NULLS FIRST)
+      """.stripMargin
+
+    val expectedProperties = Map(
+      "p1" -> "v1",
+      "p2" -> "v2",
+      "provider" -> v2Format)
+
+    val expectedOrdering = Seq(
+      sort(bucket(8, Array(FieldReference("s"))), DESCENDING, NULLS_FIRST)
+    )
+
+    parseAndResolve(sql) match {
+      case replace: ReplaceTable =>
+        assert(replace.catalog.name == "testcat")
+        assert(replace.tableName == Identifier.of(Array.empty, "tab"))
+        assert(replace.properties == expectedProperties)
+        assert(replace.partitioning.isEmpty)
+        assert(replace.distributionMode == "range")
+        assert(replace.ordering == expectedOrdering)
+
+      case other =>
+        fail(s"Expected ${classOf[ReplaceTable].getName} but got ${other.getClass.getName}: $sql")
+    }
+  }
+
+  test("v2 RTAS (global ordering)") {
+    val sql =
+      s"""
+         |REPLACE TABLE testcat.tab
+         |USING $v2Format
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+         |ORDERED BY (bucket(8, s) DESC NULLS FIRST)
+         |AS SELECT * FROM src
+      """.stripMargin
+
+    val expectedProperties = Map(
+      "p1" -> "v1",
+      "p2" -> "v2",
+      "provider" -> v2Format)
+
+    val expectedOrdering = Seq(
+      sort(bucket(8, Array(FieldReference("s"))), DESCENDING, NULLS_FIRST)
+    )
+
+    parseAndResolve(sql) match {
+      case rtas: ReplaceTableAsSelect =>
+        assert(rtas.catalog.name == "testcat")
+        assert(rtas.tableName == Identifier.of(Array.empty, "tab"))
+        assert(rtas.properties == expectedProperties)
+        assert(rtas.partitioning.isEmpty)
+        assert(rtas.distributionMode == "range")
+        assert(rtas.ordering == expectedOrdering)
+
+      case other =>
+        fail(s"Expected ${classOf[ReplaceTableAsSelect].getName} " +
+            s"but got ${other.getClass.getName}: $sql")
+    }
+  }
+
+  test("v2 RTAS (invalid hash distribution)") {
+    val sql =
+      s"""
+         |REPLACE TABLE testcat.tab (i INT, s STRING)
+         |USING $v2Format
+         |TBLPROPERTIES ('p1'='v1', 'p2'='v2')
+         |DISTRIBUTED BY PARTITION
+         |AS SELECT * FROM src
+      """.stripMargin
+
+      val e = intercept[AnalysisException] {
+        parseAndResolve(sql)
+      }
+      assert(e.getMessage.contains("is supported only for partitioned tables"))
   }
 
   // TODO: add tests for more commands.

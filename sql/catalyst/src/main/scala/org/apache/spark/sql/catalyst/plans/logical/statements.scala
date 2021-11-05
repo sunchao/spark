@@ -21,7 +21,7 @@ import org.apache.spark.sql.catalyst.analysis.{FieldName, FieldPosition, ViewTyp
 import org.apache.spark.sql.catalyst.catalog.{BucketSpec, FunctionResource}
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.trees.{LeafLike, UnaryLike}
-import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.connector.expressions.{SortOrder, Transform}
 import org.apache.spark.sql.errors.QueryExecutionErrors
 import org.apache.spark.sql.types.{DataType, StructType}
 
@@ -140,7 +140,9 @@ case class CreateTableStatement(
     comment: Option[String],
     serde: Option[SerdeInfo],
     external: Boolean,
-    ifNotExists: Boolean) extends LeafParsedStatement
+    ifNotExists: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends LeafParsedStatement
 
 /**
  * A CREATE TABLE AS SELECT command, as parsed from SQL.
@@ -158,7 +160,9 @@ case class CreateTableAsSelectStatement(
     writeOptions: Map[String, String],
     serde: Option[SerdeInfo],
     external: Boolean,
-    ifNotExists: Boolean) extends UnaryParsedStatement {
+    ifNotExists: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends UnaryParsedStatement {
 
   override def child: LogicalPlan = asSelect
   override protected def withNewChildInternal(newChild: LogicalPlan): CreateTableAsSelectStatement =
@@ -199,7 +203,9 @@ case class ReplaceTableStatement(
     location: Option[String],
     comment: Option[String],
     serde: Option[SerdeInfo],
-    orCreate: Boolean) extends LeafParsedStatement
+    orCreate: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends LeafParsedStatement
 
 /**
  * A REPLACE TABLE AS SELECT command, as parsed from SQL.
@@ -216,7 +222,9 @@ case class ReplaceTableAsSelectStatement(
     comment: Option[String],
     writeOptions: Map[String, String],
     serde: Option[SerdeInfo],
-    orCreate: Boolean) extends UnaryParsedStatement {
+    orCreate: Boolean,
+    distributionMode: String = "none",
+    ordering: Seq[SortOrder] = Seq.empty) extends UnaryParsedStatement {
 
   override def child: LogicalPlan = asSelect
   override protected def withNewChildInternal(

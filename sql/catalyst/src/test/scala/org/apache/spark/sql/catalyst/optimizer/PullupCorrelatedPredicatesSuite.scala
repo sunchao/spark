@@ -121,7 +121,7 @@ class PullupCorrelatedPredicatesSuite extends PlanTest {
     assert(optimized.resolved)
 
     optimized match {
-      case DeleteFromTable(_, Some(s: InSubquery)) =>
+      case DeleteFromTable(_, Some(s: InSubquery), _) =>
         val outerRefs = SubExprUtils.getOuterReferences(s.query.plan)
         assert(outerRefs.isEmpty, "should be no outer refs")
       case other =>
@@ -139,7 +139,7 @@ class PullupCorrelatedPredicatesSuite extends PlanTest {
     assert(optimized.resolved)
 
     optimized match {
-      case UpdateTable(_, _, Some(s: InSubquery)) =>
+      case UpdateTable(_, _, Some(s: InSubquery), _) =>
         val outerRefs = SubExprUtils.getOuterReferences(s.query.plan)
         assert(outerRefs.isEmpty, "should be no outer refs")
       case other =>
@@ -165,7 +165,7 @@ class PullupCorrelatedPredicatesSuite extends PlanTest {
     assert(optimized.resolved)
 
     optimized match {
-      case MergeIntoTable(_, _, s: InSubquery, _, _) =>
+      case MergeIntoTable(_, _, s: InSubquery, _, _, _) =>
         val outerRefs = SubExprUtils.getOuterReferences(s.query.plan)
         assert(outerRefs.isEmpty, "should be no outer refs")
       case other =>

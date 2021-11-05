@@ -194,6 +194,7 @@
     <htmlunit.version>2.50.0</htmlunit.version>
     <aciparquet.kms.version>1.1.2-apple</aciparquet.kms.version>
     <acispark.callhome.version>0.2.12</acispark.callhome.version>
+    <adt.version>1.1.0-preview-SNAPSHOT</adt.version>
     <maven-antrun.version>1.8</maven-antrun.version>
     <commons-crypto.version>1.1.0</commons-crypto.version>
     <commons-cli.version>1.2</commons-cli.version>
@@ -319,6 +320,10 @@
     <repository>
       <id>apple</id>
       <url>https://artifacts.apple.com/libs-release</url>
+    </repository>
+    <repository>
+      <id>apple-snapshot</id>
+      <url>https://artifacts.apple.com/libs-snapshot</url>
     </repository>
   </repositories>
   <pluginRepositories>
@@ -2535,6 +2540,12 @@
         <artifactId>arpack</artifactId>
         <version>${netlib.ludovic.dev.version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.apple.aci.datatables</groupId>
+        <artifactId>adt-spark3</artifactId>
+        <version>${adt.version}</version>
+        <type>pom</type>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -2667,7 +2678,7 @@
             <jvmArgs>
               <jvmArg>-Xss128m</jvmArg>
               <jvmArg>-Xms4g</jvmArg>
-              <jvmArg>-Xmx6g</jvmArg>
+              <jvmArg>-Xmx4g</jvmArg>
               <jvmArg>-XX:MaxMetaspaceSize=2g</jvmArg>
               <jvmArg>-XX:ReservedCodeCacheSize=${CodeCacheSize}</jvmArg>
             </jvmArgs>
@@ -2717,7 +2728,7 @@
               <include>**/*Suite.java</include>
             </includes>
             <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
-            <argLine>-ea -Xmx6g -Xss4m -XX:MaxMetaspaceSize=2g -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dio.netty.tryReflectionSetAccessible=true</argLine>
+            <argLine>-ea -Xmx4g -Xss4m -XX:MaxMetaspaceSize=2g -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dio.netty.tryReflectionSetAccessible=true</argLine>
             <environmentVariables>
               <!--
                 Setting SPARK_DIST_CLASSPATH is a simple way to make sure any child processes
@@ -2768,7 +2779,7 @@
             <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
             <junitxml>.</junitxml>
             <filereports>SparkTestSuite.txt</filereports>
-            <argLine>-ea -Xmx6g -Xss4m -XX:MaxMetaspaceSize=2g -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dio.netty.tryReflectionSetAccessible=true</argLine>
+            <argLine>-ea -Xmx4g -Xss4m -XX:MaxMetaspaceSize=2g -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dio.netty.tryReflectionSetAccessible=true</argLine>
             <stderr/>
             <environmentVariables>
               <!--

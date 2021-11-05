@@ -159,7 +159,7 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
     // For CREATE TABLE [AS SELECT], we should use the v1 command if the catalog is resolved to the
     // session catalog and the table provider is not v2.
     case c @ CreateTableStatement(
-         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _) =>
+         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       val (storageFormat, provider) = getStorageFormatAndProvider(
         c.provider, c.options, c.location, c.serde, ctas = false)
       if (!isV2Provider(provider)) {
@@ -176,11 +176,13 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
           // convert the bucket spec and add it as a transform
           c.partitioning ++ c.bucketSpec.map(_.asTransform),
           convertTableProperties(c),
-          ignoreIfExists = c.ifNotExists)
+          ignoreIfExists = c.ifNotExists,
+          c.distributionMode,
+          c.ordering)
       }
 
     case c @ CreateTableAsSelectStatement(
-         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _) =>
+         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       val (storageFormat, provider) = getStorageFormatAndProvider(
         c.provider, c.options, c.location, c.serde, ctas = true)
       if (!isV2Provider(provider)) {
@@ -198,7 +200,9 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
           c.asSelect,
           convertTableProperties(c),
           writeOptions = c.writeOptions,
-          ignoreIfExists = c.ifNotExists)
+          ignoreIfExists = c.ifNotExists,
+          c.distributionMode,
+          c.ordering)
       }
 
     case m @ MigrateTableStatement(SessionCatalogAndTable(catalog, tbl), _, _) =>
@@ -252,7 +256,7 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
     // For REPLACE TABLE [AS SELECT], we should fail if the catalog is resolved to the
     // session catalog and the table provider is not v2.
     case c @ ReplaceTableStatement(
-         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _) =>
+         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _) =>
       val provider = c.provider.getOrElse(conf.defaultDataSourceName)
       if (!isV2Provider(provider)) {
         throw QueryCompilationErrors.replaceTableOnlySupportedWithV2TableError
@@ -264,11 +268,13 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
           // convert the bucket spec and add it as a transform
           c.partitioning ++ c.bucketSpec.map(_.asTransform),
           convertTableProperties(c),
-          orCreate = c.orCreate)
+          orCreate = c.orCreate,
+          distributionMode = c.distributionMode,
+          ordering = c.ordering)
       }
 
     case c @ ReplaceTableAsSelectStatement(
-         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _) =>
+         SessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       val provider = c.provider.getOrElse(conf.defaultDataSourceName)
       if (!isV2Provider(provider)) {
         throw QueryCompilationErrors.replaceTableAsSelectOnlySupportedWithV2TableError
@@ -281,7 +287,9 @@ class ResolveSessionCatalog(val catalogManager: CatalogManager)
           c.asSelect,
           convertTableProperties(c),
           writeOptions = c.writeOptions,
-          orCreate = c.orCreate)
+          orCreate = c.orCreate,
+          distributionMode = c.distributionMode,
+          ordering = c.ordering)
       }
 
     case DropTable(ResolvedV1TableIdentifier(ident), ifExists, purge) =>

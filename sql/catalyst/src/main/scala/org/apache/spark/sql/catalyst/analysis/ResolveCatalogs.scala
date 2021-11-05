@@ -33,7 +33,7 @@ class ResolveCatalogs(val catalogManager: CatalogManager)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case c @ CreateTableStatement(
-         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _) =>
+         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       CreateV2Table(
         catalog.asTableCatalog,
         tbl.asIdentifier,
@@ -41,10 +41,12 @@ class ResolveCatalogs(val catalogManager: CatalogManager)
         // convert the bucket spec and add it as a transform
         c.partitioning ++ c.bucketSpec.map(_.asTransform),
         convertTableProperties(c),
-        ignoreIfExists = c.ifNotExists)
+        ignoreIfExists = c.ifNotExists,
+        c.distributionMode,
+        c.ordering)
 
     case c @ CreateTableAsSelectStatement(
-         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _) =>
+         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       CreateTableAsSelect(
         catalog.asTableCatalog,
         tbl.asIdentifier,
@@ -53,7 +55,9 @@ class ResolveCatalogs(val catalogManager: CatalogManager)
         c.asSelect,
         convertTableProperties(c),
         writeOptions = c.writeOptions,
-        ignoreIfExists = c.ifNotExists)
+        ignoreIfExists = c.ifNotExists,
+        c.distributionMode,
+        c.ordering)
 
     case m @ MigrateTableStatement(NonSessionCatalogAndTable(catalog, tbl), _, _) =>
       if (!catalog.isInstanceOf[SupportsMigrate]) {
@@ -80,7 +84,7 @@ class ResolveCatalogs(val catalogManager: CatalogManager)
         convertTableProperties(s))
 
     case c @ ReplaceTableStatement(
-         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _) =>
+         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _) =>
       ReplaceTable(
         catalog.asTableCatalog,
         tbl.asIdentifier,
@@ -88,10 +92,12 @@ class ResolveCatalogs(val catalogManager: CatalogManager)
         // convert the bucket spec and add it as a transform
         c.partitioning ++ c.bucketSpec.map(_.asTransform),
         convertTableProperties(c),
-        orCreate = c.orCreate)
+        orCreate = c.orCreate,
+        distributionMode = c.distributionMode,
+        ordering = c.ordering)
 
     case c @ ReplaceTableAsSelectStatement(
-         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _) =>
+         NonSessionCatalogAndTable(catalog, tbl), _, _, _, _, _, _, _, _, _, _, _, _, _) =>
       ReplaceTableAsSelect(
         catalog.asTableCatalog,
         tbl.asIdentifier,
@@ -100,7 +106,9 @@ class ResolveCatalogs(val catalogManager: CatalogManager)
         c.asSelect,
         convertTableProperties(c),
         writeOptions = c.writeOptions,
-        orCreate = c.orCreate)
+        orCreate = c.orCreate,
+        distributionMode = c.distributionMode,
+        ordering = c.ordering)
 
     case c @ CreateNamespaceStatement(CatalogAndNamespace(catalog, ns), _, _)
         if !isSessionCatalog(catalog) =>
