@@ -46,6 +46,12 @@ SPARK-37147     MetricsReporter producing NullPointerException when element 'tri
 MINOR           Remove unused config "pauseBackgroundWorkForCommit" from RocksDB
 MINOR           Correct typo in sql migration guide
 SPARK-37170     Pin PySpark version installed in the Binder environment for tagged commit
+MINOR           Corrected spacing in structured streaming programming
+MINOR           Fix broken link in legacy Apache Arrow in PySpark page
+MINOR           Document JDBC aggregate push down is for DSV2 only
+SPARK-37203     Fix NotSerializableException when observe with TypedImperativeAggregate
+SPARK-37208     Support mapping Spark gpu/fpga resource types to custom YARN resource types
+SPARK-37218     Parameterize `spark.sql.shuffle.partitions` in TPCDSQueryBenchmark
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -113,3 +119,4 @@ MINOR           Update rio.yml
 rdar://84618469 use native parquet in predicate
 rdar://84771625 add ZORDER syntax support
 MINOR           Bump ADT version to 1.1.1
+rdar://85089496 Fix the Env at Call home Client side
