@@ -12,6 +12,12 @@ MINOR           Add zstd-jni test dependency to avro module
 SPARK-36334     Allow equal resource version to update snapshot
 SPARK-35174     Avoid opening watch when waitAppCompletion is false
 SPARK-36821     Make class ColumnarBatch extendable - addendum
+SPARK-35437     Use expressions to filter Hive partitions at client side
+SPARK-37339     Add `spark-version`  label to driver and executor pods
+SPARK-37272     Add `ExtendedRocksDBTest` and disable RocksDB tests on Apple Silicon
+SPARK-37282     Add `ExtendedLevelDBTest` and disable LevelDB tests on Apple Silicon
+SPARK-37293     Remove explicit GC options from Scala tests
+SPARK-37244     Build and run tests on Python 3.10
 
 # From 3.2.1
 SPARK-36939     Add orphan migration page into list in PySpark documentation
@@ -52,6 +58,7 @@ MINOR           Document JDBC aggregate push down is for DSV2 only
 SPARK-37203     Fix NotSerializableException when observe with TypedImperativeAggregate
 SPARK-37208     Support mapping Spark gpu/fpga resource types to custom YARN resource types
 SPARK-37218     Parameterize `spark.sql.shuffle.partitions` in TPCDSQueryBenchmark
+SPARK-37252     Ignore `test_memory_limit` on non-Linux environment
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -120,3 +127,5 @@ rdar://84618469 use native parquet in predicate
 rdar://84771625 add ZORDER syntax support
 MINOR           Bump ADT version to 1.1.1
 rdar://85089496 Fix the Env at Call home Client side
+rdar://84101090 Refactor Iceberg expressions
+MINOR           Bump ADT version to 1.1.2
