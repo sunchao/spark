@@ -18,6 +18,7 @@ SPARK-37272     Add `ExtendedRocksDBTest` and disable RocksDB tests on Apple Sil
 SPARK-37282     Add `ExtendedLevelDBTest` and disable LevelDB tests on Apple Silicon
 SPARK-37293     Remove explicit GC options from Scala tests
 SPARK-37244     Build and run tests on Python 3.10
+SPARK-37342     Upgrade Apache Arrow to 6.0.0
 
 # From 3.2.1
 SPARK-36939     Add orphan migration page into list in PySpark documentation
@@ -59,6 +60,32 @@ SPARK-37203     Fix NotSerializableException when observe with TypedImperativeAg
 SPARK-37208     Support mapping Spark gpu/fpga resource types to custom YARN resource types
 SPARK-37218     Parameterize `spark.sql.shuffle.partitions` in TPCDSQueryBenchmark
 SPARK-37252     Ignore `test_memory_limit` on non-Linux environment
+SPARK-36900     Refactor `: size returns correct positive number even with over 2GB data` to pass with Java 8, 11 and 17
+SPARK-37214     Fail query analysis earlier with invalid identifiers
+SPARK-37232     Upgrade ORC to 1.7.1
+SPARK-37196     HiveDecimal enforcePrecisionScale failed return null
+SPARK-37253     `try_simplify_traceback` should not fail when `tb_frame.f_lineno` is None
+SPARK-37023     Avoid fetching merge status when shuffleMergeEnabled is false for a shuffleDependency during retry
+MINOR           Add Scala 2.13 to index.md and build-spark.md
+SPARK-37702     Use AnalysisContext to track referred temp functions
+SPARK-37302     Explicitly downloads guava and jetty-io in test-dependencies.sh
+SPARK-37288     Backport since annotation update
+SPARK-37307     Don't obtain JDBC connection for empty partitions
+SPARK-37318     Make `FallbackStorageSuite` robust in terms of DNS
+SPARK-37320     Delete py_container_checks.zip after the test in DepsTestsSuite finishes
+SPARK-37317     Reduce weights in GaussianMixtureSuite
+SPARK-37322     `run_scala_tests` should respect test module order
+SPARK-37346     Add migration guide link for structured streaming
+SPARK-37702     Store referred temp functions for CacheTableAsSelect
+SPARK-37214     No db prefix for temp view is an analyzer error
+MINOR           Fix minor issues in SparkR docs examples
+SPARK-37270     Fix push foldable into CaseWhen branches if elseValue is empty
+SPARK-37390     Add default value to getattr(app, add_javascript)
+SPARK-37209     Fix `YarnShuffleIntegrationSuite` releated UTs when using `hadoop-3.2` profile without `assembly/target/scala-%s/jars`
+SPARK-37388     Fix NPE in WidthBucket in WholeStageCodegenExec
+SPARK-37389     Check unclosed bracketed comments
+SPARK-37446     Use reflection for getWithoutRegisterFns to allow different Hive versions for building
+SPARK-37452     Char and Varchar break backward compatibility between v3.1 and v2
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -129,3 +156,4 @@ MINOR           Bump ADT version to 1.1.1
 rdar://85089496 Fix the Env at Call home Client side
 rdar://84101090 Refactor Iceberg expressions
 MINOR           Bump ADT version to 1.1.2
+MINOR           Bump Hadoop version to 3.3.2.8-ea-apple
