@@ -1549,7 +1549,22 @@ class Analyzer(override val catalogManager: CatalogManager)
         o.copy(deleteExpr = resolveExpressionByPlanOutput(o.deleteExpr, o.table))
 
       case o: OptimizeTable if o.table.resolved =>
-        o.copy(predicate = resolveExpressionByPlanOutput(o.predicate, o.table))
+        o.strategy match {
+          case zOrder: ZOrder =>
+            val resolvedCols = zOrder.columns
+              .map(col => resolveExpressionByPlanOutput(col, o.table).asInstanceOf[Attribute])
+            resolvedCols.foreach { col =>
+              if (!col.isInstanceOf[AttributeReference]) {
+                throw QueryCompilationErrors.cannotResolveColumnGivenInputColumnsError(
+                  col.name, o.table.output.map(_.name).mkString(", "))
+              }
+            }
+            val zOrderWithResolvedCol = zOrder.copy(columns = resolvedCols)
+
+            o.copy(predicate = resolveExpressionByPlanOutput(o.predicate, o.table),
+              strategy = zOrderWithResolvedCol)
+          case _ => o.copy(predicate = resolveExpressionByPlanOutput(o.predicate, o.table))
+        }
 
       case m @ MergeIntoTable(targetTable, sourceTable, _, _, _, _)
         if !m.resolved && targetTable.resolved && sourceTable.resolved =>

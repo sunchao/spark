@@ -24,7 +24,7 @@ import org.mockito.Mockito.{mock, when}
 import org.mockito.invocation.InvocationOnMock
 
 import org.apache.spark.sql.{AnalysisException, SaveMode}
-import org.apache.spark.sql.catalyst.analysis.{AnalysisTest, Analyzer, EmptyFunctionRegistry, NoSuchTableException, ResolveSessionCatalog, UnresolvedFieldName}
+import org.apache.spark.sql.catalyst.analysis.{AnalysisTest, Analyzer, EmptyFunctionRegistry, NoSuchTableException, ResolveSessionCatalog}
 import org.apache.spark.sql.catalyst.catalog.{CatalogTable, CatalogTableType, InMemoryCatalog, SessionCatalog}
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, EqualTo, IntegerLiteral, LessThan, Literal, StringLiteral}
 import org.apache.spark.sql.catalyst.parser.{CatalystSqlParser, ParseException}
@@ -435,13 +435,10 @@ class ExtendedPlanResolutionSuite extends AnalysisTest {
 
   test("optimize (zOrder with predicate and options)") {
     Seq("v2Table", "testcat.tab").foreach { tableName =>
-      val sql = s"OPTIMIZE $tableName WHERE i < 10 ZORDER (a.b.c, d.e.f)" +
+      val sql = s"OPTIMIZE $tableName WHERE i < 10 ZORDER BY (s, i)" +
         s" OPTIONS ('p1'='v1', 'p2'='v2')"
 
       val expectedOptions = Map("p1" -> "v1", "p2" -> "v2")
-
-      val col1 = UnresolvedFieldName(Seq("a", "b", "c"))
-      val col2 = UnresolvedFieldName(Seq("d", "e", "f"))
 
       parseAndResolve(sql) match {
         case OptimizeTable(_: DataSourceV2Relation, predicate, strategy, options) =>
@@ -449,7 +446,12 @@ class ExtendedPlanResolutionSuite extends AnalysisTest {
             case LessThan(_: AttributeReference, IntegerLiteral(10)) =>
             case _ => fail("predicate must be valid")
           }
-          assert(strategy == ZOrder(Seq(col1, col2)), "strategy must be valid")
+          strategy match {
+            case zOrder: ZOrder =>
+              assert(zOrder.resolved, "all the columns in ZOrder should be resolved.")
+              assert(zOrder.columns.map(_.name) == Seq("s", "i"))
+            case _ => fail("strategy must be valid")
+          }
           assert(options == expectedOptions, "options must be valid")
         case other =>
           fail(s"Expected ${classOf[OptimizeTable].getName} but got ${other.getClass.getName}")

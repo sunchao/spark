@@ -1110,7 +1110,7 @@ writeOrderField
 optimizeStrategy
     : BINPACK
     | (ORDER|SORT) (BY writeOrder)?
-    | ZORDER '(' columns=multipartIdentifierList ')'
+    | ZORDER BY '(' columns=multipartIdentifierList ')'
     ;
 
 // When `SQL_standard_keyword_behavior=true`, there are 2 kinds of keywords in Spark SQL.

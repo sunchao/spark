@@ -4092,7 +4092,7 @@ class AstBuilder extends SqlBaseBaseVisitor[AnyRef] with SQLConfHelper with Logg
       BinPack
     } else if (ctx.ZORDER != null) {
       val columns = ctx.columns.multipartIdentifier.asScala.map(typedVisit[Seq[String]])
-      ZOrder(columns.map(UnresolvedFieldName(_)).toSeq)
+      ZOrder(columns.map(UnresolvedAttribute(_)).toSeq)
     } else {
       val requestedOrdering = Option(ctx.writeOrder)
         .map(_.fields.asScala.map(visitWriteOrderField))
