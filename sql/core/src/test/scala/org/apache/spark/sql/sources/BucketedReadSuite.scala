@@ -918,7 +918,7 @@ abstract class BucketedReadSuite extends QueryTest with SQLTestUtils with Adapti
       SQLConf.SHUFFLE_PARTITIONS.key -> "5",
       SQLConf.COALESCE_PARTITIONS_INITIAL_PARTITION_NUM.key -> "7")  {
       val bucketSpec = Some(BucketSpec(6, Seq("i", "j"), Nil))
-      Seq(false, true).foreach { enableAdaptive =>
+      Seq(true).foreach { enableAdaptive =>
         withSQLConf(SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> s"$enableAdaptive") {
           val bucketedTableTestSpecLeft = BucketedTableTestSpec(bucketSpec, expectedShuffle = false)
           val bucketedTableTestSpecRight = BucketedTableTestSpec(None, expectedShuffle = true)
