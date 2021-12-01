@@ -104,27 +104,48 @@ case class EnsureRequirements(
       //   A: (No_Exchange, 100) <---> B: (Exchange, 120)
       // it's better to pick A and change B to (Exchange, 100) instead of picking B and insert a
       // new shuffle for A.
-      val (shuffleSpecs, noShuffleSpecs) = specs.partition {
+
+      val can = specs.forall(p => !children(p._1).isInstanceOf[ShuffleExchangeExec] &&
+        p._2.canCreatePartitioning)
+      var candidateSpecs = specs.filter(_._2.canCreatePartitioning)
+      if (!can) candidateSpecs = candidateSpecs.filter(p =>
+        children(p._1).outputPartitioning.numPartitions >= conf.numShufflePartitions)
+      val (shuffleSpecs, noShuffleSpecs) = candidateSpecs.partition {
         case (k, _) => children(k).isInstanceOf[ShuffleExchangeExec]
       }
-      val bestSpec = (if (noShuffleSpecs.nonEmpty) noShuffleSpecs else specs)
-          .values.maxBy(_.numPartitions)
-
-      children = children.zip(requiredChildDistributions).zipWithIndex.map {
-        case ((child, _), idx) if !childrenIndexes.contains(idx) =>
-          child
-        case ((child, dist), idx) =>
-          if (bestSpec.isCompatibleWith(specs(idx))) {
+      if (candidateSpecs.isEmpty) {
+        // If there is no candidate spec, re-shuffle all sides using the default partitioning
+        children = children.zip(requiredChildDistributions).zipWithIndex.map {
+          case ((child, _), idx) if !childrenIndexes.contains(idx) =>
             child
-          } else {
-            // Use the best spec to create a new partitioning to re-shuffle this child
-            val clustering = dist.asInstanceOf[ClusteredDistribution].clustering
-            val newPartitioning = bestSpec.createPartitioning(clustering)
+          case ((child, dist), _) =>
+            val numPartitions = dist.requiredNumPartitions
+                .getOrElse(conf.numShufflePartitions)
+            val newPartitioning = dist.createPartitioning(numPartitions)
             child match {
               case ShuffleExchangeExec(_, c, so) => ShuffleExchangeExec(newPartitioning, c, so)
               case _ => ShuffleExchangeExec(newPartitioning, child)
             }
-          }
+        }
+      } else {
+        val bestSpec = (if (noShuffleSpecs.nonEmpty) noShuffleSpecs else candidateSpecs)
+            .values.maxBy(_.numPartitions)
+        children = children.zip(requiredChildDistributions).zipWithIndex.map {
+          case ((child, _), idx) if !childrenIndexes.contains(idx) =>
+            child
+          case ((child, dist), idx) =>
+            if (bestSpec.isCompatibleWith(specs(idx))) {
+              child
+            } else {
+              // Use the best spec to create a new partitioning to re-shuffle this child
+              val clustering = dist.asInstanceOf[ClusteredDistribution].clustering
+              val newPartitioning = bestSpec.createPartitioning(clustering)
+              child match {
+                case ShuffleExchangeExec(_, c, so) => ShuffleExchangeExec(newPartitioning, c, so)
+                case _ => ShuffleExchangeExec(newPartitioning, child)
+              }
+            }
+        }
       }
 
       // Get the number of partitions which is explicitly required by the distributions.

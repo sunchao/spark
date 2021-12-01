@@ -398,11 +398,17 @@ trait ShuffleSpec {
   def isCompatibleWith(other: ShuffleSpec): Boolean
 
   /**
+   * Whether this shuffle spec can be used to create partitionings for the other children.
+   */
+  def canCreatePartitioning: Boolean
+
+  /**
    * Creates a partitioning that can be used to re-partitioned the other side with the given
    * clustering expressions.
    *
-   * Note: this will only be called after `isCompatibleWith` returns true on the side where the
-   * `clustering` is returned from.
+   * This will only be called when:
+   *  - [[canCreatePartitioning]] returns true.
+   *  - [[isCompatibleWith]] returns true on the side where the `clustering` is returned from.
    */
   def createPartitioning(clustering: Seq[Expression]): Partitioning
 }
@@ -411,6 +417,8 @@ case object SinglePartitionShuffleSpec extends ShuffleSpec {
   override def isCompatibleWith(other: ShuffleSpec): Boolean = {
     other.numPartitions == numPartitions
   }
+
+  override def canCreatePartitioning: Boolean = true
 
   override def createPartitioning(clustering: Seq[Expression]): Partitioning =
     SinglePartition
@@ -427,6 +435,8 @@ case class RangeShuffleSpec(
     case ShuffleSpecCollection(specs) => specs.exists(isCompatibleWith)
     case _ => false
   }
+
+  override def canCreatePartitioning: Boolean = false
 
   override def createPartitioning(clustering: Seq[Expression]): Partitioning =
     HashPartitioning(clustering, numPartitions)
@@ -461,6 +471,8 @@ case class HashShuffleSpec(
       false
   }
 
+  override def canCreatePartitioning: Boolean = true
+
   override def createPartitioning(clustering: Seq[Expression]): Partitioning = {
     val exprs = hashKeyPositions.map(v => clustering(v.head))
     HashPartitioning(exprs, partitioning.numPartitions)
@@ -489,6 +501,9 @@ case class ShuffleSpecCollection(specs: Seq[ShuffleSpec]) extends ShuffleSpec {
   override def isCompatibleWith(other: ShuffleSpec): Boolean = {
     specs.exists(_.isCompatibleWith(other))
   }
+
+  override def canCreatePartitioning: Boolean =
+    specs.exists(_.canCreatePartitioning) // TODO: double check this
 
   override def createPartitioning(clustering: Seq[Expression]): Partitioning = {
     // as we only consider # of partitions as the cost now, it doesn't matter which one we choose

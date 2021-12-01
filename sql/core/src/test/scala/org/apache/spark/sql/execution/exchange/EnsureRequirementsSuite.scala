@@ -570,7 +570,7 @@ class EnsureRequirementsSuite extends SharedSparkSession {
         case other => fail(other.toString)
       }
 
-      // if both sides already have shuffle, we won't consider `conf.numShufflePartitions`
+      // if both sides already have shuffle, we should consider `conf.numShufflePartitions`
       plan3 = ShuffleExchangeExec(
         outputPartitioning = HashPartitioning(exprA :: exprB :: Nil, 5),
         child = DummySparkPlan())
@@ -585,8 +585,8 @@ class EnsureRequirementsSuite extends SharedSparkSession {
         SortExec(_, _, ShuffleExchangeExec(right: HashPartitioning, _, _), _), _) =>
           assert(leftKeys === Seq(exprA, exprB))
           assert(rightKeys === Seq(exprC, exprD))
-          assert(left.numPartitions == 7)
-          assert(right.numPartitions == 7)
+          assert(left.numPartitions == 10)
+          assert(right.numPartitions == 10)
         case other => fail(other.toString)
       }
     }
