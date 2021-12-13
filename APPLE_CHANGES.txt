@@ -19,6 +19,9 @@ SPARK-37282     Add `ExtendedLevelDBTest` and disable LevelDB tests on Apple Sil
 SPARK-37293     Remove explicit GC options from Scala tests
 SPARK-37244     Build and run tests on Python 3.10
 SPARK-37342     Upgrade Apache Arrow to 6.0.0
+SPARK-37205     Introduce a new config 'spark.yarn.am.tokenConfRegex' to support renewing delegation tokens in a multi-cluster environment
+SPARK-37576     Support built-in K8s executor rolling plugin
+SPARK-37611     Remove upper limit of `spark.kubernetes.memoryOverheadFactor`
 
 # From 3.2.1
 SPARK-36939     Add orphan migration page into list in PySpark documentation
@@ -86,6 +89,23 @@ SPARK-37388     Fix NPE in WidthBucket in WholeStageCodegenExec
 SPARK-37389     Check unclosed bracketed comments
 SPARK-37446     Use reflection for getWithoutRegisterFns to allow different Hive versions for building
 SPARK-37452     Char and Varchar break backward compatibility between v3.1 and v2
+SPARK-37505     Add a log4j.properties for `mesos` module UT
+SPARK-37497     Promote `ExecutorPods[PollingSnapshot|WatchSnapshot]Source` to DeveloperApi
+SPARK-37513     date +/- interval with only day-time fields returns different data type between Spark3.2 and Spark3.1
+SPARK-37389     SET command shuold not parse comments
+SPARK-37460     Add the description of ALTER DATABASE SET LOCATION
+SPARK-37480     Sync Kubernetes configuration to latest in running-on-k8s.md
+SPARK-37442     InMemoryRelation statistics bug causing broadcast join failures with AQE enabled
+SPARK-37522     Fix MultilayerPerceptronClassifierTest.test_raw_and_probability_prediction
+SPARK-37524     We should drop all tables after testing dynamic partition pruning
+SPARK-37471     spark-sql support `;` in nested bracketed comment
+SPARK-37534     Bump dev.ludovic.netlib to 2.2.1
+SPARK-37004     Upgrade to Py4J 0.10.9.3
+SPARK-37556     Deser void class fail with Java serialization
+SPARK-37392     Fix the performance bug when inferring constraints for Generate
+SPARK-37451     Fix cast string type to decimal type if spark.sql.legacy.allowNegativeScaleOfDecimal is enabled
+SPARK-37594     Make UT more stable
+SPARK-37615     Upgrade SBT to 1.5.6
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -157,3 +177,4 @@ rdar://85089496 Fix the Env at Call home Client side
 rdar://84101090 Refactor Iceberg expressions
 MINOR           Bump ADT version to 1.1.2
 MINOR           Bump Hadoop version to 3.3.2.8-ea-apple
+rdar://85553548 Use Attribute for ZOrder column
