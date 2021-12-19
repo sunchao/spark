@@ -267,7 +267,7 @@ abstract class SparkFunSuite
           throw new IllegalStateException(
             s"Number of events reached the limit of $maxEvents$loggingInfo")
         }
-        loggingEvents.append(loggingEvent)
+        loggingEvents.append(loggingEvent.toImmutable)
       }
     }
 
