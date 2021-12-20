@@ -22,6 +22,8 @@ SPARK-37342     Upgrade Apache Arrow to 6.0.0
 SPARK-37205     Introduce a new config 'spark.yarn.am.tokenConfRegex' to support renewing delegation tokens in a multi-cluster environment
 SPARK-37576     Support built-in K8s executor rolling plugin
 SPARK-37611     Remove upper limit of `spark.kubernetes.memoryOverheadFactor`
+SPARK-37622     Support K8s executor rolling policy
+SPARK-37679     Add a new executor roll policy, FAILED_TASKS (#1315)
 
 # From 3.2.1
 SPARK-36939     Add orphan migration page into list in PySpark documentation
@@ -106,6 +108,15 @@ SPARK-37392     Fix the performance bug when inferring constraints for Generate
 SPARK-37451     Fix cast string type to decimal type if spark.sql.legacy.allowNegativeScaleOfDecimal is enabled
 SPARK-37594     Make UT more stable
 SPARK-37615     Upgrade SBT to 1.5.6
+SPARK-37481     Fix disappearance of skipped stages after they retry
+SPARK-37624     Suppress warnings for live pandas-on-Spark quickstart notebooks
+SPARK-37577     Fix ClassCastException: ArrayType cannot be cast to StructType for Generate Pruning
+SPARK-37217     The number of dynamic partitions should early check when writing to external tables
+SPARK-37633     Unwrap cast should skip if downcast failed with an…
+SPARK-37656     Upgrade SBT to 1.5.7
+SPARK-37060     Handle driver status response from backup masters
+SPARK-37654     Fix NPE in Row.getSeq when field is Null
+MINOR           Fix documentation for Python's recentProgress & lastProgress
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
