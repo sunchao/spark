@@ -177,6 +177,15 @@ trait Logging {
     }
     Logging.initialized = true
 
+    // For ACS Spark only.
+    if (Logging.isLog4j12()) {
+      val msg = "This Spark application uses log4j 1.2 binding now. " +
+        "log4j 1.x has reached end of life and is no longer supported by " +
+        "the community. We migrate log4j 1.x to 2.x in ACS Spark, but seems " +
+        "this application uses its log4j 1.x binding."
+      System.err.println(msg)
+      log.error(msg)
+    }
     // Force a call into slf4j to initialize it. Avoids this happening from multiple threads
     // and triggering this: http://mailman.qos.ch/pipermail/slf4j-dev/2010-April/002956.html
     log
