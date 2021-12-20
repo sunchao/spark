@@ -178,12 +178,15 @@ trait Logging {
     Logging.initialized = true
 
     // For ACS Spark only.
-    if (Logging.isLog4j12()) {
-      val msg = "This Spark application uses log4j 1.2 binding now. " +
-        "log4j 1.x has reached end of life and is no longer supported by " +
-        "the community. We migrate log4j 1.x to 2.x in ACS Spark, but seems " +
-        "this application uses its log4j 1.x binding."
+    if (Logging.isLog4j12() || !Logging.isLog4j1Bridge()) {
+      val msg = "This Spark application uses log4j 1.2 binding or include log4j 1.x" +
+        "dependency now. log4j 1.x has reached end of life and is no longer " +
+        "supported by the community. We migrate log4j 1.x to 2.x in ACS Spark, " +
+        "but seems this application uses its log4j 1.x binding, or includes log4j 1.x " +
+        "dependency."
+      // scalastyle:off println
       System.err.println(msg)
+      // scalastyle:on println
       log.error(msg)
     }
     // Force a call into slf4j to initialize it. Avoids this happening from multiple threads
@@ -241,6 +244,17 @@ private[spark] object Logging {
     "org.slf4j.impl.Log4jLoggerFactory".equals(binderClass)
   }
 
+  private def isLog4j1Bridge(): Boolean = {
+    // Log4j 1.x bridge API doesn't include `org.apache.log4j.FileAppender`.
+    try {
+      Utils.classForName("org.apache.log4j.FileAppender")
+      // Found `org.apache.log4j.FileAppender`, there is real log4j 1.x dependency in the
+      // classpath, not log4j 1.x bridge.
+      false
+    } catch {
+      case _ : Throwable => true
+    }
+  }
 
   private class SparkShellLoggingFilter extends Filter {
     private var status = LifeCycle.State.INITIALIZING
