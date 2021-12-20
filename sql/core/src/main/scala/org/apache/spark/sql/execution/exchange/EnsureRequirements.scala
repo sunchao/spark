@@ -106,7 +106,7 @@ case class EnsureRequirements(
       // while `spark.sql.shuffle.partitions` is 10, we'll only re-shuffle the left side and make it
       // HashPartitioning(6).
       val canIgnoreMinPartitions = specs.exists(p =>
-        p._2.canCreatePartitioning && !children(p._1).isInstanceOf[ShuffleExchangeExec]
+        p._2.canCreatePartitioning && !children(p._1).isInstanceOf[ShuffleExchangeLike]
       )
       // Choose all the specs that can be used to shuffle other children
       val candidateSpecs = specs
@@ -116,13 +116,13 @@ case class EnsureRequirements(
       val bestSpec = if (candidateSpecs.isEmpty) {
         None
       } else {
-        // When choosing specs, we should consider those children with no `Exchange` node
+        // When choosing specs, we should consider those children with no `ShuffleExchangeExec` node
         // first. For instance, if we have:
         //   A: (No_Exchange, 100) <---> B: (Exchange, 120)
         // it's better to pick A and change B to (Exchange, 100) instead of picking B and insert a
         // new shuffle for A.
         val candidateSpecsWithoutShuffle = candidateSpecs.filter { case (k, _) =>
-          !children(k).isInstanceOf[ShuffleExchangeExec]
+          !children(k).isInstanceOf[ShuffleExchangeLike]
         }
         val finalCandidateSpecs = if (candidateSpecsWithoutShuffle.nonEmpty) {
           candidateSpecsWithoutShuffle
