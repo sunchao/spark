@@ -169,7 +169,7 @@ trait Logging {
           Logging.sparkShellThresholdLevel = replLevel
           rootLogger.getAppenders().asScala.foreach {
             case (_, ca: ConsoleAppender) =>
-              ca.addFilter(new SparkShellLoggingFilter())
+              ca.addFilter(new SparkShellLoggingFilter().asInstanceOf[Filter])
             case _ => // no-op
           }
         }
@@ -236,6 +236,14 @@ private[spark] object Logging {
       }
     }
     this.initialized = false
+  }
+
+  private def isLog4j12(): Boolean = {
+    // This distinguishes the log4j 1.2 binding, currently
+    // org.slf4j.impl.Log4jLoggerFactory, from the log4j 2.0 binding, currently
+    // org.apache.logging.slf4j.Log4jLoggerFactory
+    val binderClass = StaticLoggerBinder.getSingleton.getLoggerFactoryClassStr
+    "org.slf4j.impl.Log4jLoggerFactory".equals(binderClass)
   }
 
   private def isLog4j2(): Boolean = {
