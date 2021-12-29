@@ -96,14 +96,21 @@ public class VectorizedColumnReader {
       PageReadStore pageReadStore,
       ZoneId convertTz,
       String datetimeRebaseMode,
-      String int96RebaseMode) throws IOException {
+      String datetimeRebaseTz,
+      String int96RebaseMode,
+      String int96RebaseTz) throws IOException {
     this.descriptor = descriptor;
     this.pageReader = pageReadStore.getPageReader(descriptor);
     this.readState = new ParquetReadState(descriptor, isRequiredColumn,
       pageReadStore.getRowIndexes().orElse(null));
     this.logicalTypeAnnotation = descriptor.getPrimitiveType().getLogicalTypeAnnotation();
     this.updaterFactory = new ParquetVectorUpdaterFactory(
-        logicalTypeAnnotation, convertTz, datetimeRebaseMode, int96RebaseMode);
+      logicalTypeAnnotation,
+      convertTz,
+      datetimeRebaseMode,
+      datetimeRebaseTz,
+      int96RebaseMode,
+      int96RebaseTz);
 
     DictionaryPage dictionaryPage = pageReader.readDictionaryPage();
     if (dictionaryPage != null) {
