@@ -24,6 +24,8 @@ SPARK-37576     Support built-in K8s executor rolling plugin
 SPARK-37611     Remove upper limit of `spark.kubernetes.memoryOverheadFactor`
 SPARK-37622     Support K8s executor rolling policy
 SPARK-37679     Add a new executor roll policy, FAILED_TASKS (#1315)
+SPARK-37709     Add AVERAGE_DURATION executor roll policy
+SPARK-37709     Avoid diving by zero
 
 # From 3.2.1
 SPARK-36939     Add orphan migration page into list in PySpark documentation
@@ -117,6 +119,19 @@ SPARK-37656     Upgrade SBT to 1.5.7
 SPARK-37060     Handle driver status response from backup masters
 SPARK-37654     Fix NPE in Row.getSeq when field is Null
 MINOR           Fix documentation for Python's recentProgress & lastProgress
+SPARK-37678     Fix _cleanup_and_return signature
+SPARK-37692     Fix an example of mixed interval fields in the SQL migration guide
+SPARK-35437     Relax cast if does not need timezone with PrunePartitionsFastFallback
+MINOR           Fix the typo in function names: crete
+MINOR           Fix docstring of SeriesGroupBy.nsmallest
+SPARK-37695     Skip diagnosis ob merged blocks from push-based shuffle
+SPARK-37391     JdbcConnectionProvider tells if it modifies security context
+SPARK-37302     Extract the versions of dependencies accurately
+MINOR           Update pandas_pyspark.rst
+SPARK-37659     Fix FsHistoryProvider race condition between list and delet log info
+SPARK-37705     Rebase timestamps in the session time zone saved in Parquet/Avro metadata
+SPARK-37779     Make ColumnarToRowExec plan canonicalizable after (de)serialization
+SPARK-37800     TreeNode.argString incorrectly formats arguments of type Set[_]
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
