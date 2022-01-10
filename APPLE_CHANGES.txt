@@ -1,4 +1,4 @@
-This contains the changes after branching `v3.2.0`
+This contains the changes after branching `v3.2.0-rc1`
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -26,112 +26,10 @@ SPARK-37622     Support K8s executor rolling policy
 SPARK-37679     Add a new executor roll policy, FAILED_TASKS (#1315)
 SPARK-37709     Add AVERAGE_DURATION executor roll policy
 SPARK-37709     Avoid diving by zero
+SPARK-37819     Add OUTLIER executor roll policy and use it by default (#1323)
+SPARK-37806     Support minimum number of tasks per executor before being rolled (#1321)
 
 # From 3.2.1
-SPARK-36939     Add orphan migration page into list in PySpark documentation
-SPARK-36717     Incorrect order of variable initialization may lead incorrect behavior
-SPARK-36979     Add RewriteLateralSubquery rule into nonExcludableRules
-SPARK-36993     Fix json_tuple throw NPE if fields exist no foldable null value
-SPARK-36632     DivideYMInterval and DivideDTInterval should throw the same exception when divide by zero
-SPARK-37001     Disable two level of map for final hash aggregation by default
-SPARK-36905     Fix reading hive views without explicit column names
-SPARK-23626     Eagerly compute RDD.partitions on entire DAG when submitting job to DAGScheduler
-SPARK-37032     Fix broken SQL syntax link in SQL Reference page
-SPARK-37052     Spark should only pass --verbose argument to main class when is sql shell
-SPARK-37057     Fix wrong DocSearch facet filter in release-tag.sh
-SPARK-37049     executorIdleTimeout should check `creationTimestamp` instead of `startTime`
-SPARK-37064     Fix outer join return the wrong max rows if other side is empty
-SPARK-37046     Alter view does not preserve column case
-SPARK-37058     Add spark-shell command line unit test
-SPARK-37061     Fix CustomMetrics when using Inner Classes
-SPARK-37079     Fix DataFrameWriterV2.partitionedBy to send the arguments to JVM properly
-SPARK-37078     Support old 3-parameter Sink constructors
-SPARK-33277     Writer thread must not access input after task completion listener returns
-SPARK-37069     Properly fallback when Hive.getWithoutRegisterFns is not available
-SPARK-37050     Update Conda installation instructions
-SPARK-37067     Use ZoneId.of() to handle timezone string in DatetimeUtils
-SPARK-37089     Do not register ParquetFileFormat completion listener lazily
-SPARK-37098     Alter table properties should invalidate cache
-SPARK-37121     Fix Python version detection bug in TestUtils used by HiveExternalCatalogVersionsSuite
-MINOR           Point to correct examples of Arbitrary Stateful Operations
-SPARK-37134     Clarify the options in "Using PySpark Native Features"
-SPARK-37117     Fix reading encrypted parquet files with external key material
-SPARK-37147     MetricsReporter producing NullPointerException when element 'triggerExecution' not present in Map[]
-MINOR           Remove unused config "pauseBackgroundWorkForCommit" from RocksDB
-MINOR           Correct typo in sql migration guide
-SPARK-37170     Pin PySpark version installed in the Binder environment for tagged commit
-MINOR           Corrected spacing in structured streaming programming
-MINOR           Fix broken link in legacy Apache Arrow in PySpark page
-MINOR           Document JDBC aggregate push down is for DSV2 only
-SPARK-37203     Fix NotSerializableException when observe with TypedImperativeAggregate
-SPARK-37208     Support mapping Spark gpu/fpga resource types to custom YARN resource types
-SPARK-37218     Parameterize `spark.sql.shuffle.partitions` in TPCDSQueryBenchmark
-SPARK-37252     Ignore `test_memory_limit` on non-Linux environment
-SPARK-36900     Refactor `: size returns correct positive number even with over 2GB data` to pass with Java 8, 11 and 17
-SPARK-37214     Fail query analysis earlier with invalid identifiers
-SPARK-37232     Upgrade ORC to 1.7.1
-SPARK-37196     HiveDecimal enforcePrecisionScale failed return null
-SPARK-37253     `try_simplify_traceback` should not fail when `tb_frame.f_lineno` is None
-SPARK-37023     Avoid fetching merge status when shuffleMergeEnabled is false for a shuffleDependency during retry
-MINOR           Add Scala 2.13 to index.md and build-spark.md
-SPARK-37702     Use AnalysisContext to track referred temp functions
-SPARK-37302     Explicitly downloads guava and jetty-io in test-dependencies.sh
-SPARK-37288     Backport since annotation update
-SPARK-37307     Don't obtain JDBC connection for empty partitions
-SPARK-37318     Make `FallbackStorageSuite` robust in terms of DNS
-SPARK-37320     Delete py_container_checks.zip after the test in DepsTestsSuite finishes
-SPARK-37317     Reduce weights in GaussianMixtureSuite
-SPARK-37322     `run_scala_tests` should respect test module order
-SPARK-37346     Add migration guide link for structured streaming
-SPARK-37702     Store referred temp functions for CacheTableAsSelect
-SPARK-37214     No db prefix for temp view is an analyzer error
-MINOR           Fix minor issues in SparkR docs examples
-SPARK-37270     Fix push foldable into CaseWhen branches if elseValue is empty
-SPARK-37390     Add default value to getattr(app, add_javascript)
-SPARK-37209     Fix `YarnShuffleIntegrationSuite` releated UTs when using `hadoop-3.2` profile without `assembly/target/scala-%s/jars`
-SPARK-37388     Fix NPE in WidthBucket in WholeStageCodegenExec
-SPARK-37389     Check unclosed bracketed comments
-SPARK-37446     Use reflection for getWithoutRegisterFns to allow different Hive versions for building
-SPARK-37452     Char and Varchar break backward compatibility between v3.1 and v2
-SPARK-37505     Add a log4j.properties for `mesos` module UT
-SPARK-37497     Promote `ExecutorPods[PollingSnapshot|WatchSnapshot]Source` to DeveloperApi
-SPARK-37513     date +/- interval with only day-time fields returns different data type between Spark3.2 and Spark3.1
-SPARK-37389     SET command shuold not parse comments
-SPARK-37460     Add the description of ALTER DATABASE SET LOCATION
-SPARK-37480     Sync Kubernetes configuration to latest in running-on-k8s.md
-SPARK-37442     InMemoryRelation statistics bug causing broadcast join failures with AQE enabled
-SPARK-37522     Fix MultilayerPerceptronClassifierTest.test_raw_and_probability_prediction
-SPARK-37524     We should drop all tables after testing dynamic partition pruning
-SPARK-37471     spark-sql support `;` in nested bracketed comment
-SPARK-37534     Bump dev.ludovic.netlib to 2.2.1
-SPARK-37004     Upgrade to Py4J 0.10.9.3
-SPARK-37556     Deser void class fail with Java serialization
-SPARK-37392     Fix the performance bug when inferring constraints for Generate
-SPARK-37451     Fix cast string type to decimal type if spark.sql.legacy.allowNegativeScaleOfDecimal is enabled
-SPARK-37594     Make UT more stable
-SPARK-37615     Upgrade SBT to 1.5.6
-SPARK-37481     Fix disappearance of skipped stages after they retry
-SPARK-37624     Suppress warnings for live pandas-on-Spark quickstart notebooks
-SPARK-37577     Fix ClassCastException: ArrayType cannot be cast to StructType for Generate Pruning
-SPARK-37217     The number of dynamic partitions should early check when writing to external tables
-SPARK-37633     Unwrap cast should skip if downcast failed with an…
-SPARK-37656     Upgrade SBT to 1.5.7
-SPARK-37060     Handle driver status response from backup masters
-SPARK-37654     Fix NPE in Row.getSeq when field is Null
-MINOR           Fix documentation for Python's recentProgress & lastProgress
-SPARK-37678     Fix _cleanup_and_return signature
-SPARK-37692     Fix an example of mixed interval fields in the SQL migration guide
-SPARK-35437     Relax cast if does not need timezone with PrunePartitionsFastFallback
-MINOR           Fix the typo in function names: crete
-MINOR           Fix docstring of SeriesGroupBy.nsmallest
-SPARK-37695     Skip diagnosis ob merged blocks from push-based shuffle
-SPARK-37391     JdbcConnectionProvider tells if it modifies security context
-SPARK-37302     Extract the versions of dependencies accurately
-MINOR           Update pandas_pyspark.rst
-SPARK-37659     Fix FsHistoryProvider race condition between list and delet log info
-SPARK-37705     Rebase timestamps in the session time zone saved in Parquet/Avro metadata
-SPARK-37779     Make ColumnarToRowExec plan canonicalizable after (de)serialization
-SPARK-37800     TreeNode.argString incorrectly formats arguments of type Set[_]
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -204,3 +102,4 @@ rdar://84101090 Refactor Iceberg expressions
 MINOR           Bump ADT version to 1.1.2
 MINOR           Bump Hadoop version to 3.3.2.8-ea-apple
 rdar://85553548 Use Attribute for ZOrder column
+rdar://87160738 Bump ADT version to 1.1.3
