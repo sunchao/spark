@@ -177,7 +177,8 @@ trait Logging {
 
     // For ACS Spark only.
     if (Logging.isLog4j12() || !Logging.isLog4j1Bridge()) {
-      val msg = "This Spark application uses log4j 1.2 binding or include log4j 1.x" +
+      val msg = "log4j1Dependency=true. " +
+        "Note: This Spark application uses log4j 1.2 binding or include log4j 1.x" +
         "dependency now. log4j 1.x has reached end of life and is no longer " +
         "supported by the community. We migrate log4j 1.x to 2.x in ACS Spark, " +
         "but seems this application uses its log4j 1.x binding, or includes log4j 1.x " +
