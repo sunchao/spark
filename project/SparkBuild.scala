@@ -1127,7 +1127,7 @@ object TestSettings {
     (Test / javaOptions) += "-ea",
     (Test / javaOptions) ++= {
       val metaspaceSize = sys.env.get("METASPACE_SIZE").getOrElse("1300m")
-      s"-Xmx4g -Xss4m -XX:MaxMetaspaceSize=$metaspaceSize -XX:ReservedCodeCacheSize=128m"
+      s"-Xmx4g -Xss4m -XX:MaxMetaspaceSize=$metaspaceSize -XX:ReservedCodeCacheSize=128m -Dfile.encoding=UTF-8"
         .split(" ").toSeq
     },
     javaOptions ++= {
