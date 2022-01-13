@@ -391,7 +391,7 @@ private[spark] class SecurityManager(
 
 private[spark] object SecurityManager {
 
-  val k8sRegex = "k8s.*".r
+  val k8sRegex = "(?:aci-)?k8s.*".r
   val SPARK_AUTH_CONF = NETWORK_AUTH_ENABLED.key
   val SPARK_AUTH_SECRET_CONF = AUTH_SECRET.key
   // This is used to set auth secret to an executor's env variable. It should have the same
