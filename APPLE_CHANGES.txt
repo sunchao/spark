@@ -28,6 +28,12 @@ SPARK-37709     Add AVERAGE_DURATION executor roll policy
 SPARK-37709     Avoid diving by zero
 SPARK-37819     Add OUTLIER executor roll policy and use it by default (#1323)
 SPARK-37806     Support minimum number of tasks per executor before being rolled (#1321)
+SPARK-37818     Add option in the description document for show create table
+SPARK-37860     Fix taskindex in the stage page task event timeline
+SPARK-37866     Set `file.encoding` to UTF-8 for SBT tests
+SPARK-37871     Use `python3` instead of `python` in BaseScriptTransformation tests
+SPARK-37855     IllegalStateException when transforming an array inside a nested struct
+SPARK-37859     Do not check for metadata during schema comparison
 
 # From 3.2.1
 
@@ -103,3 +109,4 @@ MINOR           Bump ADT version to 1.1.2
 MINOR           Bump Hadoop version to 3.3.2.8-ea-apple
 rdar://85553548 Use Attribute for ZOrder column
 rdar://87160738 Bump ADT version to 1.1.3
+rdar://79590736 Extend 'k8sRegex' to accept 'aci-k8s'
