@@ -38,6 +38,10 @@ public final class ArrowColumnVector extends ColumnVector {
   private final ArrowVectorAccessor accessor;
   private ArrowColumnVector[] childColumns;
 
+
+  // rdar://88044325: [Boson] Expose Arrow Vector from ArrowColumnVector
+  public ValueVector getValueVector() { return accessor.vector; }
+
   @Override
   public boolean hasNull() {
     return accessor.getNullCount() > 0;
