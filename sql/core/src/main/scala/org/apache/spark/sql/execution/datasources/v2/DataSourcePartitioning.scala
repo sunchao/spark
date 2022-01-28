@@ -33,8 +33,8 @@ class DataSourcePartitioning(
   override def satisfies0(required: physical.Distribution): Boolean = {
     super.satisfies0(required) || {
       required match {
-        case d: physical.ClusteredDistribution if isCandidate(d.clustering) =>
-          val attrs = d.clustering.map(_.asInstanceOf[Attribute])
+        case d: physical.ClusteredDistribution if isCandidate(d.expressions) =>
+          val attrs = d.expressions.map(_.asInstanceOf[Attribute])
           partitioning.satisfy(
             new ClusteredDistribution(attrs.map { a =>
               val name = colNames.get(a)

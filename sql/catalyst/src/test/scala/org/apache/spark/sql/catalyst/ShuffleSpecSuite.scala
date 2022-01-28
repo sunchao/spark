@@ -47,7 +47,7 @@ class ShuffleSpecSuite extends SparkFunSuite with SQLHelper {
       spec: ShuffleSpec,
       dist: ClusteredDistribution,
       expected: Partitioning): Unit = {
-    val actual = spec.createPartitioning(dist.clustering)
+    val actual = spec.createPartitioning(dist.expressions)
     if (actual != expected) {
       fail(
         s"""
@@ -190,12 +190,12 @@ class ShuffleSpecSuite extends SparkFunSuite with SQLHelper {
     checkCompatible(
       HashShuffleSpec(HashPartitioning(Seq($"a", $"b"), 10),
         ClusteredDistribution(Seq($"a", $"b"))),
-      RangeShuffleSpec(10, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(10),
       expected = false
     )
 
     checkCompatible(
-      RangeShuffleSpec(10, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(10),
       HashShuffleSpec(HashPartitioning(Seq($"a", $"b"), 10),
         ClusteredDistribution(Seq($"a", $"b"))),
       expected = false
@@ -268,82 +268,82 @@ class ShuffleSpecSuite extends SparkFunSuite with SQLHelper {
 
     checkCompatible(
       SinglePartitionShuffleSpec,
-      RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(1),
       expected = true
     )
 
     checkCompatible(
       SinglePartitionShuffleSpec,
       ShuffleSpecCollection(Seq(
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))), SinglePartitionShuffleSpec)),
+        RangeShuffleSpec(1), SinglePartitionShuffleSpec)),
       expected = true
     )
 
     checkCompatible(
-      RangeShuffleSpec(10, ClusteredDistribution(Seq($"a", $"b"))),
-      RangeShuffleSpec(10, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(10),
+      RangeShuffleSpec(10),
       expected = false
     )
 
     checkCompatible(
-      RangeShuffleSpec(10, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(10),
       SinglePartitionShuffleSpec,
       expected = false
     )
 
     checkCompatible(
-      RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(1),
       SinglePartitionShuffleSpec,
       expected = true
     )
 
     checkCompatible(
-      RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(1),
       ShuffleSpecCollection(Seq(
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))), SinglePartitionShuffleSpec)),
+        RangeShuffleSpec(1), SinglePartitionShuffleSpec)),
       expected = true
     )
 
     checkCompatible(
-      RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))),
+      RangeShuffleSpec(1),
       ShuffleSpecCollection(Seq(
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))),
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"c", $"d"))))),
+        RangeShuffleSpec(1),
+        RangeShuffleSpec(1))),
       expected = false
     )
 
     checkCompatible(
       ShuffleSpecCollection(Seq(
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))), SinglePartitionShuffleSpec)),
+        RangeShuffleSpec(1), SinglePartitionShuffleSpec)),
       SinglePartitionShuffleSpec,
       expected = true
     )
 
     checkCompatible(
       ShuffleSpecCollection(Seq(
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))), SinglePartitionShuffleSpec)),
+        RangeShuffleSpec(1), SinglePartitionShuffleSpec)),
       ShuffleSpecCollection(Seq(
-        SinglePartitionShuffleSpec, RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))))),
+        SinglePartitionShuffleSpec, RangeShuffleSpec(1))),
       expected = true
     )
 
     checkCompatible(
       ShuffleSpecCollection(Seq(
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))), SinglePartitionShuffleSpec)),
+        RangeShuffleSpec(1), SinglePartitionShuffleSpec)),
       ShuffleSpecCollection(Seq(
         HashShuffleSpec(HashPartitioning(Seq($"a", $"b"), 1),
           ClusteredDistribution(Seq($"a", $"b"))),
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))))),
+        RangeShuffleSpec(1))),
       expected = true
     )
 
     checkCompatible(
       ShuffleSpecCollection(Seq(
-        RangeShuffleSpec(1, ClusteredDistribution(Seq($"a", $"b"))), SinglePartitionShuffleSpec)),
+        RangeShuffleSpec(1), SinglePartitionShuffleSpec)),
       ShuffleSpecCollection(Seq(
         HashShuffleSpec(HashPartitioning(Seq($"a", $"b"), 2),
           ClusteredDistribution(Seq($"a", $"b"))),
-        RangeShuffleSpec(2, ClusteredDistribution(Seq($"a", $"b"))))),
+        RangeShuffleSpec(2))),
       expected = false
     )
   }
@@ -366,7 +366,7 @@ class ShuffleSpecSuite extends SparkFunSuite with SQLHelper {
         HashShuffleSpec(HashPartitioning(Seq($"a", $"b"), 10), distribution)))
         .canCreatePartitioning)
     }
-    assert(!RangeShuffleSpec(10, distribution).canCreatePartitioning)
+    assert(!RangeShuffleSpec(10).canCreatePartitioning)
   }
 
   test("createPartitioning: HashShuffleSpec") {
@@ -412,15 +412,15 @@ class ShuffleSpecSuite extends SparkFunSuite with SQLHelper {
 
     checkCreatePartitioning(ShuffleSpecCollection(Seq(
       HashShuffleSpec(HashPartitioning(Seq($"a"), 10), distribution),
-        RangeShuffleSpec(10, distribution))),
+        RangeShuffleSpec(10))),
       ClusteredDistribution(Seq($"c", $"d")),
       HashPartitioning(Seq($"c"), 10)
     )
 
     // unsupported cases
 
-    val msg = intercept[Exception](RangeShuffleSpec(10, distribution)
-      .createPartitioning(distribution.clustering))
+    val msg = intercept[Exception](RangeShuffleSpec(10)
+      .createPartitioning(distribution.expressions))
     assert(msg.getMessage.contains("Operation unsupported"))
   }
 }

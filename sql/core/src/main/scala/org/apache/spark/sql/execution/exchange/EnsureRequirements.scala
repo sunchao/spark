@@ -146,7 +146,7 @@ case class EnsureRequirements(
           } else {
             val newPartitioning = bestSpecOpt.map { bestSpec =>
               // Use the best spec to create a new partitioning to re-shuffle this child
-              val clustering = dist.asInstanceOf[ClusteredDistribution].clustering
+              val clustering = dist.asInstanceOf[ClusteredDistribution].expressions
               bestSpec.createPartitioning(clustering)
             }.getOrElse {
               // No best spec available, so we create default partitioning from the required

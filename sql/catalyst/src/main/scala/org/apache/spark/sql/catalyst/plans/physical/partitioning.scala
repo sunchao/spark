@@ -70,14 +70,25 @@ case object AllTuples extends Distribution {
 }
 
 /**
+ * A subtype of [[Distribution]] whose tuples are clustered according to the clustering
+ * `expressions`.
+ */
+sealed trait Clustering extends Distribution {
+  /**
+   * The expressions used to cluster the tuples in this distribution.
+   */
+  def expressions: Seq[Expression]
+}
+
+/**
  * Represents data where tuples that share the same values for the `clustering`
  * [[Expression Expressions]] will be co-located in the same partition.
  */
 case class ClusteredDistribution(
-    clustering: Seq[Expression],
-    requiredNumPartitions: Option[Int] = None) extends Distribution {
+    expressions: Seq[Expression],
+    requiredNumPartitions: Option[Int] = None) extends Distribution with Clustering {
   require(
-    clustering != Nil,
+    expressions != Nil,
     "The clustering expressions of a ClusteredDistribution should not be Nil. " +
       "An AllTuples should be used to represent a distribution that only has " +
       "a single partition.")
@@ -86,7 +97,32 @@ case class ClusteredDistribution(
     assert(requiredNumPartitions.isEmpty || requiredNumPartitions.get == numPartitions,
       s"This ClusteredDistribution requires ${requiredNumPartitions.get} partitions, but " +
         s"the actual number of partitions is $numPartitions.")
-    HashPartitioning(clustering, numPartitions)
+    HashPartitioning(expressions, numPartitions)
+  }
+}
+
+/**
+ * Represents data where tuples have been clustered according to the hash of the given
+ * `expressions`. The hash function is defined as `HashPartitioning.partitionIdExpression`, so only
+ * [[HashPartitioning]] can satisfy this distribution.
+ *
+ * This is a strictly stronger guarantee than [[ClusteredDistribution]]. Given a tuple and the
+ * number of partitions, this distribution strictly requires which partition the tuple should be in.
+ */
+case class HashClusteredDistribution(
+    expressions: Seq[Expression],
+    requiredNumPartitions: Option[Int] = None) extends Distribution with Clustering {
+  require(
+    expressions != Nil,
+    "The expressions for hash of a HashClusteredDistribution should not be Nil. " +
+        "An AllTuples should be used to represent a distribution that only has " +
+        "a single partition.")
+
+  override def createPartitioning(numPartitions: Int): Partitioning = {
+    assert(requiredNumPartitions.isEmpty || requiredNumPartitions.get == numPartitions,
+      s"This HashClusteredDistribution requires ${requiredNumPartitions.get} partitions, but " +
+          s"the actual number of partitions is $numPartitions.")
+    HashPartitioning(expressions, numPartitions)
   }
 }
 
@@ -157,7 +193,7 @@ trait Partitioning {
    *
    * @param distribution the required clustered distribution for this partitioning
    */
-  def createShuffleSpec(distribution: ClusteredDistribution): ShuffleSpec =
+  def createShuffleSpec(distribution: Clustering): ShuffleSpec =
     throw new IllegalStateException(s"Unexpected partitioning: ${getClass.getSimpleName}")
 
   /**
@@ -192,7 +228,7 @@ case object SinglePartition extends Partitioning {
     case _ => true
   }
 
-  override def createShuffleSpec(distribution: ClusteredDistribution): ShuffleSpec =
+  override def createShuffleSpec(clustering: Clustering): ShuffleSpec =
     SinglePartitionShuffleSpec
 }
 
@@ -211,6 +247,10 @@ case class HashPartitioning(expressions: Seq[Expression], numPartitions: Int)
   override def satisfies0(required: Distribution): Boolean = {
     super.satisfies0(required) || {
       required match {
+        case h: HashClusteredDistribution =>
+          expressions.length == h.expressions.length && expressions.zip(h.expressions).forall {
+            case (l, r) => l.semanticEquals(r)
+          }
         case ClusteredDistribution(requiredClustering, _) =>
           expressions.forall(x => requiredClustering.exists(_.semanticEquals(x)))
         case _ => false
@@ -218,8 +258,8 @@ case class HashPartitioning(expressions: Seq[Expression], numPartitions: Int)
     }
   }
 
-  override def createShuffleSpec(distribution: ClusteredDistribution): ShuffleSpec =
-    HashShuffleSpec(this, distribution)
+  override def createShuffleSpec(clustering: Clustering): ShuffleSpec =
+    HashShuffleSpec(this, clustering)
 
   /**
    * Returns an expression that will produce a valid partition ID(i.e. non-negative and is less
@@ -279,8 +319,8 @@ case class RangePartitioning(ordering: Seq[SortOrder], numPartitions: Int)
     }
   }
 
-  override def createShuffleSpec(distribution: ClusteredDistribution): ShuffleSpec =
-    RangeShuffleSpec(this.numPartitions, distribution)
+  override def createShuffleSpec(clustering: Clustering): ShuffleSpec =
+    RangeShuffleSpec(numPartitions)
 
   override protected def withNewChildrenInternal(
       newChildren: IndexedSeq[Expression]): RangePartitioning =
@@ -324,9 +364,9 @@ case class PartitioningCollection(partitionings: Seq[Partitioning])
   override def satisfies0(required: Distribution): Boolean =
     partitionings.exists(_.satisfies(required))
 
-  override def createShuffleSpec(distribution: ClusteredDistribution): ShuffleSpec = {
-    val filtered = partitionings.filter(_.satisfies(distribution))
-    ShuffleSpecCollection(filtered.map(_.createShuffleSpec(distribution)))
+  override def createShuffleSpec(clustering: Clustering): ShuffleSpec = {
+    val filtered = partitionings.filter(_.satisfies(clustering))
+    ShuffleSpecCollection(filtered.map(_.createShuffleSpec(clustering)))
   }
 
   override def toString: String = {
@@ -409,9 +449,7 @@ case object SinglePartitionShuffleSpec extends ShuffleSpec {
   override def numPartitions: Int = 1
 }
 
-case class RangeShuffleSpec(
-    numPartitions: Int,
-    distribution: ClusteredDistribution) extends ShuffleSpec {
+case class RangeShuffleSpec(numPartitions: Int) extends ShuffleSpec {
 
   // `RangePartitioning` is not compatible with any other partitioning since it can't guarantee
   // data are co-partitioned for all the children, as range boundaries are randomly sampled. We
@@ -429,7 +467,7 @@ case class RangeShuffleSpec(
 
 case class HashShuffleSpec(
     partitioning: HashPartitioning,
-    distribution: ClusteredDistribution) extends ShuffleSpec {
+    clustering: Clustering) extends ShuffleSpec {
 
   /**
    * A sequence where each element is a set of positions of the hash partition key to the cluster
@@ -438,7 +476,7 @@ case class HashShuffleSpec(
    */
   lazy val hashKeyPositions: Seq[mutable.BitSet] = {
     val distKeyToPos = mutable.Map.empty[Expression, mutable.BitSet]
-    distribution.clustering.zipWithIndex.foreach { case (distKey, distKeyPos) =>
+    clustering.expressions.zipWithIndex.foreach { case (distKey, distKeyPos) =>
       distKeyToPos.getOrElseUpdate(distKey.canonicalized, mutable.BitSet.empty).add(distKeyPos)
     }
     partitioning.expressions.map(k => distKeyToPos.getOrElse(k.canonicalized, mutable.BitSet.empty))
@@ -447,14 +485,14 @@ case class HashShuffleSpec(
   override def isCompatibleWith(other: ShuffleSpec): Boolean = other match {
     case SinglePartitionShuffleSpec =>
       partitioning.numPartitions == 1
-    case otherHashSpec @ HashShuffleSpec(otherPartitioning, otherDistribution) =>
+    case otherHashSpec @ HashShuffleSpec(otherPartitioning, otherClustering) =>
       // we need to check:
       //  1. both distributions have the same number of clustering expressions
       //  2. both partitioning have the same number of partitions
       //  3. both partitioning have the same number of expressions
       //  4. each pair of expression from both has overlapping positions in their
       //     corresponding distributions.
-      distribution.clustering.length == otherDistribution.clustering.length &&
+      clustering.expressions.length == otherClustering.expressions.length &&
       partitioning.numPartitions == otherPartitioning.numPartitions &&
       partitioning.expressions.length == otherPartitioning.expressions.length && {
         val otherHashKeyPositions = otherHashSpec.hashKeyPositions
@@ -474,8 +512,8 @@ case class HashShuffleSpec(
     // will add shuffles with the default partitioning of `ClusteredDistribution`, which uses all
     // the join keys.
     if (SQLConf.get.getConf(SQLConf.REQUIRE_ALL_CLUSTER_KEYS_FOR_CO_PARTITION)) {
-      partitioning.expressions.length == distribution.clustering.length &&
-        partitioning.expressions.zip(distribution.clustering).forall {
+      partitioning.expressions.length == clustering.expressions.length &&
+        partitioning.expressions.zip(clustering.expressions).forall {
           case (l, r) => l.semanticEquals(r)
         }
     } else {
