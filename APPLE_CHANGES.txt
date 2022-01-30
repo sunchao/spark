@@ -35,10 +35,19 @@ SPARK-37871     Use `python3` instead of `python` in BaseScriptTransformation te
 SPARK-37855     IllegalStateException when transforming an array inside a nested struct
 SPARK-37859     Do not check for metadata during schema comparison
 SPARK-37806     Use sc instead of sparkContext
+SPARK-37814     Migrating from log4j 1 to log4j 2
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
 SPARK-37987     Fix flaky test StreamingAggregationSuite.changing schema of state when restarting query
+SPARK-38007     Update K8s doc to recommend K8s 1.20+
+SPARK-37998     Use `rbac.authorization.k8s.io/v1` instead of `v1beta1`
+SPARK-38019     Make `ExecutorMonitor.timedOutExecutors` deterministic
+SPARK-38017     Fix the API doc for window to say it supports TimestampNTZType too as timeColumn
+SPARK-38023    `ExecutorMonitor.onExecutorRemoved` should handle `ExecutorDecommission` as finished
+SPARK-30062     Add the IMMEDIATE statement to the DB2 dialect truncate implementation
+SPARK-38045     More strict validation on plan check for stream-stream join unit test
+SPARK-37675     Prevent overwriting of push shuffle merged files once the shuffle is finalized
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -114,3 +123,4 @@ rdar://85553548 Use Attribute for ZOrder column
 rdar://87160738 Bump ADT version to 1.1.3
 rdar://79590736 Extend 'k8sRegex' to accept 'aci-k8s'
 rdar://87911623 Fix a few issues on Parquet complex type support
+rdar://88044325 Expose Arrow Vector from ArrowColumnVector
