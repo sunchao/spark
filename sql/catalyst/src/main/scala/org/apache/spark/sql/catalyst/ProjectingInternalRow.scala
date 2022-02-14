@@ -25,16 +25,16 @@ import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
  * An [[InternalRow]] that projects particular columns from another [[InternalRow]] without copying
  * the underlying data.
  */
-case class InternalRowProjection(schema: StructType, colOrdinals: Seq[Int]) extends InternalRow {
+case class ProjectingInternalRow(schema: StructType, colOrdinals: Seq[Int]) extends InternalRow {
   assert(schema.size == colOrdinals.size)
 
   private var row: InternalRow = _
 
+  override def numFields: Int = colOrdinals.size
+
   def project(row: InternalRow): Unit = {
     this.row = row
   }
-
-  override def numFields: Int = colOrdinals.size
 
   override def setNullAt(i: Int): Unit = {
     throw new UnsupportedOperationException("Cannot modify InternalRowProjection")
@@ -46,44 +46,70 @@ case class InternalRowProjection(schema: StructType, colOrdinals: Seq[Int]) exte
 
   override def copy(): InternalRow = {
     val newRow = if (row != null) row.copy() else null
-    val newProjection = InternalRowProjection(schema, colOrdinals)
+    val newProjection = ProjectingInternalRow(schema, colOrdinals)
     newProjection.project(newRow)
     newProjection
   }
 
-  override def isNullAt(ordinal: Int): Boolean = row.isNullAt(colOrdinals(ordinal))
+  override def isNullAt(ordinal: Int): Boolean = {
+    row.isNullAt(colOrdinals(ordinal))
+  }
 
-  override def getBoolean(ordinal: Int): Boolean = row.getBoolean(colOrdinals(ordinal))
+  override def getBoolean(ordinal: Int): Boolean = {
+    row.getBoolean(colOrdinals(ordinal))
+  }
 
-  override def getByte(ordinal: Int): Byte = row.getByte(colOrdinals(ordinal))
+  override def getByte(ordinal: Int): Byte = {
+    row.getByte(colOrdinals(ordinal))
+  }
 
-  override def getShort(ordinal: Int): Short = row.getShort(colOrdinals(ordinal))
+  override def getShort(ordinal: Int): Short = {
+    row.getShort(colOrdinals(ordinal))
+  }
 
-  override def getInt(ordinal: Int): Int = row.getInt(colOrdinals(ordinal))
+  override def getInt(ordinal: Int): Int = {
+    row.getInt(colOrdinals(ordinal))
+  }
 
-  override def getLong(ordinal: Int): Long = row.getLong(colOrdinals(ordinal))
+  override def getLong(ordinal: Int): Long = {
+    row.getLong(colOrdinals(ordinal))
+  }
 
-  override def getFloat(ordinal: Int): Float = row.getFloat(colOrdinals(ordinal))
+  override def getFloat(ordinal: Int): Float = {
+    row.getFloat(colOrdinals(ordinal))
+  }
 
-  override def getDouble(ordinal: Int): Double = row.getDouble(colOrdinals(ordinal))
+  override def getDouble(ordinal: Int): Double = {
+    row.getDouble(colOrdinals(ordinal))
+  }
 
   override def getDecimal(ordinal: Int, precision: Int, scale: Int): Decimal = {
     row.getDecimal(colOrdinals(ordinal), precision, scale)
   }
 
-  override def getUTF8String(ordinal: Int): UTF8String = row.getUTF8String(colOrdinals(ordinal))
+  override def getUTF8String(ordinal: Int): UTF8String = {
+    row.getUTF8String(colOrdinals(ordinal))
+  }
 
-  override def getBinary(ordinal: Int): Array[Byte] = row.getBinary(colOrdinals(ordinal))
+  override def getBinary(ordinal: Int): Array[Byte] = {
+    row.getBinary(colOrdinals(ordinal))
+  }
 
-  override def getInterval(ordinal: Int): CalendarInterval = row.getInterval(colOrdinals(ordinal))
+  override def getInterval(ordinal: Int): CalendarInterval = {
+    row.getInterval(colOrdinals(ordinal))
+  }
 
   override def getStruct(ordinal: Int, numFields: Int): InternalRow = {
     row.getStruct(colOrdinals(ordinal), numFields)
   }
 
-  override def getArray(ordinal: Int): ArrayData = row.getArray(colOrdinals(ordinal))
+  override def getArray(ordinal: Int): ArrayData = {
+    row.getArray(colOrdinals(ordinal))
+  }
 
-  override def getMap(ordinal: Int): MapData = row.getMap(colOrdinals(ordinal))
+  override def getMap(ordinal: Int): MapData = {
+    row.getMap(colOrdinals(ordinal))
+  }
 
   override def get(ordinal: Int, dataType: DataType): AnyRef = {
     row.get(colOrdinals(ordinal), dataType)

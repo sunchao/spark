@@ -17,9 +17,9 @@
 
 package org.apache.spark.sql.catalyst.util
 
-import org.apache.spark.sql.catalyst.InternalRowProjection
+import org.apache.spark.sql.catalyst.ProjectingInternalRow
 
 case class WriteDeltaProjections(
-    rowProjection: Option[InternalRowProjection],
-    rowIdProjection: InternalRowProjection,
-    metadataProjection: Option[InternalRowProjection])
+    rowProjection: Option[ProjectingInternalRow],
+    rowIdProjection: ProjectingInternalRow,
+    metadataProjection: Option[ProjectingInternalRow])

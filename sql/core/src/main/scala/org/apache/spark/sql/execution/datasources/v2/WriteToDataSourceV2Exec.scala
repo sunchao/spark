@@ -316,7 +316,7 @@ case class WriteDeltaExec(
   override lazy val references: AttributeSet = query.outputSet
   override lazy val stringArgs: Iterator[Any] = Iterator(query, write)
 
-  override lazy val writingTask: WritingSparkTask = {
+  override lazy val writingTask: WritingSparkTask[_] = {
     if (projections.metadataProjection.isDefined) {
       DeltaWithMetadataWritingSparkTask(projections)
     } else {
@@ -370,7 +370,7 @@ trait V2ExistingTableWriteExec extends V2TableWriteExec {
  */
 trait V2TableWriteExec extends V2CommandExec with UnaryExecNode {
   def query: SparkPlan
-  def writingTask: WritingSparkTask = DataWritingSparkTask
+  def writingTask: WritingSparkTask[_] = DataWritingSparkTask
 
   var commitProgress: Option[StreamWriterCommitProgress] = None
 
@@ -447,9 +447,9 @@ trait V2TableWriteExec extends V2CommandExec with UnaryExecNode {
   }
 }
 
-trait WritingSparkTask extends Logging with Serializable {
+trait WritingSparkTask[W <: DataWriter[InternalRow]] extends Logging with Serializable {
 
-  protected def writeFunc(writer: DataWriter[InternalRow], row: InternalRow): Unit
+  protected def writeFunc(writer: W, row: InternalRow): Unit
 
   def run(
       writerFactory: DataWriterFactory,
@@ -462,7 +462,7 @@ trait WritingSparkTask extends Logging with Serializable {
     val partId = context.partitionId()
     val taskId = context.taskAttemptId()
     val attemptId = context.attemptNumber()
-    val dataWriter = writerFactory.createWriter(partId, taskId)
+    val dataWriter = writerFactory.createWriter(partId, taskId).asInstanceOf[W]
 
     var count = 0L
     // write the data and commit this writer.
@@ -517,33 +517,34 @@ trait WritingSparkTask extends Logging with Serializable {
   }
 }
 
-object DataWritingSparkTask extends WritingSparkTask {
+object DataWritingSparkTask extends WritingSparkTask[DataWriter[InternalRow]] {
   override protected def writeFunc(writer: DataWriter[InternalRow], row: InternalRow): Unit = {
     writer.write(row)
   }
 }
 
-case class DeltaWritingSparkTask(projs: WriteDeltaProjections) extends WritingSparkTask {
+case class DeltaWritingSparkTask(
+    projs: WriteDeltaProjections) extends WritingSparkTask[DeltaWriter[InternalRow]] {
 
-  override protected def writeFunc(writer: DataWriter[InternalRow], row: InternalRow): Unit = {
-    val deltaWriter = writer.asInstanceOf[DeltaWriter[InternalRow]]
+  private lazy val rowProjection = projs.rowProjection.orNull
+  private lazy val rowIdProjection = projs.rowIdProjection
+
+  override protected def writeFunc(writer: DeltaWriter[InternalRow], row: InternalRow): Unit = {
     val operation = row.getInt(0)
-    val rowProjection = projs.rowProjection.orNull
-    val rowIdProjection = projs.rowIdProjection
 
     operation match {
       case RowDeltaUtils.DELETE_OPERATION =>
         rowIdProjection.project(row)
-        deltaWriter.delete(null, rowIdProjection)
+        writer.delete(null, rowIdProjection)
 
       case RowDeltaUtils.UPDATE_OPERATION =>
         rowProjection.project(row)
         rowIdProjection.project(row)
-        deltaWriter.update(null, rowIdProjection, rowProjection)
+        writer.update(null, rowIdProjection, rowProjection)
 
       case RowDeltaUtils.INSERT_OPERATION =>
         rowProjection.project(row)
-        deltaWriter.insert(rowProjection)
+        writer.insert(rowProjection)
 
       case other =>
         throw new SparkException(s"Unexpected operation ID: $other")
@@ -552,30 +553,30 @@ case class DeltaWritingSparkTask(projs: WriteDeltaProjections) extends WritingSp
 }
 
 case class DeltaWithMetadataWritingSparkTask(
-    projs: WriteDeltaProjections) extends WritingSparkTask {
+    projs: WriteDeltaProjections) extends WritingSparkTask[DeltaWriter[InternalRow]] {
 
-  override protected def writeFunc(writer: DataWriter[InternalRow], row: InternalRow): Unit = {
-    val deltaWriter = writer.asInstanceOf[DeltaWriter[InternalRow]]
+  private lazy val rowProjection = projs.rowProjection.orNull
+  private lazy val rowIdProjection = projs.rowIdProjection
+  private lazy val metadataProjection = projs.metadataProjection.orNull
+
+  override protected def writeFunc(writer: DeltaWriter[InternalRow], row: InternalRow): Unit = {
     val operation = row.getInt(0)
-    val rowProjection = projs.rowProjection.orNull
-    val rowIdProjection = projs.rowIdProjection
-    val metadataProjection = projs.metadataProjection.orNull
 
     operation match {
       case RowDeltaUtils.DELETE_OPERATION =>
         rowIdProjection.project(row)
         metadataProjection.project(row)
-        deltaWriter.delete(metadataProjection, rowIdProjection)
+        writer.delete(metadataProjection, rowIdProjection)
 
       case RowDeltaUtils.UPDATE_OPERATION =>
         rowProjection.project(row)
         rowIdProjection.project(row)
         metadataProjection.project(row)
-        deltaWriter.update(metadataProjection, rowIdProjection, rowProjection)
+        writer.update(metadataProjection, rowIdProjection, rowProjection)
 
       case RowDeltaUtils.INSERT_OPERATION =>
         rowProjection.project(row)
-        deltaWriter.insert(rowProjection)
+        writer.insert(rowProjection)
 
       case other =>
         throw new SparkException(s"Unexpected operation ID: $other")
@@ -584,6 +585,7 @@ case class DeltaWithMetadataWritingSparkTask(
 }
 
 private[v2] trait TableWriteExecHelper extends V2TableWriteExec with SupportsV1Write {
+
   protected def writeToTable(
       catalog: TableCatalog,
       table: Table,

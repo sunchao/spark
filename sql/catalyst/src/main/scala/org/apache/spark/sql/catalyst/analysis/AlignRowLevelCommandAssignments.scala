@@ -18,7 +18,8 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.plans.logical.{Assignment, DeleteAction, InsertAction, InsertStarAction, LogicalPlan, MergeIntoTable, UpdateAction, UpdateStarAction, UpdateTable}
+import org.apache.spark.sql.catalyst.expressions.AssignmentUtils
+import org.apache.spark.sql.catalyst.plans.logical.{Assignment, DeleteAction, InsertAction, LogicalPlan, MergeIntoTable, UpdateAction, UpdateTable}
 import org.apache.spark.sql.catalyst.rules.Rule
 
 /**
@@ -30,10 +31,10 @@ object AlignRowLevelCommandAssignments
   extends Rule[LogicalPlan] with AssignmentAlignmentSupport with IcebergSupport {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case u: UpdateTable if u.resolved && isIcebergTable(u.table) && !aligned(u) =>
+    case u: UpdateTable if u.resolved && !u.aligned && isIcebergTable(u.table) =>
       u.copy(assignments = alignAssignments(u.table, u.assignments))
 
-    case m: MergeIntoTable if m.resolved && isIcebergTable(m.targetTable) && !aligned(m) =>
+    case m: MergeIntoTable if m.resolved && !m.aligned && isIcebergTable(m.targetTable) =>
       val alignedMatchedActions = m.matchedActions.map {
         case u @ UpdateAction(_, assignments) =>
           u.copy(assignments = alignAssignments(m.targetTable, assignments))
@@ -46,7 +47,7 @@ object AlignRowLevelCommandAssignments
       val alignedNotMatchedActions = m.notMatchedActions.map {
         case i @ InsertAction(_, assignments) =>
           // check no nested columns are present
-          val refs = assignments.map(_.key).map(asAssignmentRef)
+          val refs = assignments.map(_.key).map(AssignmentUtils.toAssignmentRef)
           refs.foreach { ref =>
             if (ref.size > 1) {
               throw new AnalysisException(
@@ -78,36 +79,6 @@ object AlignRowLevelCommandAssignments
       m.copy(matchedActions = alignedMatchedActions, notMatchedActions = alignedNotMatchedActions)
   }
 
-  private def aligned(update: UpdateTable): Boolean = {
-    aligned(update.table, update.assignments)
-  }
-
-  private def aligned(merge: MergeIntoTable): Boolean = {
-    val targetTable = merge.targetTable
-
-    val matchedActionsAligned = merge.matchedActions.forall {
-      case UpdateAction(_, assignments) =>
-        aligned(targetTable, assignments)
-      case _: UpdateStarAction =>
-        false
-      case _: DeleteAction =>
-        true
-      case other =>
-        throw new AnalysisException(s"Unexpected matched action: $other")
-    }
-
-    val notMatchedActionsAligned = merge.notMatchedActions.forall {
-      case InsertAction(_, assignments) =>
-        aligned(targetTable, assignments)
-      case _: InsertStarAction =>
-        false
-      case other =>
-        throw new AnalysisException(s"Unexpected not matched action: $other")
-    }
-
-    matchedActionsAligned && notMatchedActionsAligned
-  }
-
   private def alignInsertActionAssignments(
       targetTable: LogicalPlan,
       assignmentMap: Map[String, Assignment]): Seq[Assignment] = {
@@ -127,8 +98,8 @@ object AlignRowLevelCommandAssignments
       }
 
       val key = assignment.get.key
-      val value = assignment.get.value
-      toAssignment(key, castIfNeeded(targetAttr, value, resolver))
+      val value = castIfNeeded(targetAttr, assignment.get.value, resolver)
+      AssignmentUtils.handleCharVarcharLimits(Assignment(key, value))
     }
   }
 }

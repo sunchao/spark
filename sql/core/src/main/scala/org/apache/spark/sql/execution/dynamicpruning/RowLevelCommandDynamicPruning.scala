@@ -17,10 +17,11 @@
 
 package org.apache.spark.sql.execution.dynamicpruning
 
-import org.apache.spark.sql.catalyst.expressions.{And, Attribute, AttributeMap, AttributeReference, DynamicPruningSubquery, Expression, Literal, PredicateHelper, V2ExpressionUtils}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, AttributeMap, AttributeReference, DynamicPruningSubquery, Expression, PredicateHelper, V2ExpressionUtils}
+import org.apache.spark.sql.catalyst.expressions.Literal.TrueLiteral
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
 import org.apache.spark.sql.catalyst.plans.LeftSemi
-import org.apache.spark.sql.catalyst.plans.logical.{Filter, Join, JoinHint, LogicalPlan, MergeIntoTable, Project, ReplaceData, RowLevelCommand, UpdateTable}
+import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromTable, Filter, Join, JoinHint, LogicalPlan, MergeIntoTable, Project, ReplaceData, RowLevelCommand, UpdateTable}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -31,7 +32,7 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
  * Note that only group-based rewrite plans (i.e. [[ReplaceData]]) are taken into account.
  * Row-based rewrite plans are subject to usual runtime filtering.
  */
-case class RowLevelCommandPruning(
+case class RowLevelCommandDynamicPruning(
     optimizeSubqueriesRule: Rule[LogicalPlan]) extends Rule[LogicalPlan] with PredicateHelper {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
@@ -39,7 +40,7 @@ case class RowLevelCommandPruning(
     case RewrittenRowLevelCommand(
         command: RowLevelCommand,
         DataSourceV2ScanRelation(_, scan: SupportsRuntimeFiltering, _),
-        rewritePlan: ReplaceData) if conf.dynamicPartitionPruningEnabled =>
+        rewritePlan: ReplaceData) if conf.dynamicPartitionPruningEnabled && isCandidate(command) =>
 
       // use reference equality to find exactly the required scan relations
       val newRewritePlan = rewritePlan transformUp {
@@ -55,30 +56,35 @@ case class RowLevelCommandPruning(
       command.withNewRewritePlan(newRewritePlan)
   }
 
+  private def isCandidate(command: RowLevelCommand): Boolean = command.condition match {
+    case Some(cond) if cond != TrueLiteral => true
+    case _ => false
+  }
+
   private def buildDynamicPruningCondition(
       relation: DataSourceV2ScanRelation,
       command: RowLevelCommand,
       pruningKeys: Seq[Attribute]): Expression = {
 
     // construct a filtering plan with the original scan relation
-    val cond = command.condition.getOrElse(Literal.TrueLiteral)
     val matchingRowsPlan = command match {
-      case m: MergeIntoTable =>
-        Join(relation, m.sourceTable, LeftSemi, Some(cond), JoinHint.NONE)
+      case d: DeleteFromTable =>
+        Filter(d.condition.get, relation)
 
       case u: UpdateTable =>
-        // UPDATEs with subqueries may be rewritten using a UNION with two identical scan relations
-        // each scan relation will get its own dynamic filter that will be shared during execution
-        // the analyzer will assign different expr IDs for each scan relation output attributes
-        // that's why the condition may refer to invalid attr expr IDs and must be transformed
-        val attrMap = AttributeMap(u.table.output.zip(relation.output))
-        val transformedCond = cond transform {
+        // UPDATEs with subqueries are rewritten using a UNION with two identical scan relations
+        // the analyzer clones of them and assigns fresh expr IDs so that attributes don't collide
+        // this rule assigns dynamic filters to both scan relations based on the update condition
+        // the condition always refers to the original expr IDs and must be transformed
+        // see RewriteUpdateTable for more details
+        val attrMap = buildAttrMap(u.table.output, relation.output)
+        val transformedCond = u.condition.get transform {
           case attr: AttributeReference if attrMap.contains(attr) => attrMap(attr)
         }
         Filter(transformedCond, relation)
 
-      case _ =>
-        Filter(cond, relation)
+      case m: MergeIntoTable =>
+        Join(relation, m.sourceTable, LeftSemi, Some(m.mergeCondition), JoinHint.NONE)
     }
 
     // clone the original relation in the filtering plan and assign new expr IDs to avoid conflicts
@@ -100,5 +106,18 @@ case class RowLevelCommandPruning(
 
     // combine all dynamic subqueries to produce the final condition
     dynamicPruningSubqueries.reduce(And)
+  }
+
+  private def buildAttrMap(
+      tableAttrs: Seq[Attribute],
+      scanAttrs: Seq[Attribute]): AttributeMap[Attribute] = {
+
+    val resolver = conf.resolver
+    val attrMapping = tableAttrs.flatMap { tableAttr =>
+      scanAttrs
+        .find(scanAttr => resolver(scanAttr.name, tableAttr.name))
+        .map(scanAttr => tableAttr -> scanAttr)
+    }
+    AttributeMap(attrMapping)
   }
 }

@@ -20,16 +20,33 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.spark.SparkException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, BasePredicate, Expression, UnsafeProjection}
+import org.apache.spark.sql.catalyst.expressions.{Ascending, Attribute, AttributeSet, BasePredicate, Expression, SortOrder, UnsafeProjection}
 import org.apache.spark.sql.catalyst.expressions.codegen.GeneratePredicate
-import org.apache.spark.sql.catalyst.plans.logical.MergeRowsParams
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.{SparkPlan, UnaryExecNode}
 
 case class MergeRowsExec(
-    params: MergeRowsParams,
+    isSourceRowPresent: Expression,
+    isTargetRowPresent: Expression,
+    matchedConditions: Seq[Expression],
+    matchedOutputs: Seq[Seq[Expression]],
+    notMatchedConditions: Seq[Expression],
+    notMatchedOutputs: Seq[Seq[Expression]],
+    targetOutput: Seq[Expression],
+    rowIdAttrs: Seq[Attribute],
+    performCardinalityCheck: Boolean,
+    emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
     child: SparkPlan) extends UnaryExecNode {
+
+  override def requiredChildOrdering: Seq[Seq[SortOrder]] = {
+    if (performCardinalityCheck) {
+      // request a local sort by the row ID attrs to co-locate matches for the same target row
+      Seq(rowIdAttrs.map(attr => SortOrder(attr, Ascending)))
+    } else {
+      Seq(Nil)
+    }
+  }
 
   @transient override lazy val producedAttributes: AttributeSet = {
     AttributeSet(output.filterNot(attr => inputSet.contains(attr)))
@@ -46,9 +63,7 @@ case class MergeRowsExec(
   }
 
   protected override def doExecute(): RDD[InternalRow] = {
-    child.execute().mapPartitions {
-      processPartition(params, _)
-    }
+    child.execute().mapPartitions(processPartition)
   }
 
   private def createProjection(exprs: Seq[Expression], attrs: Seq[Attribute]): UnsafeProjection = {
@@ -63,14 +78,11 @@ case class MergeRowsExec(
       actions: Seq[(BasePredicate, Option[UnsafeProjection])],
       inputRow: InternalRow): InternalRow = {
 
-    // Find the first combination where the predicate evaluates to true.
-    // In case when there are overlapping condition in the MATCHED
-    // clauses, for the first one that satisfies the predicate, the
-    // corresponding action is applied. For example:
+    // find the first action where the predicate evaluates to true
+    // if there are overlapping conditions in actions, use the first matching action
+    // in the example below, when id = 5, both actions match but the first one is applied
     //   WHEN MATCHED AND id > 1 AND id < 10 UPDATE *
     //   WHEN MATCHED AND id = 5 OR id = 21 DELETE
-    // In above case, when id = 5, it applies both that matched predicates. In this
-    // case the first one we see is applied.
 
     val pair = actions.find {
       case (predicate, _) => predicate.eval(inputRow)
@@ -85,24 +97,28 @@ case class MergeRowsExec(
     }
   }
 
-  private def processPartition(
-      params: MergeRowsParams,
-      rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
+  private def processPartition(rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
+    val inputAttrs = child.output
 
-    val joinedAttrs = params.joinedAttributes
-    val isSourceRowPresentPred = createPredicate(params.isSourceRowPresent, joinedAttrs)
-    val isTargetRowPresentPred = createPredicate(params.isTargetRowPresent, joinedAttrs)
-    val matchedPreds = params.matchedConditions.map(createPredicate(_, joinedAttrs))
-    val matchedProjs = params.matchedOutputs.map(_.map(createProjection(_, joinedAttrs)))
-    val notMatchedPreds = params.notMatchedConditions.map(createPredicate(_, joinedAttrs))
-    val notMatchedProjs = params.notMatchedOutputs.map(_.map(createProjection(_, joinedAttrs)))
-    val projectTargetCols = createProjection(params.targetOutput, joinedAttrs)
-    val nonMatchedPairs = notMatchedPreds zip notMatchedProjs
+    val isSourceRowPresentPred = createPredicate(isSourceRowPresent, inputAttrs)
+    val isTargetRowPresentPred = createPredicate(isTargetRowPresent, inputAttrs)
+
+    val matchedPreds = matchedConditions.map(createPredicate(_, inputAttrs))
+    val matchedProjs = matchedOutputs.map {
+      case output if output.nonEmpty => Some(createProjection(output, inputAttrs))
+      case _ => None
+    }
     val matchedPairs = matchedPreds zip matchedProjs
-    val rowIdAttrs = params.rowIdAttrs
-    val rowIdProj = createProjection(rowIdAttrs, joinedAttrs)
-    val performCardinalityCheck = params.performCardinalityCheck
-    val emitNotMatchedTargetRows = params.emitNotMatchedTargetRows
+
+    val notMatchedPreds = notMatchedConditions.map(createPredicate(_, inputAttrs))
+    val notMatchedProjs = notMatchedOutputs.map {
+      case output if output.nonEmpty => Some(createProjection(output, inputAttrs))
+      case _ => None
+    }
+    val nonMatchedPairs = notMatchedPreds zip notMatchedProjs
+
+    val projectTargetCols = createProjection(targetOutput, inputAttrs)
+    val rowIdProj = createProjection(rowIdAttrs, inputAttrs)
 
     // This method is responsible for processing a input row to emit the resultant row with an
     // additional column that indicates whether the row is going to be included in the final
@@ -152,14 +168,14 @@ case class MergeRowsExec(
       }
     }
 
-    val mapFunc: InternalRow => InternalRow = if (performCardinalityCheck) {
+    val processFunc: InternalRow => InternalRow = if (performCardinalityCheck) {
       processRowWithCardinalityCheck
     } else {
       processRow
     }
 
     rowIterator
-      .map(mapFunc)
+      .map(processFunc)
       .filter(row => row != null)
   }
 }

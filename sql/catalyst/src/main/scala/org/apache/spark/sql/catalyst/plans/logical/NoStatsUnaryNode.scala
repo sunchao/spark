@@ -17,32 +17,14 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, Expression}
-import org.apache.spark.sql.catalyst.util.truncatedString
+import org.apache.spark.sql.catalyst.expressions.Attribute
 
-case class MergeRows(
-    isSourceRowPresent: Expression,
-    isTargetRowPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Seq[Expression]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Seq[Expression]],
-    targetOutput: Seq[Expression],
-    rowIdAttrs: Seq[Attribute],
-    performCardinalityCheck: Boolean,
-    emitNotMatchedTargetRows: Boolean,
-    output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode {
-
-  override lazy val producedAttributes: AttributeSet = {
-    AttributeSet(output.filterNot(attr => inputSet.contains(attr)))
-  }
-
-  override lazy val references: AttributeSet = child.outputSet
-
-  override def simpleString(maxFields: Int): String = {
-    s"MergeRows${truncatedString(output, "[", ", ", "]", maxFields)}"
-  }
+// a node used as a temporary fix for avoiding broadcasts in the RewriteMergeIntoTable rule
+// this will be eventually replaced with a new hint that prohibits all types of broadcasts
+// copied from Iceberg SQL extensions
+case class NoStatsUnaryNode(child: LogicalPlan) extends UnaryNode {
+  override def output: Seq[Attribute] = child.output
+  override def stats: Statistics = Statistics(Long.MaxValue)
 
   override protected def withNewChildInternal(newChild: LogicalPlan): LogicalPlan = {
     copy(child = newChild)

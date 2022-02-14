@@ -84,7 +84,6 @@ object V2Writes extends Rule[LogicalPlan] with PredicateHelper {
       val rowSchema = StructType.fromAttributes(rd.dataInput)
       val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
       val write = writeBuilder.build()
-      // TODO: detect when query contains a shuffle and insert a round-robin repartitioning
       val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query, conf)
       rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
 
@@ -95,7 +94,6 @@ object V2Writes extends Rule[LogicalPlan] with PredicateHelper {
       val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty, rowIdSchema, metadataSchema)
       writeBuilder match {
         case builder: DeltaWriteBuilder =>
-          // TODO: detect when query contains a shuffle and insert a round-robin repartitioning
           val deltaWrite = builder.build()
           val newQuery = DistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
           wd.copy(write = Some(deltaWrite), query = newQuery)

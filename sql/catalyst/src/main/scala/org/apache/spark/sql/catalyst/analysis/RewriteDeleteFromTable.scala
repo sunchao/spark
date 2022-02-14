@@ -19,13 +19,13 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.{Alias, EqualNullSafe, Expression, Literal, Not}
+import org.apache.spark.sql.catalyst.expressions.Literal.TrueLiteral
 import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromTable, Filter, LogicalPlan, Project, ReplaceData, WriteDelta}
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.catalog.{SupportsDelete, SupportsRowLevelOperations}
 import org.apache.spark.sql.connector.write.{RowLevelOperationTable, SupportsDelta}
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.types.BooleanType
 
 /**
  * Assigns a rewrite plan for v2 tables that support rewriting data to handle DELETE statements.
@@ -43,13 +43,14 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
           val operation = buildRowLevelOperation(tbl, DELETE)
           val table = RowLevelOperationTable(tbl, operation)
+          val deleteCond = cond.getOrElse(TrueLiteral)
           val rewritePlan = operation match {
             case _: SupportsDelta =>
-              buildWriteDeltaPlan(r, table, cond)
+              buildWriteDeltaPlan(r, table, deleteCond)
             case _ =>
-              buildReplaceDataPlan(r, table, cond)
+              buildReplaceDataPlan(r, table, deleteCond)
           }
-          // keep the original relation in DELETE so that we can attempt to delete with metadata
+          // keep the original relation in DELETE to attempt deleting using filters
           DeleteFromTable(r, cond, Some(rewritePlan))
 
         case DataSourceV2Relation(_: SupportsDelete, _, _, _, _) =>
@@ -67,53 +68,47 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
   private def buildReplaceDataPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
-      cond: Option[Expression]): ReplaceData = {
+      operationTable: RowLevelOperationTable,
+      cond: Expression): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
-    val rowAttrs = relation.output
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
-    // construct a scan relation and include all required metadata columns
-    val scanAttrs = dedupAttrs(rowAttrs ++ metadataAttrs)
-    val scanRelation = relation.copy(table = table, output = scanAttrs)
+    // construct a read relation and include all required metadata columns
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
 
     // construct a plan that contains unmatched rows in matched groups that must be carried over
     // such rows do not match the condition but have to be copied over as the source can replace
     // only groups of rows
-    val deleteCond = cond.getOrElse(Literal.TrueLiteral)
-    val remainingRowsFilter = Not(EqualNullSafe(deleteCond, Literal(true, BooleanType)))
-    val remainingRowsPlan = Filter(remainingRowsFilter, scanRelation)
+    val remainingRowsFilter = Not(EqualNullSafe(cond, TrueLiteral))
+    val remainingRowsPlan = Filter(remainingRowsFilter, readRelation)
 
     // build a plan to replace read groups in the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     ReplaceData(writeRelation, remainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support row deltas
   private def buildWriteDeltaPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
-      cond: Option[Expression]): WriteDelta = {
+      operationTable: RowLevelOperationTable,
+      cond: Expression): WriteDelta = {
 
     // resolve all needed attrs (e.g. row ID and any required metadata attrs)
-    val rowAttrs = relation.output
-    val rowIdAttrs = resolveRowIdAttrs(relation, table.operation)
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val rowIdAttrs = resolveRowIdAttrs(relation, operationTable.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
-    // construct a scan relation and include all required metadata columns
-    val scanAttrs = dedupAttrs(rowAttrs ++ rowIdAttrs ++ metadataAttrs)
-    val scanRelation = relation.copy(table = table, output = scanAttrs)
+    // construct a read relation and include all required metadata columns
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs, rowIdAttrs)
 
     // construct a plan that only contains records to delete
-    val deleteCond = cond.getOrElse(Literal.TrueLiteral)
-    val deletedRowsPlan = Filter(deleteCond, scanRelation)
+    val deletedRowsPlan = Filter(cond, readRelation)
     val operationType = Alias(Literal(DELETE_OPERATION), OPERATION_COLUMN)()
     val requiredWriteAttrs = dedupAttrs(rowIdAttrs ++ metadataAttrs)
     val project = Project(operationType +: requiredWriteAttrs, deletedRowsPlan)
 
     // build a plan to write deletes to the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     val projections = buildWriteDeltaProjections(project, Nil, rowIdAttrs, metadataAttrs)
     WriteDelta(writeRelation, project, relation, projections)
   }
