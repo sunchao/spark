@@ -36,6 +36,7 @@ SPARK-37855     IllegalStateException when transforming an array inside a nested
 SPARK-37859     Do not check for metadata during schema comparison
 SPARK-37806     Use sc instead of sparkContext
 SPARK-37814     Migrating from log4j 1 to log4j 2
+SPARK-38047     Add `OUTLIER NO FALLBACK` executor roll ploicy
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
@@ -48,6 +49,22 @@ SPARK-38023    `ExecutorMonitor.onExecutorRemoved` should handle `ExecutorDecomm
 SPARK-30062     Add the IMMEDIATE statement to the DB2 dialect truncate implementation
 SPARK-38045     More strict validation on plan check for stream-stream join unit test
 SPARK-37675     Prevent overwriting of push shuffle merged files once the shuffle is finalized
+SPARK-38075     Fix hasNext in HiveScriptTransformationExec's process outputiterator
+SPARK-38084     Support SKIP_PYTHON and SKIP_R in `run-tests.py`
+SPARK-38013     AQE can change bhj to smj if no extra shuffle introduce
+SPARK-38100     Remove unused private method in Decimal
+SPARK-38073     Update atexit function to avoid issues with late binding
+SPARK-38122     Update the App Key of DocSearch
+SPARK-38046     Fix KafkaSource/KafkaMicroBatch flaky test due to non-deterministic timing
+SPARK-38142     Move ArrowColumnVectorSuite to `org.apache.spark.sql.vectorized
+SPARK-38144     Remove unused spark.storage.safetyFraction config
+SPARK-38030     Canonicalization should not remove nullability of AttributeReference dataType
+SPARK-38120     Fix HiveExternalCatalog.listPartitions when partition column name is upper case and dot in partition value
+SPARK-38056     Fix issue of Structured streaming not working in history server when using LevelDB
+SPARK-38151     Handle Pacific/Kanton in DateTimeUtilsSuite
+SPARK-38178     Correct the logic to measure the memory usage of RocksDB
+SPARK-38184     Fix malformatted ExpressionDescription of decode
+SPARK-38185     Fix data incorrect if aggregate function is empty
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -124,3 +141,5 @@ rdar://87160738 Bump ADT version to 1.1.3
 rdar://79590736 Extend 'k8sRegex' to accept 'aci-k8s'
 rdar://87911623 Fix a few issues on Parquet complex type support
 rdar://88044325 Expose Arrow Vector from ArrowColumnVector
+MINOR           Fix scalastyle issue
+MINOR           Sync row-level operation impl with OSS Iceberg
