@@ -65,6 +65,28 @@ SPARK-38151     Handle Pacific/Kanton in DateTimeUtilsSuite
 SPARK-38178     Correct the logic to measure the memory usage of RocksDB
 SPARK-38184     Fix malformatted ExpressionDescription of decode
 SPARK-38185     Fix data incorrect if aggregate function is empty
+SPARK-37498     Add eventually for test_reuse_worker_of_parallelize_range
+SPARK-38198     Fix QueryExecution.debug#toFile use the passed in maxFields when explainMode is CodegenMode
+SPARK-38211     Add SQL migration guide on restoring loose upcast from string to other types
+SPARK-38221     Eagerly iterate over groupingExpressions when moving complex grouping expressions out of an Aggregate node
+MINOR           Fix documentation for structured streaming - addListener
+SPARK-35937     GetDateFieldOperations should skip unresolved nodes
+MINOR           Fixed closing tags in running-on-kubernetes.md
+MINOR           fix default value of history server
+SPARK-38266     Fix broken test failure in 3.2 build
+SPARK-37290     Exponential planning time in case of non-deterministic function
+SPARK-38279     Pin MarkupSafe to 2.0.1 fix linter failure
+SPARK-38271     PoissonSampler may output more rows than MaxRows
+SPARK-38304     Elt() should return null if index is null under ANSI mode
+SPARK-38286     Union's maxRows and maxRowsPerPartition may overflow
+SPARK-38297     Explicitly cast the return value at DataFrame.to_numpy in POS
+SPARK-38236     Check if table location is absolute by "new Path(locationUri).isAbsolute" in create/alter table
+SPARK-38273     `decodeUnsafeRows`'s iterators should close underlying input streams
+SPARK-38303     Upgrade `ansi-regex` from 5.0.0 to 5.0.1 in /dev
+SPARK-38325     ANSI mode: avoid potential runtime error in HashJoin.extractKeyExprAt()
+SPARK-38305     Explicitly check if source exists in unpack() before calling FileUtil methods
+MINOR           Fix missing field in query
+SPARK-37090     Upgrade libthrift to 0.16.0 to avoid security vulnerabilities
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
