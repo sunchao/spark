@@ -29,6 +29,10 @@ import org.apache.spark.benchmark.Benchmark
 import org.apache.spark.sql.{DataFrame, DataFrameWriter, Row, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.parquet.VectorizedParquetRecordReader
+import org.apache.spark.sql.execution.vectorized.NewOffHeapColumnVector
+import org.apache.spark.sql.execution.vectorized.NewOnHeapColumnVector
+import org.apache.spark.sql.execution.vectorized.OffHeapColumnVector
+import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.ColumnVector
@@ -260,6 +264,75 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
 
       parquetReaderBenchmark.run()
     }
+  }
+
+  def columnVectorBenchmark(batchSize: Int, useOnHeap: Boolean, fractionOfNulls: Double): Unit = {
+    val benchmark = new Benchmark(s"ColumnVector (batchSize: $batchSize, fraction of " +
+        s"nulls: $fractionOfNulls, useOnHeap: $useOnHeap)",
+      batchSize, minNumIters = 5, output = output)
+
+    val dataType = StructType(Seq(StructField("f1", IntegerType), StructField("f2", BooleanType)))
+
+    val oldVector = if (useOnHeap) {
+      new OnHeapColumnVector(batchSize, dataType)
+    } else {
+      new OffHeapColumnVector(batchSize, dataType)
+    }
+
+    var rowId = 0
+    while (rowId < batchSize) {
+      if (Random.nextDouble() < fractionOfNulls) {
+        oldVector.putNull(rowId)
+        oldVector.getChild(0).putNull(rowId)
+        oldVector.getChild(1).putNull(rowId)
+      } else {
+        oldVector.putNotNull(rowId)
+        oldVector.getChild(0).putInt(rowId, Random.nextInt())
+        oldVector.getChild(1).putBoolean(rowId, Random.nextBoolean())
+      }
+      rowId += 1
+    }
+
+    val newVector = if (useOnHeap) {
+      new NewOnHeapColumnVector(batchSize, dataType)
+    } else {
+      new NewOffHeapColumnVector(batchSize, dataType)
+    }
+
+    rowId = 0
+    var nonNullRowId = 0
+    while (rowId < batchSize) {
+      if (Random.nextDouble() < fractionOfNulls) {
+        newVector.putNull(rowId)
+      } else {
+        newVector.putNotNull(rowId)
+        newVector.putStruct(rowId, nonNullRowId)
+        newVector.getChild(0).putInt(nonNullRowId, Random.nextInt())
+        newVector.getChild(1).putBoolean(nonNullRowId, Random.nextBoolean())
+        nonNullRowId += 1
+      }
+      rowId += 1
+    }
+
+    benchmark.addCase("Old ColumnVector") { _ =>
+      var sum = 0L
+      for (rowId <- 0 until batchSize) {
+        if (!oldVector.isNullAt(rowId)) {
+          sum += oldVector.getStruct(rowId).getInt(0)
+        }
+      }
+    }
+
+    benchmark.addCase("New ColumnVector") { _ =>
+      var sum = 0L
+      for (rowId <- 0 until batchSize) {
+        if (!newVector.isNullAt(rowId)) {
+          sum += newVector.getStruct(rowId).getInt(0)
+        }
+      }
+    }
+
+    benchmark.run()
   }
 
   def intStringScanBenchmark(values: Int): Unit = {
@@ -610,28 +683,11 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
   }
 
   override def runBenchmarkSuite(mainArgs: Array[String]): Unit = {
-    runBenchmark("SQL Single Numeric Column Scan") {
-      Seq(BooleanType, ByteType, ShortType, IntegerType, LongType, FloatType, DoubleType).foreach {
-        dataType => numericScanBenchmark(1024 * 1024 * 15, dataType)
-      }
-    }
-    runBenchmark("Int and String Scan") {
-      intStringScanBenchmark(1024 * 1024 * 10)
-    }
-    runBenchmark("Repeated String Scan") {
-      repeatedStringScanBenchmark(1024 * 1024 * 10)
-    }
-    runBenchmark("Partitioned Table Scan") {
-      partitionTableScanBenchmark(1024 * 1024 * 15)
-    }
-    runBenchmark("String with Nulls Scan") {
-      for (fractionOfNulls <- List(0.0, 0.50, 0.95)) {
-        stringWithNullsScanBenchmark(1024 * 1024 * 10, fractionOfNulls)
-      }
-    }
-    runBenchmark("Single Column Scan From Wide Columns") {
-      for (columnWidth <- List(10, 50, 100)) {
-        columnsBenchmark(1024 * 1024 * 1, columnWidth)
+    runBenchmark("ColumnVector Benchmark") {
+      for (useOnHeap <- List(true, false)) {
+        for (fractionOfNulls <- List(0.95, 0.75, 0.50, 0.25, 0.0)) {
+          columnVectorBenchmark(1024 * 1024 * 15, useOnHeap, fractionOfNulls)
+        }
       }
     }
   }

@@ -216,7 +216,7 @@ public abstract class ColumnVector implements AutoCloseable {
    * the struct type, and each child vector is responsible to store the data for its corresponding
    * struct field.
    */
-  public final ColumnarRow getStruct(int rowId) {
+  public ColumnarRow getStruct(int rowId) {
     if (isNullAt(rowId)) return null;
     return new ColumnarRow(this, rowId);
   }
@@ -288,7 +288,7 @@ public abstract class ColumnVector implements AutoCloseable {
    * is a long type vector, containing all the microsecond values of all the interval values in this
    * vector.
    */
-  public final CalendarInterval getInterval(int rowId) {
+  public CalendarInterval getInterval(int rowId) {
     if (isNullAt(rowId)) return null;
     final int months = getChild(0).getInt(rowId);
     final int days = getChild(1).getInt(rowId);
