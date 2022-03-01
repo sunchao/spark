@@ -40,7 +40,7 @@ final class ParquetColumnVector {
   private final ParquetColumn column;
   private final WritableColumnVector vector;
 
-  private List<ParquetColumnVector> children;
+  private final List<ParquetColumnVector> children;
 
   /**
    * Repetition & Definition levels
@@ -71,6 +71,7 @@ final class ParquetColumnVector {
 
     this.column = column;
     this.vector = vector;
+    this.children = new ArrayList<>();
     this.isPrimitive = column.isPrimitive();
 
     if (missingColumns.contains(column)) {
@@ -79,14 +80,12 @@ final class ParquetColumnVector {
     }
 
     if (isPrimitive) {
-      this.children = Collections.emptyList();
       // TODO: avoid allocating these if not necessary, for instance, the node is of top-level
       //  and is not repeated, or the node is not top-level but its max repetition level is 0.
       repetitionLevels = allocateLevelsVector(capacity, memoryMode);
       definitionLevels = allocateLevelsVector(capacity, memoryMode);
     } else {
       Preconditions.checkArgument(column.children().size() == vector.getNumChildren());
-      this.children = new ArrayList<>(column.children().size());
       for (int i = 0; i < column.children().size(); i++) {
         ParquetColumnVector childCv = new ParquetColumnVector(column.children().apply(i),
           vector.getChild(i), capacity, memoryMode, missingColumns);
