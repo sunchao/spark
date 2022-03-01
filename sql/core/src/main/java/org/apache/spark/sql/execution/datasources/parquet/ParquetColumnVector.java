@@ -280,7 +280,6 @@ final class ParquetColumnVector {
           rowId++;
         } else if (definitionLevels.getInt(i) >= maxDefinitionLevel) {
           vector.putNotNull(rowId);
-          vector.putStruct(rowId, nonnullRowId);
           rowId++;
           nonnullRowId++;
         }
