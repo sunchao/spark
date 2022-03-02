@@ -18,7 +18,6 @@
 package org.apache.spark.sql.execution.datasources.parquet;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -221,13 +220,17 @@ final class ParquetColumnVector {
     int maxDefinitionLevel = column.definitionLevel();
     int maxElementRepetitionLevel = column.repetitionLevel();
 
+    ParquetColumn child = column.children().apply(0);
+    int maxElementDefinitionLevel = child.definitionLevel();
+    if (!child.required()) maxElementDefinitionLevel -= 1;
+
     // There are 4 cases when calculating definition levels:
     //   1. definitionLevel == maxDefinitionLevel
     //     ==> value is defined and not null
     //   2. definitionLevel == maxDefinitionLevel - 1
     //     ==> value is null
     //   3. definitionLevel < maxDefinitionLevel - 1
-    //     ==> value doesn't exist since one of its optional parent is null
+    //     ==> value doesn't exist since one of its optional parents is null
     //   4. definitionLevel > maxDefinitionLevel
     //     ==> value is a nested element within an array or map
     //
@@ -238,8 +241,12 @@ final class ParquetColumnVector {
          i = getNextCollectionStart(maxElementRepetitionLevel, i)) {
       vector.reserve(rowId + 1);
       int definitionLevel = definitionLevels.getInt(i);
-      if (definitionLevel == maxDefinitionLevel - 1) {
-        // Collection is null
+      if (definitionLevel < maxElementDefinitionLevel) {
+        // This means the collection is null and it is not an array element
+        offset += 1;
+      }
+      if (definitionLevel <= maxDefinitionLevel - 1) {
+        // Collection is null or one of its optional parents is null
         vector.putNull(rowId++);
       } else if (definitionLevel == maxDefinitionLevel) {
         // Collection is defined but empty
@@ -273,7 +280,7 @@ final class ParquetColumnVector {
       // element in struct<array<int>>), and we should skip the definition level since it doesn't
       // represent with the struct.
       if (!hasRepetitionLevels || repetitionLevels.getInt(i) <= maxRepetitionLevel) {
-        if (definitionLevels.getInt(i) == maxDefinitionLevel - 1) {
+        if (definitionLevels.getInt(i) <= maxDefinitionLevel - 1) {
           // Struct is null
           vector.putNull(rowId);
           rowId++;

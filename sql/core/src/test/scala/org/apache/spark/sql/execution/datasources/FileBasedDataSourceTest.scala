@@ -54,7 +54,7 @@ private[sql] trait FileBasedDataSourceTest extends SQLTestUtils {
       f(spark.read.format(dataSourceName).load(path.toString))
     }
     if (testVectorized) {
-      Seq(true, false).foreach { enableNested =>
+      Seq(true).foreach { enableNested =>
         withSQLConf(vectorizedReaderEnabledKey -> "true",
             vectorizedReaderNestedEnabledKey -> enableNested.toString) {
           f(spark.read.format(dataSourceName).load(path))
@@ -71,7 +71,8 @@ private[sql] trait FileBasedDataSourceTest extends SQLTestUtils {
       (data: Seq[T])
       (f: String => Unit): Unit = {
     withTempPath { file =>
-      spark.createDataFrame(data).write.format(dataSourceName).save(file.getCanonicalPath)
+      spark.createDataFrame(data).coalesce(1)
+          .write.format(dataSourceName).save(file.getCanonicalPath)
       f(file.getCanonicalPath)
     }
   }
