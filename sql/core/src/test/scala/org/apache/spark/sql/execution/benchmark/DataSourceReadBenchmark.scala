@@ -610,29 +610,24 @@ object DataSourceReadBenchmark extends SqlBasedBenchmark {
   }
 
   override def runBenchmarkSuite(mainArgs: Array[String]): Unit = {
-    runBenchmark("SQL Single Numeric Column Scan") {
-      Seq(BooleanType, ByteType, ShortType, IntegerType, LongType, FloatType, DoubleType).foreach {
-        dataType => numericScanBenchmark(1024 * 1024 * 15, dataType)
-      }
-    }
-    runBenchmark("Int and String Scan") {
-      intStringScanBenchmark(1024 * 1024 * 10)
-    }
-    runBenchmark("Repeated String Scan") {
-      repeatedStringScanBenchmark(1024 * 1024 * 10)
-    }
-    runBenchmark("Partitioned Table Scan") {
-      partitionTableScanBenchmark(1024 * 1024 * 15)
-    }
+//    runBenchmark("Int and String Scan") {
+//      intStringScanBenchmark(1024 * 1024 * 10)
+//    }
+//    runBenchmark("Repeated String Scan") {
+//      repeatedStringScanBenchmark(1024 * 1024 * 10)
+//    }
+//    runBenchmark("Partitioned Table Scan") {
+//      partitionTableScanBenchmark(1024 * 1024 * 15)
+//    }
     runBenchmark("String with Nulls Scan") {
       for (fractionOfNulls <- List(0.0, 0.50, 0.95)) {
         stringWithNullsScanBenchmark(1024 * 1024 * 10, fractionOfNulls)
       }
     }
-    runBenchmark("Single Column Scan From Wide Columns") {
-      for (columnWidth <- List(10, 50, 100)) {
-        columnsBenchmark(1024 * 1024 * 1, columnWidth)
-      }
-    }
+//    runBenchmark("Single Column Scan From Wide Columns") {
+//      for (columnWidth <- List(10, 50, 100)) {
+//        columnsBenchmark(1024 * 1024 * 1, columnWidth)
+//      }
+//    }
   }
 }
