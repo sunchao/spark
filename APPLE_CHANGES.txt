@@ -86,7 +86,39 @@ SPARK-38303     Upgrade `ansi-regex` from 5.0.0 to 5.0.1 in /dev
 SPARK-38325     ANSI mode: avoid potential runtime error in HashJoin.extractKeyExprAt()
 SPARK-38305     Explicitly check if source exists in unpack() before calling FileUtil methods
 MINOR           Fix missing field in query
-SPARK-37090     Upgrade libthrift to 0.16.0 to avoid security vulnerabilities
+SPARK-38042     Ensure that ScalaReflection.dataTypeFor works on aliased array types
+SPARK-38180     Allow safe up-cast expressions in correlated equality predicates
+SPARK-38347     Fix nullability propagation in transformUpWithNewOutput
+SPARK-38318     Skip view cyclic reference check if view is stored as logical plan
+SPARK-37932     Wait to resolve missing attributes before applying DeduplicateRelations
+SPARK-38363     Avoid runtime error in Dataset.summary()/Dataset.describe() when ANSI mode is on
+SPARK-38392     Add `spark-` prefix to namespaces and `-driver` suffix to drivers during IT
+SPARK-38029     Support K8S integration test in SBT
+SPARK-38071     Support K8s namespace parameter in SBT K8s IT
+SPARK-38072     Support K8s imageTag parameter in SBT K8s IT
+SPARK-38048     Add `IntegrationTestBackend.describePods` to support all K8s test backends
+SPARK-36553     KMeans avoid compute auxiliary statistics for large K
+MINOR           Add more examples to sql-ref-syntax-ddl-create-table-datasource
+SPARK-38272     Use `docker-desktop` instead of `docker-for-desktop` for Docker K8S IT deployMode and context name
+SPARK-33206     Fix shuffle index cache weight calculation for small index files
+SPARK-38081     Support `cloud`-backend in K8s IT with SBT
+SPARK-38398     Add `priorityClassName` integration test case
+SPARK-38353     Instrument __enter__ and __exit__ magic methods for Pandas API on Spark
+SPARK-38189     Add `Priority scheduling` doc for Spark on K8S
+SPARK-38411     Use `UTF-8` when `doMergeApplicationListingInternal` reads event logs
+SPARK-38416     Change day to month
+SPARK-38430     Add `SBT` commands to K8s IT README
+SPARK-38436     Fix `test_ceil` to test `ceil`
+SPARK-38285     Avoid generator pruning for invalid extractor
+SPARK-38357     Fix StackOverflowError with OR(data filter, partition filter)
+SPARK-38309     Fix SHS `shuffleTotalReads` and `shuffleTotalBlocks` percentile metrics
+SPARK-37865     Fix union deduplication correctness bug
+SPARK-38412     Fix the swapped sequence of from and to in StateSchemaCompatibilityChecker
+SPARK-38407     ANSI Cast: loosen the limitation of casting non-null complex types
+SPARK-38487     Fix docstrings of nlargest/nsmallest of DataFrame
+SPARK-37735     Add appId interface to KubernetesConf
+SPARK-38379     Fix Kubernetes Client mode when mounting persistent volume with storage class
+SPARK-38517     Fix PySpark documentation generation (missing ipython_genutils)
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -165,3 +197,4 @@ rdar://87911623 Fix a few issues on Parquet complex type support
 rdar://88044325 Expose Arrow Vector from ArrowColumnVector
 MINOR           Fix scalastyle issue
 MINOR           Sync row-level operation impl with OSS Iceberg
+MINOR           Fix ExternalShuffleSidecarSuite compilation error
