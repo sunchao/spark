@@ -37,6 +37,9 @@ SPARK-37859     Do not check for metadata during schema comparison
 SPARK-37806     Use sc instead of sparkContext
 SPARK-37814     Migrating from log4j 1 to log4j 2
 SPARK-38047     Add `OUTLIER NO FALLBACK` executor roll ploicy
+SPARK-38549     Add `numRowsDroppedByWatermark` to `SessionWindowStateStoreRestoreExec`
+SPARK-38593     Carry over the metric of the number of dropped late events into SessionWindowStateStoreSaveExec
+SPARK-36163     Propagate correct JDBC properties in JDBC connector provider and add "connectionProvider" option
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
@@ -119,6 +122,13 @@ SPARK-38487     Fix docstrings of nlargest/nsmallest of DataFrame
 SPARK-37735     Add appId interface to KubernetesConf
 SPARK-38379     Fix Kubernetes Client mode when mounting persistent volume with storage class
 SPARK-38517     Fix PySpark documentation generation (missing ipython_genutils)
+SPARK-38538     Fix driver environment verification in BasicDriverFeatureStepSuite
+SPARK-38320     Fix flatMapGroupsWithState timeout in batch with data for key
+SPARK-38523     Fix referring to the corrupt record column from CSV
+SPARK-38542     UnsafeHashedRelation should serialize numKeys out
+SPARK-37995     PlanAdaptiveDynamicPruningFilters should use prepareExecutedPlan rather than createSparkPlan to re-plan subquery
+SPARK-38563     Upgrade to Py4J 0.10.9.5
+
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -198,3 +208,5 @@ rdar://88044325 Expose Arrow Vector from ArrowColumnVector
 MINOR           Fix scalastyle issue
 MINOR           Sync row-level operation impl with OSS Iceberg
 MINOR           Fix ExternalShuffleSidecarSuite compilation error
+rdar://90532523 Bump ADT version to 1.1.4
+rdar://90288016 Increase spark.kubernetes.allocation.driver.readinessTimeout to 120s
