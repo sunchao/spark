@@ -128,6 +128,14 @@ SPARK-38523     Fix referring to the corrupt record column from CSV
 SPARK-38542     UnsafeHashedRelation should serialize numKeys out
 SPARK-37995     PlanAdaptiveDynamicPruningFilters should use prepareExecutedPlan rather than createSparkPlan to re-plan subquery
 SPARK-38563     Upgrade to Py4J 0.10.9.5
+SPARK-38606     Update document to make a good guide of multiple versions of the Spark Shuffle Service
+SPARK-38579     Requesting Restful API can cause NullPointerException
+SPARK-38204     Use HashClusteredDistribution for stateful operators with respecting backward compatibility
+SPARK-38629     Two links beneath Spark SQL Guide/Data Sources do not work properly
+SPARK-38587     Validating new location for rename command should use formatted names
+SPARK-38631     Uses Java-based implementation for un-tarring atUtils.unpack
+SPARK-38570     Incorrect DynamicPartitionPruning caused by Literal
+SPARK-38528     Eagerly iterate over aggregate sequence when building project list in `ExtractGenerator`
 
 
 # Internal Patches
