@@ -40,6 +40,8 @@ SPARK-38047     Add `OUTLIER NO FALLBACK` executor roll ploicy
 SPARK-38549     Add `numRowsDroppedByWatermark` to `SessionWindowStateStoreRestoreExec`
 SPARK-38593     Carry over the metric of the number of dropped late events into SessionWindowStateStoreSaveExec
 SPARK-36163     Propagate correct JDBC properties in JDBC connector provider and add "connectionProvider" option
+SPARK-37593     Reduce default page size by `LONG_ARRAY_OFFSET` if `G1GC` and `ON_HEAP` are used
+SPARK-38655     `OffsetWindowFunctionFrameBase` cannot find the offset row whose input is not-null
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
@@ -136,6 +138,12 @@ SPARK-38587     Validating new location for rename command should use formatted 
 SPARK-38631     Uses Java-based implementation for un-tarring atUtils.unpack
 SPARK-38570     Incorrect DynamicPartitionPruning caused by Literal
 SPARK-38528     Eagerly iterate over aggregate sequence when building project list in `ExtractGenerator`
+SPARK-38652     `uploadFileUri` should preserve file scheme
+SPARK-38333     PlanExpression expression should skip addExprTree function in Executor
+SPARK-38333     fix compilation error
+SPARK-38684     Fix correctness issue on stream-stream outer join with RocksDB state store provider
+SPARK-38446     Fix deadlock between ExecutorClassLoader and FileDownloadCallback caused by Log4j
+MINOR           Remove PySpark doc build warnings
 
 
 # Internal Patches
