@@ -42,6 +42,7 @@ SPARK-38593     Carry over the metric of the number of dropped late events into 
 SPARK-36163     Propagate correct JDBC properties in JDBC connector provider and add "connectionProvider" option
 SPARK-37593     Reduce default page size by `LONG_ARRAY_OFFSET` if `G1GC` and `ON_HEAP` are used
 SPARK-38655     `OffsetWindowFunctionFrameBase` cannot find the offset row whose input is not-null
+SPARK-38825     Add a test to cover parquet notIn filter
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
@@ -144,6 +145,7 @@ SPARK-38333     fix compilation error
 SPARK-38684     Fix correctness issue on stream-stream outer join with RocksDB state store provider
 SPARK-38446     Fix deadlock between ExecutorClassLoader and FileDownloadCallback caused by Log4j
 MINOR           Remove PySpark doc build warnings
+SPARK-38787     Replace found value with non-null element in the remaining list for key and remove remaining null elements from values in keyWithIndexToValue store for stream-stream joins
 
 
 # Internal Patches
@@ -226,3 +228,5 @@ MINOR           Sync row-level operation impl with OSS Iceberg
 MINOR           Fix ExternalShuffleSidecarSuite compilation error
 rdar://90532523 Bump ADT version to 1.1.4
 rdar://90288016 Increase spark.kubernetes.allocation.driver.readinessTimeout to 120s
+rdar://89567863 (Add parquet footer cache feature in SMC) (#1375)
+rdar://91455495 Bump Parquet version to 1.12.0.19 (#1376)
