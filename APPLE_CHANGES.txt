@@ -43,6 +43,10 @@ SPARK-36163     Propagate correct JDBC properties in JDBC connector provider and
 SPARK-37593     Reduce default page size by `LONG_ARRAY_OFFSET` if `G1GC` and `ON_HEAP` are used
 SPARK-38655     `OffsetWindowFunctionFrameBase` cannot find the offset row whose input is not-null
 SPARK-38825     Add a test to cover parquet notIn filter
+SPARK-37509     Improve Fallback Storage upload speed by avoiding S3 rate limiter (#1379)
+SPARK-38706     Use URI in `FallbackStorage.copy`
+SPARK-38809     Implement option to skip null values in symmetric hash implementation of stream-stream joins
+SPARK-38830     Warn on corrupted block messages
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
