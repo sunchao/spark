@@ -17,6 +17,9 @@
 
 package org.apache.spark.internal
 
+import java.io.File
+import java.util.regex.Pattern
+
 import scala.collection.JavaConverters._
 
 import org.apache.logging.log4j.{Level, LogManager}
@@ -255,15 +258,20 @@ private[spark] object Logging {
   }
 
   private def isLog4j1Bridge(): Boolean = {
-    // Log4j 1.x bridge API doesn't include `org.apache.log4j.FileAppender`.
-    try {
-      Utils.classForName("org.apache.log4j.FileAppender")
-      // Found `org.apache.log4j.FileAppender`, there is real log4j 1.x dependency in the
-      // classpath, not log4j 1.x bridge.
-      false
-    } catch {
-      case _: Throwable => true
-    }
+    val logManager = Utils.classForName("org.apache.log4j.LogManager")
+    val resourceName = logManager
+      .getResource('/' + logManager.getName().replace('.', '/') + ".class")
+
+    val log4j1Pattern = Pattern.compile("^.*?log4j-1\\.\\d+\\.\\d+\\.jar$")
+
+    val hasLog4j1 = System.getProperty("java.class.path")
+      .split(File.pathSeparator).exists { case fileName =>
+        log4j1Pattern.matcher(fileName).matches()
+      }
+
+    // 1. `org.apache.log4j.LogManager` comes from log4j 1.x bridge, and
+    // 2. No log4j 1.x dependency in classpath
+    resourceName.toString.contains("log4j-1.2-api") && !hasLog4j1
   }
 
   // Return true if the logger has custom configuration. It depends on:
