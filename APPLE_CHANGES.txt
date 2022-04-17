@@ -47,6 +47,8 @@ SPARK-37509     Improve Fallback Storage upload speed by avoiding S3 rate limite
 SPARK-38706     Use URI in `FallbackStorage.copy`
 SPARK-38809     Implement option to skip null values in symmetric hash implementation of stream-stream joins
 SPARK-38830     Warn on corrupted block messages
+SPARK-38573     Support Auto Partition Statistics Collection
+SPARK-38786     Bug in StatisticsSuite 'change stats after add/drop partition command' 
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
@@ -150,7 +152,8 @@ SPARK-38684     Fix correctness issue on stream-stream outer join with RocksDB s
 SPARK-38446     Fix deadlock between ExecutorClassLoader and FileDownloadCallback caused by Log4j
 MINOR           Remove PySpark doc build warnings
 SPARK-38787     Replace found value with non-null element in the remaining list for key and remove remaining null elements from values in keyWithIndexToValue store for stream-stream joins
-
+SPARK-38892     Fix a test case schema assertion of ParquetPartitionDiscoverySuite
+SPARK-38677     Python MonitorThread should detect deadlock due to blocking I/O
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -234,3 +237,4 @@ rdar://90532523 Bump ADT version to 1.1.4
 rdar://90288016 Increase spark.kubernetes.allocation.driver.readinessTimeout to 120s
 rdar://89567863 (Add parquet footer cache feature in SMC) (#1375)
 rdar://91455495 Bump Parquet version to 1.12.0.19 (#1376)
+rdar://91548932 Update log4j1 dependency detection for log4j2 2.17.2
