@@ -165,6 +165,9 @@ SPARK-38990     Avoid `NullPointerException` when evaluating date_trunc/trunc fo
 SPARK-38992     Avoid using bash -c in ShellBasedGroupsMappingProvider
 SPARK-38977     Fix schema pruning with correlated subqueries
 SPARK-38955     Disable lineSep option in 'from_csv' and 'schema_of_csv'
+SPARK-39030     Rename sum to avoid shading the builtin Python function
+SPARK-38868     Don't propagate exceptions from filter predicate when optimizing outer joins
+SPARK-39032     Examples' tag for pyspark.sql.functions.when()
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
