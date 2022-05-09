@@ -168,6 +168,8 @@ SPARK-38955     Disable lineSep option in 'from_csv' and 'schema_of_csv'
 SPARK-39030     Rename sum to avoid shading the builtin Python function
 SPARK-38868     Don't propagate exceptions from filter predicate when optimizing outer joins
 SPARK-39032     Examples' tag for pyspark.sql.functions.when()
+SPARK-39084     Fix df.rdd.isEmpty() by using TaskContext to stop iterator on task completion
+SPARK-39083     Fix race condition between update and clean app data
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -252,3 +254,4 @@ rdar://90288016 Increase spark.kubernetes.allocation.driver.readinessTimeout to 
 rdar://89567863 (Add parquet footer cache feature in SMC) (#1375)
 rdar://91455495 Bump Parquet version to 1.12.0.19 (#1376)
 rdar://91548932 Update log4j1 dependency detection for log4j2 2.17.2
+rdar://92911121 Upgrade Spark 3.2.0 to ADT 1.1.6
