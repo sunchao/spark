@@ -1280,10 +1280,18 @@ private[spark] class HiveExternalCatalog(conf: SparkConf, hadoopConf: Configurat
     val catalogTable = restoreTableMetadata(rawTable)
     val partColNameMap = buildLowerCasePartColNameMap(catalogTable)
     val clientPrunedPartitions =
-      client.getPartitionsByFilter(rawTable, predicates).map { part =>
+      client.getPartitionsByFilter(rawTable, quoteIfNeeded(predicates)).map { part =>
         part.copy(spec = restorePartitionSpec(part.spec, partColNameMap))
       }
     prunePartitionsByFilter(catalogTable, clientPrunedPartitions, predicates, defaultTimeZoneId)
+  }
+
+  // rdar://92996732 Use quoted identifier for column name `date` before pushing filter to UC
+  private def quoteIfNeeded(predicates: Seq[Expression]): Seq[Expression] = {
+    val isQuoting = conf.get("spark.sql.hive.metastorePartitionQuoting", "false").toBoolean
+    predicates.map(_.transform {
+        case a: AttributeReference if isQuoting && a.name.equals("date") => a.withName("`date`")
+    })
   }
 
   // --------------------------------------------------------------------------
