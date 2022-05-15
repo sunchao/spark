@@ -1,5 +1,8 @@
 This contains the changes after branching `v3.2.1-rc2`
 
+# From 3.4.0
+SPARK-39134     Add custom metric of skipped null values for stream join operator
+
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
 SPARK-36805     Upgrade kubernetes-client to 5.7.3
@@ -170,6 +173,12 @@ SPARK-38868     Don't propagate exceptions from filter predicate when optimizing
 SPARK-39032     Examples' tag for pyspark.sql.functions.when()
 SPARK-39084     Fix df.rdd.isEmpty() by using TaskContext to stop iterator on task completion
 SPARK-39083     Fix race condition between update and clean app data
+SPARK-39107     Account for empty string input in regex replace
+SPARK-39154     Remove outdated statements on distributed-sequence default index
+SPARK-39060     Typo in error messages of decimal overflow
+SPARK-39174     Catalogs loading swallows missing classname for ClassNotFoundException
+SPARK-37544     Correct date arithmetic in sequences
+SPARK-39186     Make pandas-on-Spark's skew consistent with pandas
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
