@@ -9,7 +9,7 @@ notify:
     postOnFailure: false
 
 machine:
-  baseImage: docker.apple.com/cpbuild7/applejdk-11
+  baseImage: docker.apple.com/base-images/ubi8/java11-builder
   env: &base_env
     NOLINT_ON_COMPILE: "1"
     SBT_OPTS: "-Xms6g -Xmx6g -Xss128M -XX:MaxMetaspaceSize=2048M -XX:+CMSClassUnloadingEnabled"
