@@ -179,6 +179,12 @@ SPARK-39060     Typo in error messages of decimal overflow
 SPARK-39174     Catalogs loading swallows missing classname for ClassNotFoundException
 SPARK-37544     Correct date arithmetic in sequences
 SPARK-39186     Make pandas-on-Spark's skew consistent with pandas
+SPARK-39183     Upgrade Apache Xerces Java to 2.12.2
+SPARK-39104     InMemoryRelation#isCachedColumnBuffersLoaded should be thread-safe
+SPARK-39219     Promote Structured Streaming over DStream
+SPARK-39240     Source and binary releases using different tool to generate hashes for integrity
+SPARK-39237     Update the ANSI SQL mode documentation
+MINOR           Fix sql data types link in the ml-pipeline page
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -264,3 +270,4 @@ rdar://89567863 (Add parquet footer cache feature in SMC) (#1375)
 rdar://91455495 Bump Parquet version to 1.12.0.19 (#1376)
 rdar://91548932 Update log4j1 dependency detection for log4j2 2.17.2
 rdar://92911121 Upgrade Spark 3.2.0 to ADT 1.1.6
+rdar://93678395 Updates ADT to 1.1.7
