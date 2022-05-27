@@ -17,7 +17,8 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.spark.{SparkException, SparkFunSuite}
+import org.apache.spark.SparkFunSuite
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, V2ExpressionUtils}
 import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
 import org.apache.spark.sql.connector.expressions._
@@ -25,15 +26,16 @@ import org.apache.spark.sql.types.StringType
 
 class V2ExpressionUtilsSuite extends SparkFunSuite {
 
-  test("toCatalystOrdering should fail if V2Expression can not be translated") {
+  test("SPARK-39313: toCatalystOrdering should fail if V2Expression can not be translated") {
     val supportedV2Sort = SortValue(
       FieldReference("a"), SortDirection.ASCENDING, NullOrdering.NULLS_FIRST)
     val unsupportedV2Sort = supportedV2Sort.copy(
       expression = ApplyTransform("v2Fun", FieldReference("a") :: Nil))
-    assertThrows[SparkException] {
+    val exc = intercept[AnalysisException] {
       V2ExpressionUtils.toCatalystOrdering(
         Array(supportedV2Sort, unsupportedV2Sort),
         LocalRelation.apply(AttributeReference("a", StringType)()))
     }
+    assert(exc.message.contains("Transform v2Fun(a) is not currently supported"))
   }
 }
