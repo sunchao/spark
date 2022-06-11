@@ -43,6 +43,8 @@ private[ui] class StagePage(parent: StagesTab, store: AppStatusStore, ajaxEnable
   extends WebUIPage("stage") {
   import ApiHelper._
 
+  private val TIMELINE_ENABLED = parent.conf.get(UI_TIMELINE_ENABLED)
+
   private val TIMELINE_LEGEND = {
     <div class="legend-area">
       <svg>
@@ -316,6 +318,9 @@ private[ui] class StagePage(parent: StagesTab, store: AppStatusStore, ajaxEnable
       stageId: Int,
       stageAttemptId: Int,
       totalTasks: Int): Seq[Node] = {
+
+    if (!TIMELINE_ENABLED) return Seq.empty[Node]
+
     val executorsSet = new HashSet[(String, String)]
     var minLaunchTime = Long.MaxValue
     var maxFinishTime = Long.MinValue
