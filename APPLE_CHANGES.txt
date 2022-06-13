@@ -4,6 +4,10 @@ This contains the changes after branching `v3.2.1-rc2`
 SPARK-39134     Add custom metric of skipped null values for stream join operator
 SPARK-39324     Log `ExecutorDecommission` as INFO level in `TaskSchedulerImpl`
 SPARK-39323     Hide empty `taskResourceAssignments` from INFO log
+SPARK-29260     Support `ALTER DATABASE SET LOCATION` if HMS supports (#1436)
+SPARK-37523     Re-optimize partitions in Distribution and Ordering if numPartitions is not specified
+SPARK-39440     Add a config to disable event timeline
+SPARK-39450     Reuse PVCs by default
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -54,6 +58,8 @@ SPARK-38809     Implement option to skip null values in symmetric hash implement
 SPARK-38830     Warn on corrupted block messages
 SPARK-38573     Support Auto Partition Statistics Collection
 SPARK-38786     Bug in StatisticsSuite 'change stats after add/drop partition command' 
+SPARK-39327     ExecutorRollPolicy.ID should consider ID as a numerical value
+SPARK-39361     Don't use Log4J2's extended throwable conversion pattern in default logging configurations
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
@@ -192,6 +198,22 @@ SPARK-39258     Fix `Hide credentials in show create table`
 SPARK-39273     Make PandasOnSparkTestCase inherit ReusedSQLTestCase
 SPARK-39252     Remove flaky test_df_is_empty
 SPARK-39293     Fix the accumulator of ArrayAggregate to handle complex types properly
+SPARK-37670     Support predicate pushdown and column pruning for de-duped CTEs
+SPARK-39340     DS v2 agg pushdown should allow dots in the name of top-level columns
+SPARK-39283     Fix deadlock between TaskMemoryManager and UnsafeExternalSorter.SpillableIterator
+SPARK-38807     Fix the startup error of spark shell on Windows
+SPARK-39252     Recover branch-3.2 build broken by and
+SPARK-39273     Recover branch-3.2 build broken by and
+SPARK-39373     Recover branch-3.2 build broken by and
+SPARK-39367     Make SQL error objects private
+SPARK-39376     Hide duplicated columns in star expansion of subquery alias from NATURAL/USING JOIN
+SPARK-39259     Evaluate timestamps consistently in subqueries
+SPARK-39393     Parquet data source only supports push-down predicate filters for non-repeated primitive types
+SPARK-39421     Pin the docutils version <0.18 in documentation build
+SPARK-39422     Improve error message for 'SHOW CREATE TABLE' with unsupported serdes
+SPARK-39437     Normalize plan id separately in PlanStabilitySuite
+SPARK-38918     Nested column pruning should filter out attributes that do not belong to the current relation
+SPARK-39419     Fix ArraySort to throw an exception when the comparator returns null
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
