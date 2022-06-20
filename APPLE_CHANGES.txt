@@ -8,6 +8,11 @@ SPARK-29260     Support `ALTER DATABASE SET LOCATION` if HMS supports (#1436)
 SPARK-37523     Re-optimize partitions in Distribution and Ordering if numPartitions is not specified
 SPARK-39440     Add a config to disable event timeline
 SPARK-39450     Reuse PVCs by default
+SPARK-39496     Handle null struct in Inline.eval
+SPARK-39505     Escape log content rendered in UI
+SPARK-39476     Disable Unwrap cast optimize when casting from Long to Float/ Double or from Integer to Float
+SPARK-39061     Set nullable correctly for `Inline` output attributes
+SPARK-39355     Single column uses quoted to construct UnresolvedAttribute
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -302,3 +307,4 @@ rdar://92911121 Upgrade Spark 3.2.0 to ADT 1.1.6
 rdar://93678395 Updates ADT to 1.1.7
 rdar://93691429 Check Merge Alignment Referenced with correct Case Sensitivity
 rdar://93526102 Update Rio build image to 'docker.apple.com/base-images/ubi8/java11-builder'
+rdar://95295433 Bump ADT to 1.1.8
