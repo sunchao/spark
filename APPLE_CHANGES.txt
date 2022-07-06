@@ -13,6 +13,7 @@ SPARK-39505     Escape log content rendered in UI
 SPARK-39476     Disable Unwrap cast optimize when casting from Long to Float/ Double or from Integer to Float
 SPARK-39061     Set nullable correctly for `Inline` output attributes
 SPARK-39355     Single column uses quoted to construct UnresolvedAttribute
+SPARK-39688     `getReusablePVCs` should handle accounts with no PVC permission
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -65,6 +66,7 @@ SPARK-38573     Support Auto Partition Statistics Collection
 SPARK-38786     Bug in StatisticsSuite 'change stats after add/drop partition command' 
 SPARK-39327     ExecutorRollPolicy.ID should consider ID as a numerical value
 SPARK-39361     Don't use Log4J2's extended throwable conversion pattern in default logging configurations
+SPARK-39657     YARN AM client should call the non-static setTokensConf method
 
 # From 3.2.2
 SPARK-37963     Need to update Partition URI after renaming table in InMemoryCatalog
@@ -219,6 +221,16 @@ SPARK-39422     Improve error message for 'SHOW CREATE TABLE' with unsupported s
 SPARK-39437     Normalize plan id separately in PlanStabilitySuite
 SPARK-38918     Nested column pruning should filter out attributes that do not belong to the current relation
 SPARK-39419     Fix ArraySort to throw an exception when the comparator returns null
+SPARK-38614     Don't push down limit through window that's using percent_rank
+SPARK-39543     The option of DataFrameWriterV2 should be passed to storage properties if fallback to v1
+SPARK-39548     CreateView Command with a window clause query hit a wrong window definition not found issue
+SPARK-39575     add ByteBuffer#rewind after ByteBuffer#get in Avr…
+SPARK-39621     Make `run-tests.py` robust by avoiding `rmtree` on MacOS
+SPARK-39570     Inline table should allow expressions with alias
+SPARK-39553     Multi-thread unregister shuffle shouldn't throw NPE when using Scala 2.13
+SPARK-39650     Fix incorrect value schema in streaming deduplication with backward compatibility
+SPARK-39611     Fix wrong aliases in __array_ufunc__
+SPARK-39677     Fix args formatting of the regexp and like functions
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -308,3 +320,4 @@ rdar://93678395 Updates ADT to 1.1.7
 rdar://93691429 Check Merge Alignment Referenced with correct Case Sensitivity
 rdar://93526102 Update Rio build image to 'docker.apple.com/base-images/ubi8/java11-builder'
 rdar://95295433 Bump ADT to 1.1.8
+rdar://96230435 Update ADT to 1.1.9
