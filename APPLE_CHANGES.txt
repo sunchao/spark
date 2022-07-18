@@ -67,8 +67,12 @@ SPARK-38786     Bug in StatisticsSuite 'change stats after add/drop partition co
 SPARK-39327     ExecutorRollPolicy.ID should consider ID as a numerical value
 SPARK-39361     Don't use Log4J2's extended throwable conversion pattern in default logging configurations
 SPARK-39657     YARN AM client should call the non-static setTokensConf method
+SPARK-37300     TaskSchedulerImpl should ignore task finished events
+SPARK-37580     Reset numFailures when one of task attempts succeeds
 
 # From 3.2.3
+SPARK-39672     Fix removing project before filter with correlated subquery
+SPARK-39758     Fix NPE from the regexp functions on invalid patterns
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
