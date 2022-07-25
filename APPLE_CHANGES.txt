@@ -69,10 +69,14 @@ SPARK-39361     Don't use Log4J2's extended throwable conversion pattern in defa
 SPARK-39657     YARN AM client should call the non-static setTokensConf method
 SPARK-37300     TaskSchedulerImpl should ignore task finished events
 SPARK-37580     Reset numFailures when one of task attempts succeeds
+SPARK-39847     Fix race condition in RocksDBLoader.loadLibrary() if caller thread is interrupted
+SPARK-39831     Fix R dependencies installation failure
+MINOR           Fix broken Example section in col/column functions
 
 # From 3.2.3
 SPARK-39672     Fix removing project before filter with correlated subquery
 SPARK-39758     Fix NPE from the regexp functions on invalid patterns
+SPARK-39647     Register the executor with ESS before registering the BlockManager
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -163,3 +167,4 @@ rdar://93691429 Check Merge Alignment Referenced with correct Case Sensitivity
 rdar://93526102 Update Rio build image to 'docker.apple.com/base-images/ubi8/java11-builder'
 rdar://95295433 Bump ADT to 1.1.8
 rdar://96230435 Update ADT to 1.1.9
+rdar://90787805 Make spark driver endpoints extensible to be used by awsappleconnect-spark-utils
