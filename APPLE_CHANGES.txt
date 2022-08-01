@@ -77,6 +77,8 @@ MINOR           Fix broken Example section in col/column functions
 SPARK-39672     Fix removing project before filter with correlated subquery
 SPARK-39758     Fix NPE from the regexp functions on invalid patterns
 SPARK-39647     Register the executor with ESS before registering the BlockManager
+SPARK-39879     Reduce local-cluster maximum memory size in `BroadcastJoinSuite*` and `HiveSparkSubmitSuite`
+SPARK-39839     Handle special case of null variable-length Decimal with non-zero offsetAndSize in UnsafeRow structural integrity check
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -168,3 +170,5 @@ rdar://93526102 Update Rio build image to 'docker.apple.com/base-images/ubi8/jav
 rdar://95295433 Bump ADT to 1.1.8
 rdar://96230435 Update ADT to 1.1.9
 rdar://90787805 Make spark driver endpoints extensible to be used by awsappleconnect-spark-utils
+rdar://95861938 Parquet page size exceeding Integer.MAX_VALUE
+rdar://97757065 Upgrade Hive version to 2.3.9.2-apple
