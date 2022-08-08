@@ -14,6 +14,7 @@ SPARK-39476     Disable Unwrap cast optimize when casting from Long to Float/ Do
 SPARK-39061     Set nullable correctly for `Inline` output attributes
 SPARK-39355     Single column uses quoted to construct UnresolvedAttribute
 SPARK-39688     `getReusablePVCs` should handle accounts with no PVC permission
+SPARK-39987     Support `PEAK_JVM_(ON|OFF)HEAP_MEMORY` executor rolling policy (#1484)
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -79,6 +80,14 @@ SPARK-39758     Fix NPE from the regexp functions on invalid patterns
 SPARK-39647     Register the executor with ESS before registering the BlockManager
 SPARK-39879     Reduce local-cluster maximum memory size in `BroadcastJoinSuite*` and `HiveSparkSubmitSuite`
 SPARK-39839     Handle special case of null variable-length Decimal with non-zero offsetAndSize in UnsafeRow structural integrity check
+SPARK-39932     WindowExec should clear the final partition buffer
+SPARK-39835     Fix EliminateSorts remove global sort below the local sort
+SPARK-39962     Apply projection when group attributes are empty
+SPARK-39900     Address partial or negated condition in binary format's predicate pushdown
+SPARK-39952     SaveIntoDataSourceCommand should recache result relation
+SPARK-39775     Disable validate default values when parsing Avro schemas
+SPARK-39867     Global limit should not inherit OrderPreservingUnaryNode
+SPARK-38034     Optimize TransposeWindow rule
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
