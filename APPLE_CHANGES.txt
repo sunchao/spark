@@ -15,6 +15,7 @@ SPARK-39061     Set nullable correctly for `Inline` output attributes
 SPARK-39355     Single column uses quoted to construct UnresolvedAttribute
 SPARK-39688     `getReusablePVCs` should handle accounts with no PVC permission
 SPARK-39987     Support `PEAK_JVM_(ON|OFF)HEAP_MEMORY` executor rolling policy (#1484)
+SPARK-40049     Add ReplaceNullWithFalseInPredicateWithAQEEndToEndSuite
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -88,6 +89,11 @@ SPARK-39952     SaveIntoDataSourceCommand should recache result relation
 SPARK-39775     Disable validate default values when parsing Avro schemas
 SPARK-39867     Global limit should not inherit OrderPreservingUnaryNode
 SPARK-38034     Optimize TransposeWindow rule
+SPARK-39965     Skip PVC cleanup when driver doesn't own PVCs
+SPARK-40002     Don't push down limit through window using ntile
+SPARK-40022     Ignore pyspark suites in `YarnClusterSuite` when python3 is unavailable
+SPARK-40043     Document DataStreamWriter.toTable and DataStreamReader.table
+SPARK-39887     RemoveRedundantAliases should keep aliases that make the output of projection nodes unique
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
