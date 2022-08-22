@@ -16,6 +16,7 @@ SPARK-39355     Single column uses quoted to construct UnresolvedAttribute
 SPARK-39688     `getReusablePVCs` should handle accounts with no PVC permission
 SPARK-39987     Support `PEAK_JVM_(ON|OFF)HEAP_MEMORY` executor rolling policy (#1484)
 SPARK-40049     Add ReplaceNullWithFalseInPredicateWithAQEEndToEndSuite
+SPARK-40110     Add JDBCWithAQESuite
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -74,6 +75,14 @@ SPARK-37580     Reset numFailures when one of task attempts succeeds
 SPARK-39847     Fix race condition in RocksDBLoader.loadLibrary() if caller thread is interrupted
 SPARK-39831     Fix R dependencies installation failure
 MINOR           Fix broken Example section in col/column functions
+SPARK-40079     Add Imputer inputCols validation for empty input case
+SPARK-39184     Handle undersized result array in date and timestamp sequences
+SPARK-40117     Convert condition to java in DataFrameWriterV2.overwrite
+SPARK-39887     Do not exclude Union's first child attributes when traversing other children in RemoveRedundantAliases
+SPARK-40121     Initialize projection used for Python UDF
+SPARK-35542     Fix: Bucketizer created for multiple columns with parameters splitsArray, inputCols and outputCols can not be loaded after saving it
+SPARK-40065     Mount ConfigMap on executors with non-default profile as well
+SPARK-39833     Disable Parquet column index in DSv1 to fix a correctness issue in the case of overlapping partition and data columns
 
 # From 3.2.3
 SPARK-39672     Fix removing project before filter with correlated subquery
