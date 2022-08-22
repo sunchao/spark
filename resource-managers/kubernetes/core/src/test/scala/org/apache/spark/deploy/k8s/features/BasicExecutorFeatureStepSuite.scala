@@ -357,7 +357,7 @@ class BasicExecutorFeatureStepSuite extends SparkFunSuite with BeforeAndAfter {
     val rp = new ResourceProfileBuilder().build()
     val step = new BasicExecutorFeatureStep(newExecutorConf(), new SecurityManager(baseConf), rp)
     val podConfigured = step.configurePod(baseDriverPod)
-    assert(SecretVolumeUtils.containerHasVolume(podConfigured.container,
+    assert(SecretVolumeUtils.containerHasVolume(podConfigured.containers.head,
       SPARK_CONF_VOLUME_EXEC, SPARK_CONF_DIR_INTERNAL))
     assert(SecretVolumeUtils.podHasVolume(podConfigured.pod, SPARK_CONF_VOLUME_EXEC))
   }
@@ -368,7 +368,7 @@ class BasicExecutorFeatureStepSuite extends SparkFunSuite with BeforeAndAfter {
     val rp = new ResourceProfileBuilder().build()
     val step = new BasicExecutorFeatureStep(newExecutorConf(), new SecurityManager(baseConf), rp)
     val podConfigured = step.configurePod(baseDriverPod)
-    assert(!SecretVolumeUtils.containerHasVolume(podConfigured.container,
+    assert(!SecretVolumeUtils.containerHasVolume(podConfigured.containers.head,
       SPARK_CONF_VOLUME_EXEC, SPARK_CONF_DIR_INTERNAL))
     assert(!SecretVolumeUtils.podHasVolume(podConfigured.pod, SPARK_CONF_VOLUME_EXEC))
   }
