@@ -433,7 +433,7 @@ package object config {
         "a migratable shuffle resolver (like sort based shuffle)")
       .version("3.1.0")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
   private[spark] val STORAGE_DECOMMISSION_SHUFFLE_MAX_THREADS =
     ConfigBuilder("spark.storage.decommission.shuffleBlocks.maxThreads")
@@ -448,7 +448,7 @@ package object config {
       .doc("Whether to transfer RDD blocks during block manager decommissioning.")
       .version("3.1.0")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
   private[spark] val STORAGE_DECOMMISSION_MAX_REPLICATION_FAILURE_PER_BLOCK =
     ConfigBuilder("spark.storage.decommission.maxReplicationFailuresPerBlock")
