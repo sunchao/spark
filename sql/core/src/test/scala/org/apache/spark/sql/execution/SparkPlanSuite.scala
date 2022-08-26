@@ -20,12 +20,11 @@ package org.apache.spark.sql.execution
 import org.apache.spark.SparkEnv
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.catalyst.plans.logical.Deduplicate
-import org.apache.spark.sql.execution.adaptive.{DisableAdaptiveExecution, DisableAdaptiveExecutionSuite, EnableAdaptiveExecutionSuite}
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 
-class SparkPlanSuite extends QueryTest with SharedSparkSession with DisableAdaptiveExecutionSuite {
+class SparkPlanSuite extends QueryTest with SharedSparkSession {
 
   test("SPARK-21619 execution of a canonicalized plan should fail") {
     val plan = spark.range(10).queryExecution.executedPlan.canonicalized
@@ -111,8 +110,7 @@ class SparkPlanSuite extends QueryTest with SharedSparkSession with DisableAdapt
       "should have been replaced by aggregate in the optimizer"))
   }
 
-  test("SPARK-37779: ColumnarToRowExec should be canonicalizable after being (de)serialized",
-    DisableAdaptiveExecution("AQE removes ColumnarToRowExec")) {
+  test("SPARK-37779: ColumnarToRowExec should be canonicalizable after being (de)serialized") {
     withSQLConf(SQLConf.USE_V1_SOURCE_LIST.key -> "parquet") {
       withTempPath { path =>
         spark.range(1).write.parquet(path.getAbsolutePath)
@@ -131,5 +129,3 @@ class SparkPlanSuite extends QueryTest with SharedSparkSession with DisableAdapt
     }
   }
 }
-
-class SparkPlanWithAQESuite extends SparkPlanSuite with EnableAdaptiveExecutionSuite
