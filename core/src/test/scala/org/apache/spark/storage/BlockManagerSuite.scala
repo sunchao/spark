@@ -853,7 +853,8 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
         val blockSize = inv.getArguments()(2).asInstanceOf[Long]
         val res = store1.readDiskBlockFromSameHostExecutor(blockId, localDirs, blockSize)
         assert(res.isDefined)
-        val file = ExecutorDiskUtils.getFile(localDirs, store1.subDirsPerLocalDir, blockId.name)
+        val file = new File(
+          ExecutorDiskUtils.getFilePath(localDirs, store1.subDirsPerLocalDir, blockId.name))
         // delete the file behind the blockId
         assert(file.delete())
         sameHostExecutorTried = true
@@ -2090,6 +2091,42 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     // Put a broadcast block, no exception
     val broadcast0BlockId = BroadcastBlockId(0)
     store.putSingle(broadcast0BlockId, a, StorageLevel.DISK_ONLY)
+  }
+
+  test("SPARK-39647: Failure to register with ESS should prevent registering the BM") {
+    val handler = new NoOpRpcHandler {
+      override def receive(
+          client: TransportClient,
+          message: ByteBuffer,
+          callback: RpcResponseCallback): Unit = {
+        val msgObj = BlockTransferMessage.Decoder.fromByteBuffer(message)
+        msgObj match {
+          case _: RegisterExecutor => () // No reply to generate client-side timeout
+        }
+      }
+    }
+    val transConf = SparkTransportConf.fromSparkConf(conf, "shuffle")
+    Utils.tryWithResource(new TransportContext(transConf, handler, true)) { transCtx =>
+      def newShuffleServer(port: Int): (TransportServer, Int) = {
+        (transCtx.createServer(port, Seq.empty[TransportServerBootstrap].asJava), port)
+      }
+
+      val candidatePort = RandomUtils.nextInt(1024, 65536)
+      val (server, shufflePort) = Utils.startServiceOnPort(candidatePort,
+        newShuffleServer, conf, "ShuffleServer")
+
+      conf.set(SHUFFLE_SERVICE_ENABLED.key, "true")
+      conf.set(SHUFFLE_SERVICE_PORT.key, shufflePort.toString)
+      conf.set(SHUFFLE_REGISTRATION_TIMEOUT.key, "40")
+      conf.set(SHUFFLE_REGISTRATION_MAX_ATTEMPTS.key, "1")
+      val e = intercept[SparkException] {
+        makeBlockManager(8000, "timeoutExec")
+      }.getMessage
+      assert(e.contains("TimeoutException"))
+      verify(master, times(0))
+        .registerBlockManager(mc.any(), mc.any(), mc.any(), mc.any(), mc.any())
+      server.close()
+    }
   }
 
   class MockBlockTransferService(

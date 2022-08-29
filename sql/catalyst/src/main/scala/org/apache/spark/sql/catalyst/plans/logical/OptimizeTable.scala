@@ -17,7 +17,7 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.analysis.{FieldName, NamedRelation}
+import org.apache.spark.sql.catalyst.analysis.NamedRelation
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, AttributeSet, Expression}
 import org.apache.spark.sql.connector.catalog.SupportsOptimize
 import org.apache.spark.sql.connector.expressions.{SortOrder => V2SortOrder}
@@ -29,7 +29,7 @@ case class OptimizeTable(
     strategy: OptimizeStrategy,
     options: Map[String, String]) extends LeafCommand {
 
-  override lazy val resolved: Boolean = table.resolved && predicate.resolved
+  override lazy val resolved: Boolean = table.resolved && predicate.resolved && strategy.resolved
 
   private lazy val resolvedOutput = table match {
     case DataSourceV2Relation(t: SupportsOptimize, _, _, _, _) =>
@@ -43,17 +43,27 @@ case class OptimizeTable(
   override def output: Seq[Attribute] = if (resolved) resolvedOutput else Seq.empty
 }
 
-sealed trait OptimizeStrategy
+sealed trait OptimizeStrategy {
+  lazy val resolved: Boolean = false
+}
 
-case object BinPack extends OptimizeStrategy
+case object BinPack extends OptimizeStrategy {
+  override lazy val resolved: Boolean = true
+}
 
-case class OrderBy(ordering: Seq[V2SortOrder]) extends OptimizeStrategy
+case class OrderBy(ordering: Seq[V2SortOrder]) extends OptimizeStrategy {
+  override lazy val resolved: Boolean = true
+}
 
-case class ZOrder(columns: Seq[FieldName]) extends OptimizeStrategy {
-  private[sql] def colNames: Seq[Array[String]] = {
+case class ZOrder(columns: Seq[Attribute]) extends OptimizeStrategy {
+
+  override lazy val resolved: Boolean = columns.forall(_.resolved)
+
+  private[sql] def colNames: Seq[String] = {
     columns.foreach { col =>
       require(col.resolved, s"FieldName $col should be resolved.")
     }
-    columns.map(_.name.toArray)
+    columns.map(_.name)
   }
 }
+

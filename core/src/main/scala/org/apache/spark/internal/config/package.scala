@@ -369,11 +369,6 @@ package object config {
     .doubleConf
     .createWithDefault(0.6)
 
-  private[spark] val STORAGE_SAFETY_FRACTION = ConfigBuilder("spark.storage.safetyFraction")
-    .version("1.1.0")
-    .doubleConf
-    .createWithDefault(0.9)
-
   private[spark] val STORAGE_UNROLL_MEMORY_THRESHOLD =
     ConfigBuilder("spark.storage.unrollMemoryThreshold")
       .doc("Initial memory to request before unrolling any block")
@@ -438,7 +433,7 @@ package object config {
         "a migratable shuffle resolver (like sort based shuffle)")
       .version("3.1.0")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
   private[spark] val STORAGE_DECOMMISSION_SHUFFLE_MAX_THREADS =
     ConfigBuilder("spark.storage.decommission.shuffleBlocks.maxThreads")
@@ -453,7 +448,7 @@ package object config {
       .doc("Whether to transfer RDD blocks during block manager decommissioning.")
       .version("3.1.0")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
   private[spark] val STORAGE_DECOMMISSION_MAX_REPLICATION_FAILURE_PER_BLOCK =
     ConfigBuilder("spark.storage.decommission.maxReplicationFailuresPerBlock")
@@ -624,7 +619,7 @@ package object config {
     ConfigBuilder("spark.dynamicAllocation.shuffleTracking.enabled")
       .version("3.0.0")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
   private[spark] val DYN_ALLOCATION_SHUFFLE_TRACKING_TIMEOUT =
     ConfigBuilder("spark.dynamicAllocation.shuffleTracking.timeout")
@@ -742,6 +737,13 @@ package object config {
       .stringConf
       .toSequence
       .createWithDefault(Nil)
+
+  private[spark] val CLOUD_CREDENTIALS_SHARING =
+    ConfigBuilder("spark.cloud.credentials.sharing.enabled")
+      .doc("Turn on cloud credentials sharing service.")
+      .version("3.4.0")
+      .booleanConf
+      .createWithDefault(false)
 
   private[spark] val EXECUTOR_INSTANCES = ConfigBuilder("spark.executor.instances")
     .version("1.0.0")

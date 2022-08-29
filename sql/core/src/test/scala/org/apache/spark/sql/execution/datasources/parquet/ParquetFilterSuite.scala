@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import java.io.File
 import java.math.{BigDecimal => JBigDecimal}
 import java.nio.charset.StandardCharsets
 import java.sql.{Date, Timestamp}
@@ -40,6 +41,7 @@ import org.apache.spark.sql.catalyst.dsl.expressions._
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.optimizer.InferFiltersFromConstraints
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
+import org.apache.spark.sql.catalyst.util.RebaseDateTime.RebaseSpec
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits.parseColumnPath
 import org.apache.spark.sql.execution.datasources.{DataSourceStrategy, HadoopFsRelation, LogicalRelation, PushableColumnAndNestedColumn}
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -77,13 +79,13 @@ abstract class ParquetFilterSuite extends QueryTest with ParquetTest with Shared
   protected def createParquetFilters(
       schema: MessageType,
       caseSensitive: Option[Boolean] = None,
-      datetimeRebaseMode: LegacyBehaviorPolicy.Value = LegacyBehaviorPolicy.CORRECTED
+      datetimeRebaseSpec: RebaseSpec = RebaseSpec(LegacyBehaviorPolicy.CORRECTED)
     ): ParquetFilters =
     new ParquetFilters(schema, conf.parquetFilterPushDownDate, conf.parquetFilterPushDownTimestamp,
       conf.parquetFilterPushDownDecimal, conf.parquetFilterPushDownStringStartWith,
       conf.parquetFilterPushDownInFilterThreshold,
       caseSensitive.getOrElse(conf.caseSensitiveAnalysis),
-      datetimeRebaseMode)
+      datetimeRebaseSpec)
 
   override def beforeEach(): Unit = {
     super.beforeEach()
@@ -1296,6 +1298,34 @@ abstract class ParquetFilterSuite extends QueryTest with ParquetTest with Shared
     }
   }
 
+  test("SPARK-39393: Do not push down predicate filters for repeated primitive fields") {
+    import ParquetCompatibilityTest._
+    withTempDir { dir =>
+      val protobufParquetFilePath = new File(dir, "protobuf-parquet").getCanonicalPath
+
+      val protobufSchema =
+        """message protobuf_style {
+          |  repeated int32 f;
+          |}
+        """.stripMargin
+
+      writeDirect(protobufParquetFilePath, protobufSchema, { rc =>
+        rc.message {
+          rc.field("f", 0) {
+              rc.addInteger(1)
+              rc.addInteger(2)
+          }
+        }
+      })
+
+      // If the "isnotnull(f)" filter gets pushed down, this query will throw an exception
+      // since column "f" is repeated primitive column in the Parquet file.
+      checkAnswer(
+        spark.read.parquet(dir.getCanonicalPath).filter("isnotnull(f)"),
+        Seq(Row(Seq(1, 2))))
+    }
+  }
+
   test("Filters should be pushed down for vectorized Parquet reader at row group level") {
     import testImplicits._
 
@@ -1811,6 +1841,27 @@ abstract class ParquetFilterSuite extends QueryTest with ParquetTest with Shared
           AccumulatorContext.remove(accu.id)
         }
       }
+    }
+  }
+
+  test("SPARK-38825: in and notIn filters") {
+    import testImplicits._
+    withTempPath { file =>
+      Seq(1, 2, 0, -1, 99, 1000, 3, 7, 2).toDF("id").coalesce(1).write.mode("overwrite")
+        .parquet(file.getCanonicalPath)
+      var df = spark.read.parquet(file.getCanonicalPath)
+      var in = df.filter(col("id").isin(100, 3, 11, 12, 13))
+      var notIn = df.filter(!col("id").isin(100, 3, 11, 12, 13))
+      checkAnswer(in, Seq(Row(3)))
+      checkAnswer(notIn, Seq(Row(1), Row(2), Row(0), Row(-1), Row(99), Row(1000), Row(7), Row(2)))
+
+      Seq("mary", "martin", "lucy", "alex", "mary", "dan").toDF("name").coalesce(1)
+        .write.mode("overwrite").parquet(file.getCanonicalPath)
+      df = spark.read.parquet(file.getCanonicalPath)
+      in = df.filter(col("name").isin("mary", "victor", "leo", "alex"))
+      notIn = df.filter(!col("name").isin("mary", "victor", "leo", "alex"))
+      checkAnswer(in, Seq(Row("mary"), Row("alex"), Row("mary")))
+      checkAnswer(notIn, Seq(Row("martin"), Row("lucy"), Row("dan")))
     }
   }
 }

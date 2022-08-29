@@ -41,7 +41,7 @@ object V2Writes extends Rule[LogicalPlan] with PredicateHelper {
     case a @ AppendData(r: DataSourceV2Relation, query, options, _, None) =>
       val writeBuilder = newWriteBuilder(r.table, query.schema, options)
       val write = writeBuilder.build()
-      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query)
       a.copy(write = Some(write), query = newQuery)
 
     case o @ OverwriteByExpression(r: DataSourceV2Relation, deleteExpr, query, options, _, None) =>
@@ -65,7 +65,7 @@ object V2Writes extends Rule[LogicalPlan] with PredicateHelper {
           throw QueryExecutionErrors.overwriteTableByUnsupportedExpressionError(table)
       }
 
-      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query)
       o.copy(write = Some(write), query = newQuery)
 
     case o @ OverwritePartitionsDynamic(r: DataSourceV2Relation, query, options, _, None) =>
@@ -77,15 +77,14 @@ object V2Writes extends Rule[LogicalPlan] with PredicateHelper {
         case _ =>
           throw QueryExecutionErrors.dynamicPartitionOverwriteUnsupportedByTableError(table)
       }
-      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query)
       o.copy(write = Some(write), query = newQuery)
 
     case rd @ ReplaceData(r: DataSourceV2Relation, query, _, None) =>
       val rowSchema = StructType.fromAttributes(rd.dataInput)
       val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
       val write = writeBuilder.build()
-      // TODO: detect when query contains a shuffle and insert a round-robin repartitioning
-      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      val newQuery = DistributionAndOrderingUtils.prepareQuery(write, query)
       rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
 
     case wd @ WriteDelta(r: DataSourceV2Relation, query, _, projections, None) =>
@@ -95,9 +94,8 @@ object V2Writes extends Rule[LogicalPlan] with PredicateHelper {
       val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty, rowIdSchema, metadataSchema)
       writeBuilder match {
         case builder: DeltaWriteBuilder =>
-          // TODO: detect when query contains a shuffle and insert a round-robin repartitioning
           val deltaWrite = builder.build()
-          val newQuery = DistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
+          val newQuery = DistributionAndOrderingUtils.prepareQuery(deltaWrite, query)
           wd.copy(write = Some(deltaWrite), query = newQuery)
         case other =>
           throw new AnalysisException(s"$other is not DeltaWriteBuilder")

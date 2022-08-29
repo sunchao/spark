@@ -33,9 +33,10 @@ import org.apache.parquet.schema.{GroupType, LogicalTypeAnnotation, MessageType,
 import org.apache.parquet.schema.LogicalTypeAnnotation.{DecimalLogicalTypeAnnotation, TimeUnit}
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName._
+import org.apache.parquet.schema.Type.Repetition
 
 import org.apache.spark.sql.catalyst.util.{CaseInsensitiveMap, DateTimeUtils}
-import org.apache.spark.sql.catalyst.util.RebaseDateTime.{rebaseGregorianToJulianDays, rebaseGregorianToJulianMicros}
+import org.apache.spark.sql.catalyst.util.RebaseDateTime.{rebaseGregorianToJulianDays, rebaseGregorianToJulianMicros, RebaseSpec}
 import org.apache.spark.sql.internal.SQLConf.LegacyBehaviorPolicy
 import org.apache.spark.sql.sources
 import org.apache.spark.unsafe.types.UTF8String
@@ -51,7 +52,7 @@ class ParquetFilters(
     pushDownStartWith: Boolean,
     pushDownInFilterThreshold: Int,
     caseSensitive: Boolean,
-    datetimeRebaseMode: LegacyBehaviorPolicy.Value) {
+    datetimeRebaseSpec: RebaseSpec) {
   // A map which contains parquet field name and data type, if predicate push down applies.
   //
   // Each key in `nameToParquetField` represents a column; `dots` are used as separators for
@@ -64,7 +65,10 @@ class ParquetFilters(
         fields: Seq[Type],
         parentFieldNames: Array[String] = Array.empty): Seq[ParquetPrimitiveField] = {
       fields.flatMap {
-        case p: PrimitiveType =>
+        // Parquet only supports predicate push-down for non-repeated primitive types.
+        // TODO(SPARK-39393): Remove extra condition when parquet added filter predicate support for
+        //                    repeated columns (https://issues.apache.org/jira/browse/PARQUET-34)
+        case p: PrimitiveType if p.getRepetition != Repetition.REPEATED =>
           Some(ParquetPrimitiveField(fieldNames = parentFieldNames :+ p.getName,
             fieldType = ParquetSchemaType(p.getLogicalTypeAnnotation,
               p.getPrimitiveTypeName, p.getTypeLength)))
@@ -137,7 +141,7 @@ class ParquetFilters(
       case d: Date => DateTimeUtils.fromJavaDate(d)
       case ld: LocalDate => DateTimeUtils.localDateToDays(ld)
     }
-    datetimeRebaseMode match {
+    datetimeRebaseSpec.mode match {
       case LegacyBehaviorPolicy.LEGACY => rebaseGregorianToJulianDays(gregorianDays)
       case _ => gregorianDays
     }
@@ -148,8 +152,9 @@ class ParquetFilters(
       case i: Instant => DateTimeUtils.instantToMicros(i)
       case t: Timestamp => DateTimeUtils.fromJavaTimestamp(t)
     }
-    datetimeRebaseMode match {
-      case LegacyBehaviorPolicy.LEGACY => rebaseGregorianToJulianMicros(gregorianMicros)
+    datetimeRebaseSpec.mode match {
+      case LegacyBehaviorPolicy.LEGACY =>
+        rebaseGregorianToJulianMicros(datetimeRebaseSpec.timeZone, gregorianMicros)
       case _ => gregorianMicros
     }
   }

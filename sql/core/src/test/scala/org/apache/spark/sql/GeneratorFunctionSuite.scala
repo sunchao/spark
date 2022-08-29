@@ -23,6 +23,7 @@ import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCo
 import org.apache.spark.sql.catalyst.expressions.codegen.Block._
 import org.apache.spark.sql.catalyst.trees.LeafLike
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{IntegerType, StructType}
 
@@ -356,6 +357,48 @@ class GeneratorFunctionSuite extends QueryTest with SharedSparkSession {
   test("SPARK-30997: generators in aggregate expressions for dataframe") {
     val df = Seq(1, 2, 3).toDF("v")
     checkAnswer(df.select(explode(array(min($"v"), max($"v")))), Row(1) :: Row(3) :: Nil)
+  }
+
+  test("SPARK-38528: generator in stream of aggregate expressions") {
+    val df = Seq(1, 2, 3).toDF("v")
+    checkAnswer(
+      df.select(Stream(explode(array(min($"v"), max($"v"))), sum($"v")): _*),
+      Row(1, 6) :: Row(3, 6) :: Nil)
+  }
+
+  def testNullStruct(): Unit = {
+    val df = sql(
+      """select * from values
+        |(
+        |  1,
+        |  array(
+        |    named_struct('c1', 0, 'c2', 1),
+        |    null,
+        |    named_struct('c1', 2, 'c2', 3),
+        |    null
+        |  )
+        |)
+        |as tbl(a, b)
+         """.stripMargin)
+    df.createOrReplaceTempView("t1")
+
+    checkAnswer(
+      sql("select inline(b) from t1"),
+      Row(0, 1) :: Row(null, null) :: Row(2, 3) :: Row(null, null) :: Nil)
+
+    checkAnswer(
+      sql("select a, inline(b) from t1"),
+      Row(1, 0, 1) :: Row(1, null, null) :: Row(1, 2, 3) :: Row(1, null, null) :: Nil)
+  }
+
+  test("SPARK-39061: inline should handle null struct") {
+    testNullStruct
+  }
+
+  test("SPARK-39496: inline eval path should handle null struct") {
+    withSQLConf(SQLConf.WHOLESTAGE_CODEGEN_ENABLED.key -> "false") {
+      testNullStruct
+    }
   }
 }
 

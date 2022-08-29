@@ -169,9 +169,8 @@ class ParquetFileFormat
    */
   override def supportBatch(sparkSession: SparkSession, schema: StructType): Boolean = {
     val conf = sparkSession.sessionState.conf
-    conf.parquetVectorizedReaderEnabled && conf.wholeStageEnabled &&
-        schema.forall(f => isBatchReadSupported(conf, f.dataType)) &&
-            !WholeStageCodegenExec.isTooManyFields(conf, schema)
+    conf.wholeStageEnabled && ParquetUtils.isBatchReadSupportedForSchema(conf, schema) &&
+        !WholeStageCodegenExec.isTooManyFields(conf, schema)
   }
 
   private def isBatchReadSupported(sqlConf: SQLConf, dt: DataType): Boolean = dt match {
@@ -246,6 +245,11 @@ class ParquetFileFormat
       SQLConf.PARQUET_INT96_AS_TIMESTAMP.key,
       sparkSession.sessionState.conf.isParquetINT96AsTimestamp)
 
+    // See PARQUET-2170.
+    // Disable column index optimisation when required schema does not have columns that appear in
+    // pushed filters to avoid getting incorrect results.
+    hadoopConf.setBooleanIfUnset(ParquetInputFormat.COLUMN_INDEX_FILTERING_ENABLED, false)
+
     val broadcastedHadoopConf =
       sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
 
@@ -256,8 +260,7 @@ class ParquetFileFormat
     val sqlConf = sparkSession.sessionState.conf
     val enableOffHeapColumnVector = sqlConf.offHeapColumnVectorEnabled
     val enableVectorizedReader: Boolean =
-      sqlConf.parquetVectorizedReaderEnabled &&
-      resultSchema.map(_.dataType).forall(isBatchReadSupported(sqlConf, _))
+      ParquetUtils.isBatchReadSupportedForSchema(sqlConf, resultSchema)
     val enableRecordFilter: Boolean = sqlConf.parquetRecordFilterEnabled
     val timestampConversion: Boolean = sqlConf.isParquetINT96TimestampConversion
     val capacity = sqlConf.parquetVectorizedReaderBatchSize
@@ -284,7 +287,7 @@ class ParquetFileFormat
 
       lazy val footerFileMetaData =
         ParquetFooterReader.readFooter(sharedConf, filePath, SKIP_ROW_GROUPS).getFileMetaData
-      val datetimeRebaseMode = DataSourceUtils.datetimeRebaseMode(
+      val datetimeRebaseSpec = DataSourceUtils.datetimeRebaseSpec(
         footerFileMetaData.getKeyValueMetaData.get,
         datetimeRebaseModeInRead)
       // Try to push down filters when filter push-down is enabled.
@@ -298,7 +301,7 @@ class ParquetFileFormat
           pushDownStringStartWith,
           pushDownInFilterThreshold,
           isCaseSensitive,
-          datetimeRebaseMode)
+          datetimeRebaseSpec)
         filters
           // Collects all converted Parquet filter predicates. Notice that not all predicates can be
           // converted (`ParquetFilters.createFilter` returns an `Option`). That's why a `flatMap`
@@ -324,7 +327,7 @@ class ParquetFileFormat
           None
         }
 
-      val int96RebaseMode = DataSourceUtils.int96RebaseMode(
+      val int96RebaseSpec = DataSourceUtils.int96RebaseSpec(
         footerFileMetaData.getKeyValueMetaData.get,
         int96RebaseModeInRead)
 
@@ -341,8 +344,10 @@ class ParquetFileFormat
       if (enableVectorizedReader) {
         val vectorizedReader = new VectorizedParquetRecordReader(
           convertTz.orNull,
-          datetimeRebaseMode.toString,
-          int96RebaseMode.toString,
+          datetimeRebaseSpec.mode.toString,
+          datetimeRebaseSpec.timeZone,
+          int96RebaseSpec.mode.toString,
+          int96RebaseSpec.timeZone,
           enableOffHeapColumnVector && taskContext.isDefined,
           capacity)
         // SPARK-37089: We cannot register a task completion listener to close this iterator here
@@ -376,8 +381,8 @@ class ParquetFileFormat
         val readSupport = new ParquetReadSupport(
           convertTz,
           enableVectorizedReader = false,
-          datetimeRebaseMode,
-          int96RebaseMode)
+          datetimeRebaseSpec,
+          int96RebaseSpec)
         val reader = if (pushed.isDefined && enableRecordFilter) {
           val parquetFilter = FilterCompat.get(pushed.get, null)
           new ParquetRecordReader[InternalRow](readSupport, parquetFilter)

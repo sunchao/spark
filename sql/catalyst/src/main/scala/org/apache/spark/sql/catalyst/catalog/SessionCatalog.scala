@@ -393,6 +393,8 @@ class SessionCatalog(
   private def makeQualifiedTablePath(locationUri: URI, database: String): URI = {
     if (locationUri.isAbsolute) {
       locationUri
+    } else if (new Path(locationUri).isAbsolute) {
+      makeQualifiedPath(locationUri)
     } else {
       val dbName = formatDatabaseName(database)
       val dbLocation = makeQualifiedDBPath(getDatabaseMetadata(dbName).locationUri)
@@ -735,10 +737,9 @@ class SessionCatalog(
     } else {
       requireDbExists(db)
       if (oldName.database.isDefined || !tempViews.contains(oldTableName)) {
-        requireTableExists(TableIdentifier(oldTableName, Some(db)))
-        requireTableNotExists(TableIdentifier(newTableName, Some(db)))
         validateName(newTableName)
-        validateNewLocationOfRename(oldName, newName)
+        validateNewLocationOfRename(
+          TableIdentifier(oldTableName, Some(db)), TableIdentifier(newTableName, Some(db)))
         externalCatalog.renameTable(db, oldTableName, newTableName)
       } else {
         if (newName.database.isDefined) {
@@ -1643,6 +1644,11 @@ class SessionCatalog(
       if (!isResolvingView ||
           !isTemporaryFunction(name) ||
           referredTempFunctionNames.contains(name.funcName)) {
+        // We are not resolving a view and the function is a temp one, add it to `AnalysisContext`,
+        // so during the view creation, we can save all referred temp functions to view metadata
+        if (!isResolvingView && isTemporaryFunction(name)) {
+          AnalysisContext.get.referredTempFunctionNames.add(name.funcName)
+        }
         // This function has been already loaded into the function registry.
         return registry.lookupFunction(name, children)
       }
@@ -1810,10 +1816,13 @@ class SessionCatalog(
   private def validateNewLocationOfRename(
       oldName: TableIdentifier,
       newName: TableIdentifier): Unit = {
+    requireTableExists(oldName)
+    requireTableNotExists(newName)
     val oldTable = getTableMetadata(oldName)
     if (oldTable.tableType == CatalogTableType.MANAGED) {
+      assert(oldName.database.nonEmpty)
       val databaseLocation =
-        externalCatalog.getDatabase(oldName.database.getOrElse(currentDb)).locationUri
+        externalCatalog.getDatabase(oldName.database.get).locationUri
       val newTableLocation = new Path(new Path(databaseLocation), formatTableName(newName.table))
       val fs = newTableLocation.getFileSystem(hadoopConf)
       if (fs.exists(newTableLocation)) {

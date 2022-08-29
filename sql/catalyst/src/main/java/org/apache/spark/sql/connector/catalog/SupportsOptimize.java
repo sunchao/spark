@@ -59,9 +59,9 @@ public interface SupportsOptimize extends Table {
    * zOrders files in the table.
    *
    * @param filters filter expressions used to select files to be rewritten
-   * @param fieldNames field names of the columns to zOrder
+   * @param colNames column names of the columns to zOrder
    * @param options options to configure the execution
    * @return rows representing a summary of the execution
    */
-  InternalRow[] zOrder(Filter[] filters, String[][] fieldNames, CaseInsensitiveStringMap options);
+  InternalRow[] zOrder(Filter[] filters, String[] colNames, CaseInsensitiveStringMap options);
 }

@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import java.time.ZoneId
 import java.util.{Optional, PrimitiveIterator}
 
 import scala.collection.mutable.ArrayBuffer
@@ -619,7 +620,8 @@ class ParquetVectorizedSuite extends QueryTest with ParquetTest with SharedSpark
     import collection.JavaConverters._
 
     val recordReader = new VectorizedParquetRecordReader(
-      DateTimeUtils.getZoneId("EST"), "CORRECTED", "CORRECTED", true, batchSize)
+      DateTimeUtils.getZoneId("EST"), "CORRECTED", "UTC", "CORRECTED",
+      ZoneId.systemDefault().getId(), true, batchSize)
     recordReader.initialize(fileSchema, fileSchema,
       TestParquetRowGroupReader(Seq(readStore)), totalRowCount)
 

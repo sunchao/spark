@@ -26,7 +26,7 @@ import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.execution.datasources.PruneFileSourcePartitions
 import org.apache.spark.sql.execution.datasources.SchemaPruning
 import org.apache.spark.sql.execution.datasources.v2.{OptimizeMetadataOnlyDeleteFromTable, ReplaceRewrittenRowLevelCommands, RowLevelCommandScanRelationPushDown, V2IcebergWrites, V2ScanRelationPushDown, V2Writes}
-import org.apache.spark.sql.execution.dynamicpruning.{CleanupDynamicPruningFilters, PartitionPruning, RowLevelCommandPruning}
+import org.apache.spark.sql.execution.dynamicpruning.{CleanupDynamicPruningFilters, PartitionPruning, RowLevelCommandDynamicPruning}
 import org.apache.spark.sql.execution.python.{ExtractGroupingPythonUDFFromAggregate, ExtractPythonUDFFromAggregate, ExtractPythonUDFs}
 
 class SparkOptimizer(
@@ -47,7 +47,7 @@ class SparkOptimizer(
     Batch("Optimize Metadata Only Query", Once, OptimizeMetadataOnlyQuery(catalog)) :+
     Batch("PartitionPruning", Once,
       PartitionPruning,
-      RowLevelCommandPruning(OptimizeSubqueries)) :+
+      RowLevelCommandDynamicPruning(OptimizeSubqueries)) :+
     Batch("Pushdown Filters from PartitionPruning", fixedPoint,
       PushDownPredicates) :+
     Batch("Cleanup filters that cannot be pushed down", Once,
@@ -70,7 +70,8 @@ class SparkOptimizer(
       ColumnPruning,
       PushPredicateThroughNonJoin,
       RemoveNoopOperators) :+
-    Batch("User Provided Optimizers", fixedPoint, experimentalMethods.extraOptimizations: _*)
+    Batch("User Provided Optimizers", fixedPoint, experimentalMethods.extraOptimizations: _*) :+
+    Batch("Replace CTE with Repartition", Once, ReplaceCTERefWithRepartition)
 
   override def nonExcludableRules: Seq[String] = super.nonExcludableRules :+
     ExtractPythonUDFFromJoinCondition.ruleName :+

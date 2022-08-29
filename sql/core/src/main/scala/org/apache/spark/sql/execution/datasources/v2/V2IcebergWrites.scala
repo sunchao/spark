@@ -42,8 +42,7 @@ object V2IcebergWrites extends Rule[LogicalPlan] with IcebergSupport {
       val newQuery = DistributionAndOrderingUtils.prepareQuery(
         requiredDistribution,
         requiredOrdering,
-        query,
-        conf)
+        query)
       ctas.copy(query = newQuery)
 
     case rtas @ ReplaceTableAsSelect(catalog, _, transforms, query, properties, _, _,
@@ -57,8 +56,7 @@ object V2IcebergWrites extends Rule[LogicalPlan] with IcebergSupport {
       val newQuery = DistributionAndOrderingUtils.prepareQuery(
         requiredDistribution,
         requiredOrdering,
-        query,
-        conf)
+        query)
       rtas.copy(query = newQuery)
   }
 

@@ -16,6 +16,7 @@
  */
 package org.apache.spark.deploy.k8s
 
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 import org.apache.spark.deploy.k8s.Constants._
@@ -68,7 +69,7 @@ private[spark] object Config extends Logging {
         "instead of the executor pods")
       .version("3.2.0")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
   val KUBERNETES_DRIVER_REUSE_PVC =
     ConfigBuilder("spark.kubernetes.driver.reusePersistentVolumeClaim")
@@ -82,7 +83,7 @@ private[spark] object Config extends Logging {
         s"sometimes. This config requires ${KUBERNETES_DRIVER_OWN_PVC.key}=true.")
       .version("3.2.0")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
   val KUBERNETES_NAMESPACE =
     ConfigBuilder("spark.kubernetes.namespace")
@@ -136,6 +137,57 @@ private[spark] object Config extends Logging {
       .version("3.1.0")
       .longConf
       .createWithDefault(1572864) // 1.5 MiB
+
+  val EXECUTOR_ROLL_INTERVAL =
+    ConfigBuilder("spark.kubernetes.executor.rollInterval")
+      .doc("Interval between executor roll operations. To disable, set 0 (default)")
+      .version("3.3.0")
+      .timeConf(TimeUnit.SECONDS)
+      .checkValue(_ >= 0, "Interval should be non-negative")
+      .createWithDefault(0)
+
+  object ExecutorRollPolicy extends Enumeration {
+    val ID, ADD_TIME, TOTAL_GC_TIME, TOTAL_DURATION, AVERAGE_DURATION, FAILED_TASKS,
+      PEAK_JVM_ONHEAP_MEMORY, PEAK_JVM_OFFHEAP_MEMORY, OUTLIER, OUTLIER_NO_FALLBACK = Value
+  }
+
+  val EXECUTOR_ROLL_POLICY =
+    ConfigBuilder("spark.kubernetes.executor.rollPolicy")
+      .doc("Executor roll policy: Valid values are ID, ADD_TIME, TOTAL_GC_TIME, " +
+        "TOTAL_DURATION, AVERAGE_DURATION, FAILED_TASKS, PEAK_JVM_ONHEAP_MEMORY, " +
+        "PEAK_JVM_OFFHEAP_MEMORY, OUTLIER (default), and OUTLIER_NO_FALLBACK. " +
+        "When executor roll happens, Spark uses this policy to choose " +
+        "an executor and decommission it. The built-in policies are based on executor summary." +
+        "ID policy chooses an executor with the smallest executor ID. " +
+        "ADD_TIME policy chooses an executor with the smallest add-time. " +
+        "TOTAL_GC_TIME policy chooses an executor with the biggest total task GC time. " +
+        "TOTAL_DURATION policy chooses an executor with the biggest total task time. " +
+        "AVERAGE_DURATION policy chooses an executor with the biggest average task time. " +
+        "FAILED_TASKS policy chooses an executor with the most number of failed tasks. " +
+        "PEAK_JVM_ONHEAP_MEMORY policy chooses an executor with the biggest peak JVM on-heap " +
+        "memory. PEAK_JVM_OFFHEAP_MEMORY policy chooses an executor with the biggest peak JVM " +
+        "off-heap memory. " +
+        "OUTLIER policy chooses an executor with outstanding statistics which is bigger than" +
+        "at least two standard deviation from the mean in average task time, " +
+        "total task time, total task GC time, and the number of failed tasks if exists. " +
+        "If there is no outlier it works like TOTAL_DURATION policy. " +
+        "OUTLIER_NO_FALLBACK policy picks an outlier using the OUTLIER policy above. " +
+        "If there is no outlier then no executor will be rolled.")
+      .version("3.3.0")
+      .stringConf
+      .transform(_.toUpperCase(Locale.ROOT))
+      .checkValues(ExecutorRollPolicy.values.map(_.toString))
+      .createWithDefault(ExecutorRollPolicy.OUTLIER.toString)
+
+  val MINIMUM_TASKS_PER_EXECUTOR_BEFORE_ROLLING =
+    ConfigBuilder("spark.kubernetes.executor.minTasksPerExecutorBeforeRolling")
+      .doc("The minimum number of tasks per executor before rolling. " +
+        "Spark will not roll executors whose total number of tasks is smaller " +
+        "than this configuration. The default value is zero.")
+      .version("3.3.0")
+      .intConf
+      .checkValue(_ >= 0, "The minimum number of tasks should be non-negative.")
+      .createWithDefault(0)
 
   val KUBERNETES_AUTH_DRIVER_CONF_PREFIX = "spark.kubernetes.authenticate.driver"
   val KUBERNETES_AUTH_EXECUTOR_CONF_PREFIX = "spark.kubernetes.authenticate.executor"
@@ -309,7 +361,7 @@ private[spark] object Config extends Logging {
       .timeConf(TimeUnit.SECONDS)
       .checkValue(value => value > 0, "Allocation driver readiness timeout must be a positive "
         + "time value.")
-      .createWithDefaultString("1s")
+      .createWithDefaultString("120s")
 
   val KUBERNETES_ALLOCATION_EXECUTOR_TIMEOUT =
     ConfigBuilder("spark.kubernetes.allocation.executor.timeout")
@@ -380,8 +432,8 @@ private[spark] object Config extends Logging {
         "which in the case of JVM tasks will default to 0.10 and 0.40 for non-JVM jobs")
       .version("2.4.0")
       .doubleConf
-      .checkValue(mem_overhead => mem_overhead >= 0 && mem_overhead < 1,
-        "Ensure that memory overhead is a double between 0 --> 1.0")
+      .checkValue(mem_overhead => mem_overhead >= 0,
+        "Ensure that memory overhead is non-negative")
       .createWithDefault(0.1)
 
   val PYSPARK_MAJOR_PYTHON_VERSION =

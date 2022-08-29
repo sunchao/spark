@@ -17,30 +17,30 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.spark.sql.catalyst.expressions.{PredicateHelper, SubqueryExpression}
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, AttributeSet, Expression, PredicateHelper, SubqueryExpression}
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
+import org.apache.spark.sql.sources.Filter
 
 object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with PredicateHelper {
   import DataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
+    // push down the filter from the command condition instead of the filter in the rewrite plan,
+    // which may be negated for copy-on-write operations
     case RewrittenRowLevelCommand(command, relation: DataSourceV2Relation, rewritePlan) =>
       val table = relation.table.asRowLevelOperationTable
       val scanBuilder = table.newScanBuilder(relation.options)
 
-      val filters = command.condition.toSeq
-      val normalizedFilters = DataSourceStrategy.normalizeExprs(filters, relation.output)
-      val (_, normalizedFiltersWithoutSubquery) =
-        normalizedFilters.partition(SubqueryExpression.hasSubquery)
+      val (pushedFilters, remainingFilters) = command.condition match {
+        case Some(cond) => pushFilters(cond, scanBuilder, relation.output)
+        case None => (Nil, Nil)
+      }
 
-      val (pushedFilters, remainingFilters) = PushDownUtils.pushFilters(
-        scanBuilder, normalizedFiltersWithoutSubquery)
-
-      val (scan, output) = PushDownUtils.pruneColumns(
-        scanBuilder, relation, relation.output, Seq.empty)
+      val (scan, output) = PushDownUtils.pruneColumns(scanBuilder, relation, relation.output, Nil)
 
       logInfo(
         s"""
@@ -58,5 +58,19 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
       }
 
       command.withNewRewritePlan(newRewritePlan)
+  }
+
+  private def pushFilters(
+      cond: Expression,
+      scanBuilder: ScanBuilder,
+      tableAttrs: Seq[AttributeReference]): (Seq[Filter], Seq[Expression]) = {
+
+    val tableAttrSet = AttributeSet(tableAttrs)
+    val filters = splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
+    val normalizedFilters = DataSourceStrategy.normalizeExprs(filters, tableAttrs)
+    val (_, normalizedFiltersWithoutSubquery) =
+      normalizedFilters.partition(SubqueryExpression.hasSubquery)
+
+    PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
   }
 }

@@ -25,17 +25,13 @@ import org.apache.iceberg.transforms.{Transform, Transforms}
 import org.apache.iceberg.types.{Type, Types}
 import org.apache.iceberg.util.ByteBuffers
 
-import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
-import org.apache.spark.sql.catalyst.trees.UnaryLike
 import org.apache.spark.sql.types.{AbstractDataType, BinaryType, DataType, Decimal, DecimalType, IntegerType, StringType, TimestampType}
 import org.apache.spark.unsafe.types.UTF8String
 
 // copied from TransformExpressions.scala in Iceberg Spark extensions
 abstract class IcebergTransformExpression
-  extends Expression with CodegenFallback with NullIntolerant with UnaryLike[Expression] {
-
-  override def nullable: Boolean = true
+  extends UnaryExpression with CodegenFallback with NullIntolerant {
 
   @transient lazy val icebergInputType: Type = SparkSchemaUtil.convert(child.dataType)
 }
@@ -43,14 +39,10 @@ abstract class IcebergTransformExpression
 abstract class IcebergTimeTransform
   extends IcebergTransformExpression with ImplicitCastInputTypes {
 
-  def child: Expression
   def transform: Transform[Any, Integer]
 
-  override def eval(input: InternalRow): Any = child.eval(input) match {
-    case null =>
-      null
-    case value =>
-      transform(value).toInt
+  override protected def nullSafeEval(value: Any): Any = {
+    transform(value).toInt
   }
 
   override def dataType: DataType = IntegerType
@@ -116,11 +108,8 @@ case class IcebergBucketTransform(
       a: Any => t(a).toInt
   }
 
-  override def eval(input: InternalRow): Any = child.eval(input) match {
-    case null =>
-      null
-    case value =>
-      bucketFunc(value)
+  override protected def nullSafeEval(value: Any): Any = {
+    bucketFunc(value)
   }
 
   override def dataType: DataType = IntegerType
@@ -154,11 +143,8 @@ case class IcebergTruncateTransform(
       a: Any => t(a)
   }
 
-  override def eval(input: InternalRow): Any = child.eval(input) match {
-    case null =>
-      null
-    case value =>
-      truncateFunc(value)
+  override protected def nullSafeEval(value: Any): Any = {
+    truncateFunc(value)
   }
 
   override def dataType: DataType = child.dataType

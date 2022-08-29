@@ -21,9 +21,9 @@ import scala.collection.mutable
 
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.SQLConfHelper
-import org.apache.spark.sql.catalyst.expressions.{Alias, AnsiCast, AttributeReference, Cast, CreateNamedStruct, Expression, ExtractValue, GetStructField, Literal, NamedExpression}
+import org.apache.spark.sql.catalyst.expressions.{Alias, AnsiCast, Cast, CreateNamedStruct, Expression, GetStructField, Literal, NamedExpression}
+import org.apache.spark.sql.catalyst.expressions.AssignmentUtils._
 import org.apache.spark.sql.catalyst.plans.logical.{Assignment, LogicalPlan}
-import org.apache.spark.sql.catalyst.util.CharVarcharUtils
 import org.apache.spark.sql.internal.SQLConf.StoreAssignmentPolicy
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
@@ -33,15 +33,6 @@ trait AssignmentAlignmentSupport extends CastSupport {
   self: SQLConfHelper =>
 
   private case class ColumnUpdate(ref: Seq[String], expr: Expression)
-
-  protected def aligned(table: LogicalPlan, assignments: Seq[Assignment]): Boolean = {
-    val sameSize = table.output.size == assignments.size
-    sameSize && table.output.zip(assignments).forall { case (attr, assignment) =>
-      val key = assignment.key
-      val value = assignment.value
-      asAssignmentRef(attr) == asAssignmentRef(key) && attr.dataType == value.dataType
-    }
-  }
 
   /**
    * Aligns assignments to match table columns.
@@ -65,32 +56,11 @@ trait AssignmentAlignmentSupport extends CastSupport {
       table: LogicalPlan,
       assignments: Seq[Assignment]): Seq[Assignment] = {
 
-    val columnUpdates = assignments.map(a => ColumnUpdate(asAssignmentRef(a.key), a.value))
+    val columnUpdates = assignments.map(a => ColumnUpdate(toAssignmentRef(a.key), a.value))
     val outputExprs = applyUpdates(table.output, columnUpdates)
     outputExprs.zip(table.output).map {
-      case (expr, attr) => toAssignment(attr, expr)
+      case (expr, attr) => handleCharVarcharLimits(Assignment(attr, expr))
     }
-  }
-
-  protected def toAssignment(key: Expression, value: Expression): Assignment = {
-    val rawKeyType = key.transform {
-      case attr: AttributeReference =>
-        CharVarcharUtils.getRawType(attr.metadata)
-          .map(attr.withDataType)
-          .getOrElse(attr)
-    }.dataType
-
-    val transformedValue = if (CharVarcharUtils.hasCharVarchar(rawKeyType)) {
-      CharVarcharUtils.stringLengthCheck(value, rawKeyType)
-    } else {
-      value
-    }
-
-    val transformedKey = key.transform {
-      case attr: AttributeReference => CharVarcharUtils.cleanAttrMetadata(attr)
-    }
-
-    Assignment(transformedKey, transformedValue)
   }
 
   private def applyUpdates(
@@ -217,15 +187,5 @@ trait AssignmentAlignmentSupport extends CastSupport {
       case _ =>
         Cast(expr, tableAttr.dataType, Option(conf.sessionLocalTimeZone))
     }
-  }
-
-  protected def asAssignmentRef(expr: Expression): Seq[String] = expr match {
-    case attr: AttributeReference => Seq(attr.name)
-    case Alias(child, _) => asAssignmentRef(child)
-    case GetStructField(child, _, Some(name)) => asAssignmentRef(child) :+ name
-    case other: ExtractValue =>
-      throw new AnalysisException(s"Updating nested fields is only supported for structs: $other")
-    case other =>
-      throw new AnalysisException(s"Cannot convert to a reference, unsupported expression: $other")
   }
 }

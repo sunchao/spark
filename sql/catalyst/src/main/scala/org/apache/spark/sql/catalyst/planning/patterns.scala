@@ -444,9 +444,9 @@ object RewrittenRowLevelCommand {
       val rewritePlan = c.rewritePlan.get
 
       // both ReplaceData and WriteDelta reference a write relation
-      // but we need to find the scan relation which should be at the bottom
-      // both the write and scan relations will share the same RowLevelOperationTable object
-      // that's why we are using the reference equality to find the needed scan relation
+      // but the corresponding read relation should be at the bottom of the write plan
+      // both the write and read relations will share the same RowLevelOperationTable object
+      // that's why it is safe to use reference equality to find the needed read relation
 
       val allowScanDuplication = c match {
         // group-based updates that rely on the union approach may have multiple identical scans
@@ -455,44 +455,35 @@ object RewrittenRowLevelCommand {
       }
 
       rewritePlan match {
-        case replaceData: ReplaceData =>
-          replaceData.table match {
-            case DataSourceV2Relation(table, _, _, _, _) =>
-              val scanRelation = findScanRelation(table, replaceData.query, allowScanDuplication)
-              scanRelation.map((c, _, replaceData))
-            case _ =>
-              None
-          }
-
-        case writeDelta: WriteDelta =>
-          writeDelta.table match {
-            case DataSourceV2Relation(table, _, _, _, _) =>
-              val scanRelation = findScanRelation(table, writeDelta.query, allowScanDuplication)
-              scanRelation.map((c, _, writeDelta))
-            case _ =>
-              None
-          }
+        case rd @ ReplaceData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
+          val readRelation = findReadRelation(table, query, allowScanDuplication)
+          readRelation.map((c, _, rd))
+        case wd @ WriteDelta(DataSourceV2Relation(table, _, _, _, _), query, _, _, _) =>
+          val readRelation = findReadRelation(table, query, allowScanDuplication)
+          readRelation.map((c, _, wd))
+        case _ =>
+          None
       }
 
     case _ =>
       None
   }
 
-  private def findScanRelation(
+  private def findReadRelation(
       table: Table,
       plan: LogicalPlan,
       allowScanDuplication: Boolean): Option[LogicalPlan] = {
 
-    val scanRelations = plan.collect {
+    val readRelations = plan.collect {
       case r: DataSourceV2Relation if r.table eq table => r
       case r: DataSourceV2ScanRelation if r.relation.table eq table => r
     }
 
-    // in some cases, the optimizer replaces the v2 scan relation with a local relation
+    // in some cases, the optimizer replaces the v2 read relation with a local relation
     // for example, there is no reason to query the table if the condition is always false
-    // that's why it is valid not to find the corresponding v2 scan relation
+    // that's why it is valid not to find the corresponding v2 read relation
 
-    scanRelations match {
+    readRelations match {
       case relations if relations.isEmpty =>
         None
 
@@ -508,13 +499,13 @@ object RewrittenRowLevelCommand {
         Some(relation1)
 
       case Seq(relation1, relation2) if allowScanDuplication =>
-        throw new AnalysisException(s"Row-level scan relations don't match: $relation1, $relation2")
+        throw new AnalysisException(s"Row-level read relations don't match: $relation1, $relation2")
 
       case relations if allowScanDuplication =>
-        throw new AnalysisException(s"Expected 2 row-level scan relations: $relations")
+        throw new AnalysisException(s"Expected up to two row-level read relations: $relations")
 
       case relations =>
-        throw new AnalysisException(s"Expected only one row-level scan relation: $relations")
+        throw new AnalysisException(s"Expected only one row-level read relation: $relations")
     }
   }
 }

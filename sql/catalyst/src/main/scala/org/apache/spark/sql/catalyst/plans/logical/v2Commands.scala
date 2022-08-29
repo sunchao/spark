@@ -17,16 +17,18 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.analysis.{NamedRelation, PartitionSpec, UnresolvedException}
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.analysis.{AnalysisContext, EliminateSubqueryAliases, NamedRelation, PartitionSpec, UnresolvedException}
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, AttributeSet, Expression, Unevaluable}
+import org.apache.spark.sql.catalyst.expressions.{AssignmentUtils, Attribute, AttributeReference, AttributeSet, Expression, NamedExpression, Unevaluable, V2ExpressionUtils}
 import org.apache.spark.sql.catalyst.plans.DescribeCommandSchema
 import org.apache.spark.sql.catalyst.trees.BinaryLike
 import org.apache.spark.sql.catalyst.util.{CharVarcharUtils, RowDeltaUtils, WriteDeltaProjections}
 import org.apache.spark.sql.connector.catalog._
 import org.apache.spark.sql.connector.expressions.{SortOrder, Transform}
-import org.apache.spark.sql.connector.write.{DeltaWrite, Write}
-import org.apache.spark.sql.types.{BooleanType, DataType, IntegerType, MetadataBuilder, StringType, StructType}
+import org.apache.spark.sql.connector.write.{DeltaWrite, RowLevelOperationTable, SupportsDelta, Write}
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.types.{BooleanType, DataType, IntegerType, MetadataBuilder, StringType, StructField, StructType}
 
 /**
  * Base trait for DataSourceV2 write commands
@@ -185,6 +187,7 @@ case class ReplaceData(
     write: Option[Write] = None) extends V2WriteCommand {
 
   override lazy val isByName: Boolean = false
+  override lazy val references: AttributeSet = query.outputSet
   override lazy val stringArgs: Iterator[Any] = Iterator(table, query, write)
 
   // the incoming query may include metadata columns
@@ -197,6 +200,11 @@ case class ReplaceData(
     assert(table.resolved && query.resolved,
       "`outputResolved` can only be called when `table` and `query` are both resolved.")
 
+    // take into account only incoming data columns and ignore metadata columns in the query
+    // they will be discarded after the logical write is built in the optimizer
+    // metadata columns may be needed to request a correct distribution or ordering
+    // but are not passed back to the data source during writes
+
     table.skipSchemaResolution || (dataInput.size == table.output.size &&
       dataInput.zip(table.output).forall { case (inAttr, outAttr) =>
         val outType = CharVarcharUtils.getRawType(outAttr.metadata).getOrElse(outAttr.dataType)
@@ -208,6 +216,7 @@ case class ReplaceData(
   }
 
   override def withNewQuery(newQuery: LogicalPlan): ReplaceData = copy(query = newQuery)
+
   override def withNewTable(newTable: NamedRelation): ReplaceData = copy(table = newTable)
 
   override protected def withNewChildInternal(newChild: LogicalPlan): ReplaceData = {
@@ -232,34 +241,80 @@ case class WriteDelta(
     assert(table.resolved && query.resolved,
       "`outputResolved` can only be called when `table` and `query` are both resolved.")
 
-    projections.rowProjection match {
-      case _ if table.skipSchemaResolution =>
-        true
+    operationResolved && rowAttrsResolved && rowIdAttrsResolved && metadataAttrsResolved
+  }
 
+  private def operationResolved: Boolean = {
+    val attr = query.output.head
+    attr.name == RowDeltaUtils.OPERATION_COLUMN && attr.dataType == IntegerType && !attr.nullable
+  }
+
+  private def rowAttrsResolved: Boolean = {
+    table.skipSchemaResolution || (projections.rowProjection match {
+      case Some(projection) =>
+        table.output.size == projection.schema.size &&
+          projection.schema.zip(table.output).forall { case (field, outAttr) =>
+            isCompatible(field, outAttr)
+          }
       case None =>
-        isOperationType(query.output.head)
+        true
+    })
+  }
 
-      case Some(rowProjection) =>
-        isOperationType(query.output.head) && (table.output.size == rowProjection.schema.size &&
-          rowProjection.schema.zip(table.output).forall { case (field, outAttr) =>
-            val outType = CharVarcharUtils.getRawType(outAttr.metadata).getOrElse(outAttr.dataType)
-            // names and types must match, nullability must be compatible
-            field.name == outAttr.name &&
-              DataType.equalsIgnoreCompatibleNullability(field.dataType, outType) &&
-              (outAttr.nullable || !field.nullable)
-          })
+  private def rowIdAttrsResolved: Boolean = {
+    val rowIdAttrs = V2ExpressionUtils.resolveRefs[AttributeReference](
+      operation.rowId.toSeq,
+      originalTable)
+
+    projections.rowIdProjection.schema.forall { field =>
+      rowIdAttrs.exists(rowIdAttr => isCompatible(field, rowIdAttr))
     }
   }
 
+  private def metadataAttrsResolved: Boolean = {
+    projections.metadataProjection match {
+      case Some(projection) =>
+        val metadataAttrs = V2ExpressionUtils.resolveRefs[AttributeReference](
+          operation.requiredMetadataAttributes.toSeq,
+          originalTable)
+
+        projection.schema.forall { field =>
+          metadataAttrs.exists(metadataAttr => isCompatible(field, metadataAttr))
+        }
+      case None =>
+        true
+    }
+  }
+
+  private def operation: SupportsDelta = {
+    EliminateSubqueryAliases(table) match {
+      case DataSourceV2Relation(RowLevelOperationTable(_, operation), _, _, _, _) =>
+        operation match {
+          case supportsDelta: SupportsDelta =>
+            supportsDelta
+          case _ =>
+            throw new AnalysisException(s"Operation $operation is not a delta operation")
+        }
+      case _ =>
+        throw new AnalysisException(s"Cannot retrieve row-level operation from $table")
+    }
+  }
+
+  private def isCompatible(projectionField: StructField, outAttr: NamedExpression): Boolean = {
+    val inType = CharVarcharUtils.getRawType(projectionField.metadata).getOrElse(outAttr.dataType)
+    val outType = CharVarcharUtils.getRawType(outAttr.metadata).getOrElse(outAttr.dataType)
+    // names and types must match, nullability must be compatible
+    projectionField.name == outAttr.name &&
+      DataType.equalsIgnoreCompatibleNullability(inType, outType) &&
+      (outAttr.nullable || !projectionField.nullable)
+  }
+
   override def withNewQuery(newQuery: LogicalPlan): V2WriteCommand = copy(query = newQuery)
+
   override def withNewTable(newTable: NamedRelation): V2WriteCommand = copy(table = newTable)
 
   override protected def withNewChildInternal(newChild: LogicalPlan): WriteDelta = {
     copy(query = newChild)
-  }
-
-  private def isOperationType(attr: Attribute): Boolean = {
-    attr.name == RowDeltaUtils.OPERATION_COLUMN && attr.dataType == IntegerType && !attr.nullable
   }
 }
 
@@ -543,6 +598,8 @@ case class UpdateTable(
     condition: Option[Expression],
     rewritePlan: Option[LogicalPlan] = None) extends RowLevelCommand {
 
+  lazy val aligned: Boolean = AssignmentUtils.aligned(table, assignments)
+
   override def children: Seq[LogicalPlan] = if (rewritePlan.isDefined) {
     table :: rewritePlan.get :: Nil
   } else {
@@ -581,6 +638,26 @@ case class MergeIntoTable(
     matchedActions: Seq[MergeAction],
     notMatchedActions: Seq[MergeAction],
     rewritePlan: Option[LogicalPlan] = None) extends RowLevelCommand {
+
+  lazy val aligned: Boolean = {
+    val matchedActionsAligned = matchedActions.forall {
+      case UpdateAction(_, assignments) =>
+        AssignmentUtils.aligned(targetTable, assignments)
+      case _: DeleteAction =>
+        true
+      case _ =>
+        false
+    }
+
+    val notMatchedActionsAligned = notMatchedActions.forall {
+      case InsertAction(_, assignments) =>
+        AssignmentUtils.aligned(targetTable, assignments)
+      case _ =>
+        false
+    }
+
+    matchedActionsAligned && notMatchedActionsAligned
+  }
 
   def condition: Option[Expression] = Some(mergeCondition)
   def duplicateResolved: Boolean = targetTable.outputSet.intersect(sourceTable.outputSet).isEmpty
@@ -1147,7 +1224,7 @@ case class CacheTable(
 
   override def childrenToAnalyze: Seq[LogicalPlan] = table :: Nil
 
-  override def markAsAnalyzed(): LogicalPlan = copy(isAnalyzed = true)
+  override def markAsAnalyzed(ac: AnalysisContext): LogicalPlan = copy(isAnalyzed = true)
 }
 
 /**
@@ -1159,7 +1236,8 @@ case class CacheTableAsSelect(
     originalText: String,
     isLazy: Boolean,
     options: Map[String, String],
-    isAnalyzed: Boolean = false) extends AnalysisOnlyCommand {
+    isAnalyzed: Boolean = false,
+    referredTempFunctions: Seq[String] = Seq.empty) extends AnalysisOnlyCommand {
   override protected def withNewChildrenInternal(
       newChildren: IndexedSeq[LogicalPlan]): CacheTableAsSelect = {
     assert(!isAnalyzed)
@@ -1168,7 +1246,12 @@ case class CacheTableAsSelect(
 
   override def childrenToAnalyze: Seq[LogicalPlan] = plan :: Nil
 
-  override def markAsAnalyzed(): LogicalPlan = copy(isAnalyzed = true)
+  override def markAsAnalyzed(ac: AnalysisContext): LogicalPlan = {
+    copy(
+      isAnalyzed = true,
+      // Collect the referred temporary functions from AnalysisContext
+      referredTempFunctions = ac.referredTempFunctionNames.toSeq)
+  }
 }
 
 /**
@@ -1186,5 +1269,5 @@ case class UncacheTable(
 
   override def childrenToAnalyze: Seq[LogicalPlan] = table :: Nil
 
-  override def markAsAnalyzed(): LogicalPlan = copy(isAnalyzed = true)
+  override def markAsAnalyzed(ac: AnalysisContext): LogicalPlan = copy(isAnalyzed = true)
 }

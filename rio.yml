@@ -9,7 +9,7 @@ notify:
     postOnFailure: false
 
 machine:
-  baseImage: docker.apple.com/cpbuild7/applejdk-11
+  baseImage: docker.apple.com/base-images/ubi8/java11-builder
   env: &base_env
     NOLINT_ON_COMPILE: "1"
     SBT_OPTS: "-Xms6g -Xmx6g -Xss128M -XX:MaxMetaspaceSize=2048M -XX:+CMSClassUnloadingEnabled"
@@ -167,7 +167,7 @@ builds:
       template: freestyle:v4:build
       steps:
         - yum install -y python3
-        - build/sbt -Phadoop-3.2 -Phive "hive/testOnly *.HiveExternalCatalogVersionsSuite" "hive/testOnly *.HiveSparkSubmitSuite" "hive/testOnly *.VersionsSuite" "hive/testOnly *.HiveDDLSuite" "hive/testOnly *.HiveCatalogedDDLSuite" "hive/testOnly *.Hive_2_1_DDLSuite" "hive/testOnly *.HiveSerDeSuite" "hive/testOnly *.HiveQuerySuite" "hive/testOnly *.SQLQuerySuite"
+        - PYSPARK_PYTHON=python3 build/sbt -Phadoop-3.2 -Phive "hive/testOnly *.HiveExternalCatalogVersionsSuite" "hive/testOnly *.HiveSparkSubmitSuite" "hive/testOnly *.VersionsSuite" "hive/testOnly *.HiveDDLSuite" "hive/testOnly *.HiveCatalogedDDLSuite" "hive/testOnly *.Hive_2_1_DDLSuite" "hive/testOnly *.HiveSerDeSuite" "hive/testOnly *.HiveQuerySuite" "hive/testOnly *.SQLQuerySuite"
 
   - name: apple-spark-2.12_3.2.0-snapshot-hive-2-pr
     branchName: branch-3.2.0-apple
@@ -175,7 +175,7 @@ builds:
       template: freestyle:v4:prb
       steps:
         - yum install -y python3
-        - build/sbt -Phadoop-3.2 -Phive "hive/testOnly *.HiveExternalCatalogVersionsSuite" "hive/testOnly *.HiveSparkSubmitSuite" "hive/testOnly *.VersionsSuite" "hive/testOnly *.HiveDDLSuite" "hive/testOnly *.HiveCatalogedDDLSuite" "hive/testOnly *.Hive_2_1_DDLSuite" "hive/testOnly *.HiveSerDeSuite" "hive/testOnly *.HiveQuerySuite" "hive/testOnly *.SQLQuerySuite"
+        - PYSPARK_PYTHON=python3 build/sbt -Phadoop-3.2 -Phive "hive/testOnly *.HiveExternalCatalogVersionsSuite" "hive/testOnly *.HiveSparkSubmitSuite" "hive/testOnly *.VersionsSuite" "hive/testOnly *.HiveDDLSuite" "hive/testOnly *.HiveCatalogedDDLSuite" "hive/testOnly *.Hive_2_1_DDLSuite" "hive/testOnly *.HiveSerDeSuite" "hive/testOnly *.HiveQuerySuite" "hive/testOnly *.SQLQuerySuite"
 
   - name: apple-spark-2.12_3.2.0-snapshot-hive-3
     branchName: branch-3.2.0-apple
@@ -365,7 +365,7 @@ builds:
     finally:
       tag:
         enabled: true
-        expression: "releases_2.12/3.2.0.10-apple"
+        expression: "releases_2.12/3.2.0.49-apple"
 
   - name: apple-spark-2.12_3.2.0-binaries-release
     branchName: branch-3.2.0-apple-release

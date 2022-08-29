@@ -19,12 +19,11 @@ package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.expressions.{Expression, SortOrder}
 import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils.toCatalyst
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, RepartitionByExpression, Sort}
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, RebalancePartitions, RepartitionByExpression, Sort}
 import org.apache.spark.sql.connector.distributions.{ClusteredDistribution, Distribution => V2Distribution, OrderedDistribution, UnspecifiedDistribution}
 import org.apache.spark.sql.connector.expressions.{SortOrder => V2SortOrder}
 import org.apache.spark.sql.connector.write.{RequiresDistributionAndOrdering, Write}
 import org.apache.spark.sql.errors.QueryCompilationErrors
-import org.apache.spark.sql.internal.SQLConf
 
 object DistributionAndOrderingUtils {
 
@@ -32,17 +31,16 @@ object DistributionAndOrderingUtils {
   def prepareQuery(
       distribution: V2Distribution,
       ordering: Array[V2SortOrder],
-      query: LogicalPlan,
-      conf: SQLConf): LogicalPlan = {
+      query: LogicalPlan): LogicalPlan = {
 
     val write = new RequiresDistributionAndOrdering {
       override def requiredDistribution: V2Distribution = distribution
       override def requiredOrdering: Array[V2SortOrder] = ordering
     }
-    prepareQuery(write, query, conf)
+    prepareQuery(write, query)
   }
 
-  def prepareQuery(write: Write, query: LogicalPlan, conf: SQLConf): LogicalPlan = write match {
+  def prepareQuery(write: Write, query: LogicalPlan): LogicalPlan = write match {
     case write: RequiresDistributionAndOrdering =>
       val numPartitions = write.requiredNumPartitions()
       val distribution = write.requiredDistribution match {
@@ -52,15 +50,16 @@ object DistributionAndOrderingUtils {
       }
 
       val queryWithDistribution = if (distribution.nonEmpty) {
-        val finalNumPartitions = if (numPartitions > 0) {
-          numPartitions
-        } else {
-          conf.numShufflePartitions
-        }
+        val optNumPartitions = if (numPartitions > 0) Some(numPartitions) else None
         // the conversion to catalyst expressions above produces SortOrder expressions
         // for OrderedDistribution and generic expressions for ClusteredDistribution
-        // this allows RepartitionByExpression to pick either range or hash partitioning
-        RepartitionByExpression(distribution, query, finalNumPartitions)
+        // this allows RebalancePartitions/RepartitionByExpression to pick either
+        // range or hash partitioning
+        if (write.distributionStrictlyRequired()) {
+          RepartitionByExpression(distribution, query, optNumPartitions)
+        } else {
+          RebalancePartitions(distribution, query, optNumPartitions)
+        }
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
       } else {

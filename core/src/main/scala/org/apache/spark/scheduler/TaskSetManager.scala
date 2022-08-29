@@ -534,7 +534,8 @@ private[spark] class TaskSetManager(
     val tName = taskName(taskId)
     logInfo(s"Starting $tName ($host, executor ${info.executorId}, " +
       s"partition ${task.partitionId}, $taskLocality, ${serializedTask.limit()} bytes) " +
-      s"taskResourceAssignments ${taskResourceAssignments}")
+      (if (taskResourceAssignments.nonEmpty) s"taskResourceAssignments ${taskResourceAssignments}"
+      else ""))
 
     sched.dagScheduler.taskStarted(task, info)
     new TaskDescription(
@@ -766,6 +767,11 @@ private[spark] class TaskSetManager(
    */
   def handleSuccessfulTask(tid: Long, result: DirectTaskResult[_]): Unit = {
     val info = taskInfos(tid)
+    // SPARK-37300: when the task was already finished state, just ignore it,
+    // so that there won't cause successful and tasksSuccessful wrong result.
+    if(info.finished) {
+      return
+    }
     val index = info.index
     // Check if any other attempt succeeded before this and this attempt has not been handled
     if (successful(index) && killedByOtherAttempt.contains(tid)) {
@@ -808,6 +814,7 @@ private[spark] class TaskSetManager(
         s"on ${info.host} (executor ${info.executorId}) ($tasksSuccessful/$numTasks)")
       // Mark successful and stop if all the tasks have succeeded.
       successful(index) = true
+      numFailures(index) = 0
       if (tasksSuccessful == numTasks) {
         isZombie = true
       }
@@ -831,6 +838,7 @@ private[spark] class TaskSetManager(
       if (!successful(index)) {
         tasksSuccessful += 1
         successful(index) = true
+        numFailures(index) = 0
         if (tasksSuccessful == numTasks) {
           isZombie = true
         }
@@ -845,7 +853,9 @@ private[spark] class TaskSetManager(
    */
   def handleFailedTask(tid: Long, state: TaskState, reason: TaskFailedReason): Unit = {
     val info = taskInfos(tid)
-    if (info.failed || info.killed) {
+    // SPARK-37300: when the task was already finished state, just ignore it,
+    // so that there won't cause copiesRunning wrong result.
+    if (info.finished) {
       return
     }
     removeRunningTask(tid)

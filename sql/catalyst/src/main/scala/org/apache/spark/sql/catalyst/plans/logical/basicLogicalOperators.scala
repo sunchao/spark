@@ -17,7 +17,7 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.AliasIdentifier
+import org.apache.spark.sql.catalyst.{AliasIdentifier, SQLConfHelper}
 import org.apache.spark.sql.catalyst.analysis.{AnsiTypeCoercion, MultiInstanceRelation, Resolver, TypeCoercion, TypeCoercionBase}
 import org.apache.spark.sql.catalyst.catalog.{CatalogStorageFormat, CatalogTable}
 import org.apache.spark.sql.catalyst.catalog.CatalogTable.VIEW_STORING_ANALYZED_PLAN
@@ -277,11 +277,18 @@ case class Union(
   assert(!allowMissingCol || byName, "`allowMissingCol` can be true only if `byName` is true.")
 
   override def maxRows: Option[Long] = {
-    if (children.exists(_.maxRows.isEmpty)) {
-      None
-    } else {
-      Some(children.flatMap(_.maxRows).sum)
+    var sum = BigInt(0)
+    children.foreach { child =>
+      if (child.maxRows.isDefined) {
+        sum += child.maxRows.get
+        if (!sum.isValidLong) {
+          return None
+        }
+      } else {
+        return None
+      }
     }
+    Some(sum.toLong)
   }
 
   final override val nodePatterns: Seq[TreePattern] = Seq(UNION)
@@ -290,11 +297,18 @@ case class Union(
    * Note the definition has assumption about how union is implemented physically.
    */
   override def maxRowsPerPartition: Option[Long] = {
-    if (children.exists(_.maxRowsPerPartition.isEmpty)) {
-      None
-    } else {
-      Some(children.flatMap(_.maxRowsPerPartition).sum)
+    var sum = BigInt(0)
+    children.foreach { child =>
+      if (child.maxRowsPerPartition.isDefined) {
+        sum += child.maxRowsPerPartition.get
+        if (!sum.isValidLong) {
+          return None
+        }
+      } else {
+        return None
+      }
     }
+    Some(sum.toLong)
   }
 
   def duplicateResolved: Boolean = {
@@ -643,8 +657,15 @@ case class UnresolvedWith(
  * A wrapper for CTE definition plan with a unique ID.
  * @param child The CTE definition query plan.
  * @param id    The unique ID for this CTE definition.
+ * @param originalPlanWithPredicates The original query plan before predicate pushdown and the
+ *                                   predicates that have been pushed down into `child`. This is
+ *                                   a temporary field used by optimization rules for CTE predicate
+ *                                   pushdown to help ensure rule idempotency.
  */
-case class CTERelationDef(child: LogicalPlan, id: Long = CTERelationDef.newId) extends UnaryNode {
+case class CTERelationDef(
+    child: LogicalPlan,
+    id: Long = CTERelationDef.newId,
+    originalPlanWithPredicates: Option[(LogicalPlan, Seq[Expression])] = None) extends UnaryNode {
 
   final override val nodePatterns: Seq[TreePattern] = Seq(CTE)
 
@@ -982,7 +1003,12 @@ case class Aggregate(
 
   // Whether this Aggregate operator is group only. For example: SELECT a, a FROM t GROUP BY a
   private[sql] def groupOnly: Boolean = {
-    aggregateExpressions.forall(a => groupingExpressions.exists(g => a.semanticEquals(g)))
+    // aggregateExpressions can be empty through Dateset.agg,
+    // so we should also check groupingExpressions is non empty
+    groupingExpressions.nonEmpty && aggregateExpressions.map {
+      case Alias(child, _) => child
+      case e => e
+    }.forall(a => groupingExpressions.exists(g => a.semanticEquals(g)))
   }
 }
 
@@ -1197,8 +1223,13 @@ object Limit {
  * A global (coordinated) limit. This operator can emit at most `limitExpr` number in total.
  *
  * See [[Limit]] for more information.
+ *
+ * Note that, we can not make it inherit [[OrderPreservingUnaryNode]] due to the different strategy
+ * of physical plan. The output ordering of child will be broken if a shuffle exchange comes in
+ * between the child and global limit, due to the fact that shuffle reader fetches blocks in random
+ * order.
  */
-case class GlobalLimit(limitExpr: Expression, child: LogicalPlan) extends OrderPreservingUnaryNode {
+case class GlobalLimit(limitExpr: Expression, child: LogicalPlan) extends UnaryNode {
   override def output: Seq[Attribute] = child.output
   override def maxRows: Option[Long] = {
     limitExpr match {
@@ -1277,7 +1308,8 @@ case class SubqueryAlias(
 
   override def metadataOutput: Seq[Attribute] = {
     val qualifierList = identifier.qualifier :+ alias
-    child.metadataOutput.map(_.withQualifier(qualifierList))
+    val nonHiddenMetadataOutput = child.metadataOutput.filter(!_.supportsQualifiedStar)
+    nonHiddenMetadataOutput.map(_.withQualifier(qualifierList))
   }
 
   override def maxRows: Option[Long] = child.maxRows
@@ -1339,7 +1371,11 @@ case class Sample(
       s"Sampling fraction ($fraction) must be on interval [0, 1] without replacement")
   }
 
-  override def maxRows: Option[Long] = child.maxRows
+  override def maxRows: Option[Long] = {
+    // when withReplacement is true, PoissonSampler is applied in SampleExec,
+    // which may output more rows than child.maxRows.
+    if (withReplacement) None else child.maxRows
+  }
   override def output: Seq[Attribute] = child.output
 
   override protected def withNewChildInternal(newChild: LogicalPlan): Sample =
@@ -1390,6 +1426,35 @@ case class Repartition(numPartitions: Int, shuffle: Boolean, child: LogicalPlan)
     copy(child = newChild)
 }
 
+trait HasPartitionExpressions extends SQLConfHelper {
+
+  val numPartitions = optNumPartitions.getOrElse(conf.numShufflePartitions)
+  require(numPartitions > 0, s"Number of partitions ($numPartitions) must be positive.")
+
+  def partitionExpressions: Seq[Expression]
+
+  def optNumPartitions: Option[Int]
+
+  protected def partitioning: Partitioning = if (partitionExpressions.isEmpty) {
+    RoundRobinPartitioning(numPartitions)
+  } else {
+    val (sortOrder, nonSortOrder) = partitionExpressions.partition(_.isInstanceOf[SortOrder])
+    require(sortOrder.isEmpty || nonSortOrder.isEmpty,
+      s"${getClass.getSimpleName} expects that either all its `partitionExpressions` are of type " +
+        "`SortOrder`, which means `RangePartitioning`, or none of them are `SortOrder`, which " +
+        "means `HashPartitioning`. In this case we have:" +
+        s"""
+           |SortOrder: $sortOrder
+           |NonSortOrder: $nonSortOrder
+       """.stripMargin)
+    if (sortOrder.nonEmpty) {
+      RangePartitioning(sortOrder.map(_.asInstanceOf[SortOrder]), numPartitions)
+    } else {
+      HashPartitioning(partitionExpressions, numPartitions)
+    }
+  }
+}
+
 /**
  * This method repartitions data using [[Expression]]s into `optNumPartitions`, and receives
  * information about the number of partitions during execution. Used when a specific ordering or
@@ -1400,31 +1465,13 @@ case class Repartition(numPartitions: Int, shuffle: Boolean, child: LogicalPlan)
 case class RepartitionByExpression(
     partitionExpressions: Seq[Expression],
     child: LogicalPlan,
-    optNumPartitions: Option[Int]) extends RepartitionOperation {
-
-  val numPartitions = optNumPartitions.getOrElse(conf.numShufflePartitions)
-  require(numPartitions > 0, s"Number of partitions ($numPartitions) must be positive.")
+    optNumPartitions: Option[Int]) extends RepartitionOperation with HasPartitionExpressions {
 
   override val partitioning: Partitioning = {
-    val (sortOrder, nonSortOrder) = partitionExpressions.partition(_.isInstanceOf[SortOrder])
-
-    require(sortOrder.isEmpty || nonSortOrder.isEmpty,
-      s"${getClass.getSimpleName} expects that either all its `partitionExpressions` are of type " +
-        "`SortOrder`, which means `RangePartitioning`, or none of them are `SortOrder`, which " +
-        "means `HashPartitioning`. In this case we have:" +
-      s"""
-         |SortOrder: $sortOrder
-         |NonSortOrder: $nonSortOrder
-       """.stripMargin)
-
     if (numPartitions == 1) {
       SinglePartition
-    } else if (sortOrder.nonEmpty) {
-      RangePartitioning(sortOrder.map(_.asInstanceOf[SortOrder]), numPartitions)
-    } else if (nonSortOrder.nonEmpty) {
-      HashPartitioning(nonSortOrder, numPartitions)
     } else {
-      RoundRobinPartitioning(numPartitions)
+      super.partitioning
     }
   }
 
@@ -1454,16 +1501,12 @@ object RepartitionByExpression {
  */
 case class RebalancePartitions(
     partitionExpressions: Seq[Expression],
-    child: LogicalPlan) extends UnaryNode {
+    child: LogicalPlan,
+    optNumPartitions: Option[Int] = None) extends UnaryNode with HasPartitionExpressions {
   override def maxRows: Option[Long] = child.maxRows
   override def output: Seq[Attribute] = child.output
 
-  def partitioning: Partitioning = if (partitionExpressions.isEmpty) {
-    RoundRobinPartitioning(conf.numShufflePartitions)
-  } else {
-    HashPartitioning(partitionExpressions, conf.numShufflePartitions)
-  }
-
+  override val partitioning: Partitioning = super.partitioning
   override protected def withNewChildInternal(newChild: LogicalPlan): RebalancePartitions =
     copy(child = newChild)
 }

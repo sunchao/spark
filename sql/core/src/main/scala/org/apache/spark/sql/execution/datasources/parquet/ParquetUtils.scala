@@ -20,7 +20,8 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.parquet.hadoop.ParquetFileWriter
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types._
 
 object ParquetUtils {
   def inferSchema(
@@ -105,6 +106,30 @@ object ParquetUtils {
           .toSeq
       }
     ParquetFileFormat.mergeSchemasInParallel(parameters, filesToTouch, sparkSession)
+  }
+
+  /**
+   * Whether columnar read is supported for the input `schema`.
+   */
+  def isBatchReadSupportedForSchema(sqlConf: SQLConf, schema: StructType): Boolean =
+    sqlConf.parquetVectorizedReaderEnabled &&
+        schema.forall(f => isBatchReadSupported(sqlConf, f.dataType))
+
+  def isBatchReadSupported(sqlConf: SQLConf, dt: DataType): Boolean = dt match {
+    case _: AtomicType =>
+      true
+    case at: ArrayType =>
+      sqlConf.parquetVectorizedReaderNestedColumnEnabled &&
+          isBatchReadSupported(sqlConf, at.elementType)
+    case mt: MapType =>
+      sqlConf.parquetVectorizedReaderNestedColumnEnabled &&
+          isBatchReadSupported(sqlConf, mt.keyType) &&
+          isBatchReadSupported(sqlConf, mt.valueType)
+    case st: StructType =>
+      sqlConf.parquetVectorizedReaderNestedColumnEnabled &&
+          st.fields.forall(f => isBatchReadSupported(sqlConf, f.dataType))
+    case _ =>
+      false
   }
 
   case class FileTypes(

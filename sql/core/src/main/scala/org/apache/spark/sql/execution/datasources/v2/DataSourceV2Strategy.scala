@@ -284,8 +284,16 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
       // make sure we use the original relation to refresh the cache
       WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
 
-    case MergeRows(params, output, child) =>
-      MergeRowsExec(params, output, planLater(child)) :: Nil
+    case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs,
+        notMatchedConditions, notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck,
+        emitNotMatchedTargetRows, output, child) =>
+
+      MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs,
+        notMatchedConditions, notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck,
+        emitNotMatchedTargetRows, output, planLater(child)) :: Nil
+
+    case NoStatsUnaryNode(child) =>
+      planLater(child) :: Nil
 
     case WriteToContinuousDataSource(writer, query, customMetrics) =>
       WriteToContinuousDataSourceExec(writer, planLater(query), customMetrics) :: Nil
@@ -437,7 +445,8 @@ class DataSourceV2Strategy(session: SparkSession) extends Strategy with Predicat
       CacheTableExec(r.table, r.multipartIdentifier, r.isLazy, r.options) :: Nil
 
     case r: CacheTableAsSelect =>
-      CacheTableAsSelectExec(r.tempViewName, r.plan, r.originalText, r.isLazy, r.options) :: Nil
+      CacheTableAsSelectExec(
+        r.tempViewName, r.plan, r.originalText, r.isLazy, r.options, r.referredTempFunctions) :: Nil
 
     case r: UncacheTable =>
       def isTempView(table: LogicalPlan): Boolean = table match {

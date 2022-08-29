@@ -992,6 +992,17 @@ object SQLConf {
       .booleanConf
       .createWithDefault(false)
 
+  val HIVE_METASTORE_PARTITION_PRUNING_FAST_FALLBACK =
+    buildConf("spark.sql.hive.metastorePartitionPruningFastFallback")
+      .doc("When this config is enabled, if the predicates are not supported by Hive or Spark " +
+        "does fallback due to encountering MetaException from the metastore, " +
+        "Spark will instead prune partitions by getting the partition names first " +
+        "and then evaluating the filter expressions on the client side. " +
+        "Note that the predicates with TimeZoneAwareExpression is not supported.")
+      .version("3.3.0")
+      .booleanConf
+      .createWithDefault(false)
+
   val HIVE_MANAGE_FILESOURCE_PARTITIONS =
     buildConf("spark.sql.hive.manageFilesourcePartitions")
       .doc("When true, enable metastore partition management for file source tables as well. " +
@@ -1415,6 +1426,14 @@ object SQLConf {
     .booleanConf
     .createWithDefault(false)
 
+  val FILES_BLOBC_ENABLED = buildConf("spark.sql.files.blobc.enabled")
+    .internal()
+    .doc("If true, use blobc at reading McQueen files by replacing 'blob' prefix to 'blobc' " +
+      "during creating partitioned files")
+    .version("3.3.0")
+    .booleanConf
+    .createWithDefault(false)
+
   val FILES_MIN_PARTITION_NUM = buildConf("spark.sql.files.minPartitionNum")
     .doc("The suggested (not guaranteed) minimum number of split file partitions. " +
       "If not set, the default value is `spark.default.parallelism`. This configuration is " +
@@ -1682,6 +1701,23 @@ object SQLConf {
       .booleanConf
       .createWithDefault(true)
 
+  val STATEFUL_OPERATOR_USE_STRICT_DISTRIBUTION =
+    buildConf("spark.sql.streaming.statefulOperator.useStrictDistribution")
+      .internal()
+      .doc("The purpose of this config is only compatibility; DO NOT MANUALLY CHANGE THIS!!! " +
+        "When true, the stateful operator for streaming query will use " +
+        "HashClusteredDistribution which guarantees stable state partitioning as long as " +
+        "the operator provides consistent grouping keys across the lifetime of query. " +
+        "When false, the stateful operator for streaming query will use ClusteredDistribution " +
+        "which is not sufficient to guarantee stable state partitioning despite the operator " +
+        "provides consistent grouping keys across the lifetime of query. " +
+        "This config will be set to true for new streaming queries to guarantee stable state " +
+        "partitioning, and set to false for existing streaming queries to not break queries " +
+        "which are restored from existing checkpoints. Please refer SPARK-38204 for details.")
+      .version("3.2.2")
+      .booleanConf
+      .createWithDefault(true)
+
   val FILESTREAM_SINK_METADATA_IGNORED =
     buildConf("spark.sql.streaming.fileStreamSink.ignoreMetadata")
       .internal()
@@ -1691,6 +1727,20 @@ object SQLConf {
       .version("3.2.0")
       .booleanConf
       .createWithDefault(false)
+
+  /**
+   * SPARK-38809 - Config option to allow skipping null values for hash based stream-stream joins.
+   * Its possible for us to see nulls if state was written with an older version of Spark,
+   * the state was corrupted on disk or if we had an issue with the state iterators.
+   */
+  val STATE_STORE_SKIP_NULLS_FOR_STREAM_STREAM_JOINS =
+  buildConf("spark.sql.streaming.stateStore.skipNullsForStreamStreamJoins.enabled")
+    .internal()
+    .doc("When true, this config will skip null values in hash based stream-stream joins. " +
+      "The number of skipped null values will be shown as custom metric of stream join operator.")
+    .version("3.3.0")
+    .booleanConf
+    .createWithDefault(false)
 
   val VARIABLE_SUBSTITUTE_ENABLED =
     buildConf("spark.sql.variable.substitute")
@@ -3416,6 +3466,16 @@ object SQLConf {
     .stringConf
     .createOptional
 
+  val LEGACY_ALLOW_NULL_COMPARISON_RESULT_IN_ARRAY_SORT =
+    buildConf("spark.sql.legacy.allowNullComparisonResultInArraySort")
+      .internal()
+      .doc("When set to false, `array_sort` function throws an error " +
+        "if the comparator function returns null. " +
+        "If set to true, it restores the legacy behavior that handles null as zero (equal).")
+      .version("3.2.2")
+      .booleanConf
+      .createWithDefault(false)
+
   /**
    * Holds information about keys that have been deprecated.
    *
@@ -3575,6 +3635,9 @@ class SQLConf extends Serializable with Logging {
 
   def stateStoreFormatValidationEnabled: Boolean = getConf(STATE_STORE_FORMAT_VALIDATION_ENABLED)
 
+  def stateStoreSkipNullsForStreamStreamJoins: Boolean =
+    getConf(STATE_STORE_SKIP_NULLS_FOR_STREAM_STREAM_JOINS)
+
   def checkpointLocation: Option[String] = getConf(CHECKPOINT_LOCATION)
 
   def isUnsupportedOperationCheckEnabled: Boolean = getConf(UNSUPPORTED_OPERATION_CHECK_ENABLED)
@@ -3619,6 +3682,8 @@ class SQLConf extends Serializable with Logging {
   def filesOpenCostInBytes: Long = getConf(FILES_OPEN_COST_IN_BYTES)
 
   def filesS3CEnabled: Boolean = getConf(FILES_S3C_ENABLED)
+
+  def filesBlobcEnabled: Boolean = getConf(FILES_BLOBC_ENABLED)
 
   def filesMinPartitionNum: Option[Int] = getConf(FILES_MIN_PARTITION_NUM)
 
@@ -3708,6 +3773,9 @@ class SQLConf extends Serializable with Logging {
 
   def metastorePartitionPruningFallbackOnException: Boolean =
     getConf(HIVE_METASTORE_PARTITION_PRUNING_FALLBACK_ON_EXCEPTION)
+
+  def metastorePartitionPruningFastFallback: Boolean =
+    getConf(HIVE_METASTORE_PARTITION_PRUNING_FAST_FALLBACK)
 
   def manageFilesourcePartitions: Boolean = getConf(HIVE_MANAGE_FILESOURCE_PARTITIONS)
 

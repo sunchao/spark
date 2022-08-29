@@ -716,6 +716,12 @@ private[spark] class DAGScheduler(
                 // read from merged output as the MergeStatuses are not available.
                 if (!mapStage.isAvailable || !mapStage.shuffleDep.shuffleMergeFinalized) {
                   missing += mapStage
+                } else {
+                  // Forward the nextAttemptId if skipped and get visited for the first time.
+                  // Otherwise, once it gets retried,
+                  // 1) the stuffs in stage info become distorting, e.g. task num, input byte, e.t.c
+                  // 2) the first attempt starts from 0-idx, it will not be marked as a retry
+                  mapStage.increaseAttemptIdOnFirstSkip()
                 }
               case narrowDep: NarrowDependency[_] =>
                 waitingForVisit.prepend(narrowDep.rdd)
@@ -2522,7 +2528,7 @@ private[spark] class DAGScheduler(
     // If the RDD has some placement preferences (as is the case for input RDDs), get those
     val rddPrefs = rdd.preferredLocations(rdd.partitions(partition)).toList
     if (rddPrefs.nonEmpty) {
-      return rddPrefs.map(TaskLocation(_))
+      return rddPrefs.filter(_ != null).map(TaskLocation(_))
     }
 
     // If the RDD has narrow dependencies, pick the first partition of the first narrow dependency

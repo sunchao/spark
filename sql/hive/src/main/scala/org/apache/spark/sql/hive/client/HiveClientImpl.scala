@@ -202,11 +202,12 @@ private[hive] class HiveClientImpl(
 
   private def getHive(conf: HiveConf): Hive = {
     try {
-      Hive.getWithoutRegisterFns(conf)
+      classOf[Hive].getMethod("getWithoutRegisterFns", classOf[HiveConf])
+        .invoke(null, conf).asInstanceOf[Hive]
     } catch {
       // SPARK-37069: not all Hive versions have the above method (e.g., Hive 2.3.9 has it but
       // 2.3.8 don't), therefore here we fallback when encountering the exception.
-      case _: NoSuchMethodError =>
+      case _: NoSuchMethodException =>
         Hive.get(conf)
     }
   }
@@ -354,14 +355,17 @@ private[hive] class HiveClientImpl(
   }
 
   override def alterDatabase(database: CatalogDatabase): Unit = withHiveState {
-    if (!getDatabase(database.name).locationUri.equals(database.locationUri)) {
-      // SPARK-29260: Enable supported versions once it support altering database location.
-      if (!(version.equals(hive.v3_0) || version.equals(hive.v3_1))) {
-        throw QueryCompilationErrors.alterDatabaseLocationUnsupportedError(version.fullVersion)
-      }
-    }
+    val loc = getDatabase(database.name).locationUri
+    val changeLoc = !database.locationUri.equals(loc)
+
     val hiveDb = toHiveDatabase(database)
     client.alterDatabase(database.name, hiveDb)
+
+    if (changeLoc && getDatabase(database.name).locationUri.equals(loc)) {
+      // Some Hive versions don't support changing database location, so we check here to see if
+      // the location is actually changed, and throw an error if not.
+      throw QueryCompilationErrors.alterDatabaseLocationUnsupportedError()
+    }
   }
 
   private def toHiveDatabase(
@@ -757,7 +761,7 @@ private[hive] class HiveClientImpl(
       table: CatalogTable,
       predicates: Seq[Expression]): Seq[CatalogTablePartition] = withHiveState {
     val hiveTable = toHiveTable(table, Some(userName))
-    val parts = shim.getPartitionsByFilter(client, hiveTable, predicates)
+    val parts = shim.getPartitionsByFilter(client, hiveTable, predicates, table)
       .map(fromHivePartition)
     HiveCatalogMetrics.incrementFetchedPartitions(parts.length)
     parts

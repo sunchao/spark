@@ -57,6 +57,8 @@ import org.apache.hadoop.io.compress.{CompressionCodecFactory, SplittableCompres
 import org.apache.hadoop.security.UserGroupInformation
 import org.apache.hadoop.util.{RunJar, StringUtils}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
+import org.apache.logging.log4j.{Level, LogManager}
+import org.apache.logging.log4j.core.LoggerContext
 import org.eclipse.jetty.util.MultiException
 import org.slf4j.Logger
 
@@ -585,17 +587,46 @@ private[spark] object Utils extends Logging {
    * basically copied from `org.apache.hadoop.yarn.util.FSDownload.unpack`.
    */
   def unpack(source: File, dest: File): Unit = {
+    if (!source.exists()) {
+      throw new FileNotFoundException(source.getAbsolutePath)
+    }
     val lowerSrc = StringUtils.toLowerCase(source.getName)
     if (lowerSrc.endsWith(".jar")) {
       RunJar.unJar(source, dest, RunJar.MATCH_ANY)
     } else if (lowerSrc.endsWith(".zip")) {
+      // TODO(SPARK-37677): should keep file permissions. Java implementation doesn't.
       FileUtil.unZip(source, dest)
-    } else if (
-      lowerSrc.endsWith(".tar.gz") || lowerSrc.endsWith(".tgz") || lowerSrc.endsWith(".tar")) {
+    } else if (lowerSrc.endsWith(".tar.gz") || lowerSrc.endsWith(".tgz")) {
       FileUtil.unTar(source, dest)
+    } else if (lowerSrc.endsWith(".tar")) {
+      // TODO(SPARK-38632): should keep file permissions. Java implementation doesn't.
+      unTarUsingJava(source, dest)
     } else {
       logWarning(s"Cannot unpack $source, just copying it to $dest.")
       copyRecursive(source, dest)
+    }
+  }
+
+  /**
+   * The method below was copied from `FileUtil.unTar` but uses Java-based implementation
+   * to work around a security issue, see also SPARK-38631.
+   */
+  private def unTarUsingJava(source: File, dest: File): Unit = {
+    if (!dest.mkdirs && !dest.isDirectory) {
+      throw new IOException(s"Mkdirs failed to create $dest")
+    } else {
+      try {
+        // Should not fail because all Hadoop 2.1+ (from HADOOP-9264)
+        // have 'unTarUsingJava'.
+        val mth = classOf[FileUtil].getDeclaredMethod(
+          "unTarUsingJava", classOf[File], classOf[File], classOf[Boolean])
+        mth.setAccessible(true)
+        mth.invoke(null, source, dest, java.lang.Boolean.FALSE)
+      } catch {
+        // Re-throw the original exception.
+        case e: java.lang.reflect.InvocationTargetException if e.getCause != null =>
+          throw e.getCause
+      }
     }
   }
 
@@ -2412,9 +2443,13 @@ private[spark] object Utils extends Logging {
   /**
    * configure a new log4j level
    */
-  def setLogLevel(l: org.apache.log4j.Level): Unit = {
-    val rootLogger = org.apache.log4j.Logger.getRootLogger()
-    rootLogger.setLevel(l)
+  def setLogLevel(l: Level): Unit = {
+    val ctx = LogManager.getContext(false).asInstanceOf[LoggerContext]
+    val config = ctx.getConfiguration()
+    val loggerConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME)
+    loggerConfig.setLevel(l)
+    ctx.updateLoggers()
+
     // Setting threshold to null as rootLevel will define log level for spark-shell
     Logging.sparkShellThresholdLevel = null
   }
