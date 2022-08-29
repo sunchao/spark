@@ -17,6 +17,9 @@ SPARK-39688     `getReusablePVCs` should handle accounts with no PVC permission
 SPARK-39987     Support `PEAK_JVM_(ON|OFF)HEAP_MEMORY` executor rolling policy (#1484)
 SPARK-40049     Add ReplaceNullWithFalseInPredicateWithAQEEndToEndSuite
 SPARK-40110     Add JDBCWithAQESuite
+SPARK-39846     Enable `spark.dynamicAllocation.shuffleTracking.enabled` by default
+SPARK-40198     Enable `spark.storage.decommission.(rdd|shuffle)Blocks.enabled` by default
+SPARK-40234     Clean only MDC items set by Spark
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -103,6 +106,12 @@ SPARK-40002     Don't push down limit through window using ntile
 SPARK-40022     Ignore pyspark suites in `YarnClusterSuite` when python3 is unavailable
 SPARK-40043     Document DataStreamWriter.toTable and DataStreamReader.table
 SPARK-39887     RemoveRedundantAliases should keep aliases that make the output of projection nodes unique
+SPARK-40089     Fix sorting for some Decimal types
+SPARK-40172     Temporarily disable flaky test cases in ImageFileFormatSuite
+SPARK-40213     Support ASCII value conversion for Latin-1 characters
+SPARK-40218     GROUPING SETS should preserve the grouping columns
+SPARK-40241     Correct the link of GenericUDTF
+SPARK-40124     Update TPCDS v1.4 q32 for Plan Stability tests
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
