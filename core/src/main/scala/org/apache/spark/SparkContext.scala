@@ -2535,16 +2535,16 @@ class SparkContext(config: SparkConf) extends Logging {
    */
   private def setupSparkCallHomeListener(): Unit = {
     try {
-      val listeners = Utils.loadExtensions(classOf[SparkListenerInterface],
-        Seq(SPARK_CALL_HOME_LISTENER_CLASS), conf)
+      val classNames = conf.get("spark.pie.listeners", SPARK_CALL_HOME_LISTENER_CLASS).split(",")
+      val listeners = Utils.loadExtensions(classOf[SparkListenerInterface], classNames, conf)
       listeners.foreach { listener =>
-        listenerBus.addToQueue(listener, SPARK_CALL_HOME_QUEUE_NAME)
-        logInfo(s"Registered Spark Call Home listener ${listener.getClass().getName()}")
+        listenerBus.addToQueue(listener, SPARK_ACS_QUEUE_NAME)
+        logInfo(s"Registered acs spark runtime listener ${listener.getClass().getName()}")
       }
     } catch {
       case e: Exception =>
         // We don't fail the job and just log a warning.
-        log.warn("Exception when registering Spark Call Home Listener", e)
+        log.warn("Exception when registering Spark Call Home Listener", e.getMessage)
     }
   }
 

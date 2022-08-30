@@ -40,8 +40,8 @@ package object config {
 
   private[spark] val SPARK_CALL_HOME_LISTENER_CLASS =
     "com.apple.spark.callhome.listener.SparkCallHomeListenerV2"
-  private[spark] val SPARK_CALL_HOME_QUEUE_NAME =
-    "SparkCallHome"
+  private[spark] val SPARK_ACS_QUEUE_NAME =
+    "parkRuntimeQueue"
 
   private[spark] val RESOURCES_DISCOVERY_PLUGIN =
     ConfigBuilder("spark.resources.discoveryPlugin")
