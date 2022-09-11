@@ -88,7 +88,7 @@ case class Project(projectList: Seq[NamedExpression], child: LogicalPlan)
     getAllValidConstraints(projectList)
 
   override def metadataOutput: Seq[Attribute] =
-    getTagValue(Project.hiddenOutputTag).getOrElse(child.metadataOutput)
+    getTagValue(Project.hiddenOutputTag).getOrElse(Nil)
 
   override protected def withNewChildInternal(newChild: LogicalPlan): Project =
     copy(child = newChild)
@@ -1307,14 +1307,9 @@ case class SubqueryAlias(
   }
 
   override def metadataOutput: Seq[Attribute] = {
-    // Propagate metadata columns from leaf nodes through a chain of `SubqueryAlias`.
-    if (child.isInstanceOf[LeafNode] || child.isInstanceOf[SubqueryAlias]) {
-      val qualifierList = identifier.qualifier :+ alias
-      val nonHiddenMetadataOutput = child.metadataOutput.filter(!_.qualifiedAccessOnly)
-      nonHiddenMetadataOutput.map(_.withQualifier(qualifierList))
-    } else {
-      Nil
-    }
+    val qualifierList = identifier.qualifier :+ alias
+    val nonHiddenMetadataOutput = child.metadataOutput.filter(!_.supportsQualifiedStar)
+    nonHiddenMetadataOutput.map(_.withQualifier(qualifierList))
   }
 
   override def maxRows: Option[Long] = child.maxRows
