@@ -66,7 +66,8 @@ import org.apache.spark.sql.internal.SQLConf
  * }}}
  */
 // scalastyle:on line.size.limit
-trait PlanStabilitySuite extends TPCDSBase with DisableAdaptiveExecutionSuite {
+trait PlanStabilitySuite extends TPCDSBase with DisableAdaptiveExecutionSuite
+    with DisableBosonSuite {
 
   private val originalMaxToStringFields = conf.maxToStringFields
 

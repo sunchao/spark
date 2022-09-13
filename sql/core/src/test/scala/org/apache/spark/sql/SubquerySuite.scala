@@ -19,6 +19,7 @@ package org.apache.spark.sql
 
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.spark.sql.boson.BosonScanExec
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.{Join, LogicalPlan, Project, Sort}
 import org.apache.spark.sql.execution.{ColumnarToRowExec, ExecSubqueryExpression, FileSourceScanExec, InputAdapter, ReusedSubqueryExec, ScalarSubquery, SubqueryExec, WholeStageCodegenExec}
@@ -1327,6 +1328,12 @@ class SubquerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
       assert(stripAQEPlan(df.queryExecution.executedPlan) match {
         case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
             fs @ FileSourceScanExec(_, _, _, partitionFilters, _, _, _, _, _)))) =>
+          partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
+            fs.inputRDDs().forall(
+              _.asInstanceOf[FileScanRDD].filePartitions.forall(
+                _.files.forall(_.filePath.contains("p=0"))))
+        case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
+            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _)))) =>
           partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
             fs.inputRDDs().forall(
               _.asInstanceOf[FileScanRDD].filePartitions.forall(
