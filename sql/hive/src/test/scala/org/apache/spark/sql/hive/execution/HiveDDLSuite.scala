@@ -26,7 +26,7 @@ import org.apache.parquet.format.converter.ParquetMetadataConverter.NO_FILTER
 import org.scalatest.BeforeAndAfterEach
 
 import org.apache.spark.SparkException
-import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SaveMode}
+import org.apache.spark.sql.{AnalysisException, DisableBoson, QueryTest, Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException
 import org.apache.spark.sql.catalyst.catalog._
@@ -528,7 +528,8 @@ class HiveDDLSuite
     }
   }
 
-  test("create Hive-serde table and view with unicode columns and comment") {
+  test("create Hive-serde table and view with unicode columns and comment",
+      DisableBoson("This test is flaky")) {
     val catalog = spark.sessionState.catalog
     val tabName = "tab1"
     val viewName = "view1"

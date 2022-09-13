@@ -17,8 +17,11 @@
 
 package org.apache.spark.sql.execution.datasources.parquet
 
+import com.apple.boson.parquet.BosonParquetScan
+
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.boson.BosonBatchScanExec
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper
 import org.apache.spark.sql.execution.datasources.SchemaPruningSuite
@@ -56,6 +59,7 @@ class ParquetV2SchemaPruningSuite extends ParquetSchemaPruningSuite {
     val fileSourceScanSchemata =
       collect(df.queryExecution.executedPlan) {
         case scan: BatchScanExec => scan.scan.asInstanceOf[ParquetScan].readDataSchema
+        case scan: BosonBatchScanExec => scan.scan.asInstanceOf[BosonParquetScan].readDataSchema
       }
     assert(fileSourceScanSchemata.size === expectedSchemaCatalogStrings.size,
       s"Found ${fileSourceScanSchemata.size} file sources in dataframe, " +

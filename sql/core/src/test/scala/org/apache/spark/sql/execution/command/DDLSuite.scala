@@ -26,7 +26,7 @@ import org.apache.hadoop.fs.permission.{AclEntry, AclStatus}
 
 import org.apache.spark.{SparkException, SparkFiles}
 import org.apache.spark.internal.config
-import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SaveMode}
+import org.apache.spark.sql.{AnalysisException, DisableBoson, QueryTest, Row, SaveMode}
 import org.apache.spark.sql.catalyst.{FunctionIdentifier, QualifiedTableName, TableIdentifier}
 import org.apache.spark.sql.catalyst.analysis.{FunctionRegistry, NoSuchDatabaseException, NoSuchFunctionException, TableFunctionRegistry, TempTableAlreadyExistsException}
 import org.apache.spark.sql.catalyst.catalog._
@@ -2400,7 +2400,8 @@ abstract class DDLSuite extends QueryTest with SQLTestUtils {
       }
     }
 
-    test(s"basic DDL using locale tr - caseSensitive $caseSensitive") {
+    test(s"basic DDL using locale tr - caseSensitive $caseSensitive",
+        DisableBoson("This test is flaky because of locale setting")) {
       withSQLConf(SQLConf.CASE_SENSITIVE.key -> s"$caseSensitive") {
         withLocale("tr") {
           val dbName = "DaTaBaSe_I"

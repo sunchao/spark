@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.parquet.avro.AvroParquetWriter
 import org.apache.parquet.hadoop.ParquetWriter
 
+import org.apache.spark.sql.DisableBoson
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.execution.datasources.parquet.test.avro._
 import org.apache.spark.sql.test.SharedSparkSession
@@ -256,7 +257,8 @@ class ParquetAvroCompatibilitySuite extends ParquetCompatibilityTest with Shared
       .build()
   }
 
-  test("SPARK-9407 Push down predicates involving Parquet ENUM columns") {
+  test("SPARK-9407 Push down predicates involving Parquet ENUM columns",
+      DisableBoson("Boson doesn't support Parquet ENUM type")) {
     import testImplicits._
 
     withTempPath { dir =>

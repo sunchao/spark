@@ -200,11 +200,12 @@
     <commons-cli.version>1.2</commons-cli.version>
     <bouncycastle.version>1.60</bouncycastle.version>
     <tink.version>1.6.0</tink.version>
+    <boson.version>alpha-0.1.8</boson.version>
     <!--
     If you are changing Arrow version specification, please check
     ./python/pyspark/sql/pandas/utils.py, and ./python/setup.py too.
     -->
-    <arrow.version>6.0.0</arrow.version>
+    <arrow.version>7.0.0.1-apple</arrow.version>
     <!-- org.fusesource.leveldbjni will be used except on arm64 platform. -->
     <leveldbjni.group>org.fusesource.leveldbjni</leveldbjni.group>
     <kubernetes-client.version>5.7.3</kubernetes-client.version>
@@ -2637,6 +2638,25 @@
         <artifactId>adt-spark3</artifactId>
         <version>${adt.version}</version>
         <type>pom</type>
+      </dependency>
+      <dependency>
+        <groupId>com.apple.pie.boson</groupId>
+        <artifactId>boson-spark</artifactId>
+        <version>${boson.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_${scala.binary.version}</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-core_${scala.binary.version}</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-catalyst_${scala.binary.version}</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
     </dependencies>
   </dependencyManagement>

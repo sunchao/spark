@@ -616,7 +616,8 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
     }
   }
 
-  test("SPARK-34817: Support for unsigned Parquet logical types") {
+  test("SPARK-34817: Support for unsigned Parquet logical types",
+      DisableBoson("Unsigned int is not supported in Boson yet")) {
     val parquetSchema = MessageTypeParser.parseMessageType(
       """message root {
         |  required INT32 a(UINT_8);
@@ -817,7 +818,8 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
     }
   }
 
-  test("SPARK-34817: Read UINT_8/UINT_16/UINT_32 from parquet") {
+  test("SPARK-34817: Read UINT_8/UINT_16/UINT_32 from parquet",
+      DisableBoson("Unsigned int is not supported in Boson yet")) {
     Seq(true, false).foreach { dictionaryEnabled =>
       def makeRawParquetFile(path: Path): Unit = {
         val schemaStr =
@@ -856,7 +858,8 @@ class ParquetIOSuite extends QueryTest with ParquetTest with SharedSparkSession 
     }
   }
 
-  test("SPARK-34817: Read UINT_64 as Decimal from parquet") {
+  test("SPARK-34817: Read UINT_64 as Decimal from parquet",
+      DisableBoson("Unsigned int is not supported in Boson yet")) {
     Seq(true, false).foreach { dictionaryEnabled =>
       def makeRawParquetFile(path: Path): Unit = {
         val schemaStr =

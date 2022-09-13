@@ -30,6 +30,7 @@ import org.apache.hadoop.fs.{LocalFileSystem, Path}
 import org.apache.spark.SparkException
 import org.apache.spark.scheduler.{SparkListener, SparkListenerTaskEnd}
 import org.apache.spark.sql.TestingUDT.{IntervalUDT, NullData, NullUDT}
+import org.apache.spark.sql.boson.BosonBatchScanExec
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.IntegralLiteralTestUtils.{negativeInt, positiveInt}
 import org.apache.spark.sql.catalyst.plans.logical.Filter
@@ -760,6 +761,7 @@ class FileBasedDataSourceSuite extends QueryTest
 
           val fileScan = df.queryExecution.executedPlan collectFirst {
             case BatchScanExec(_, f: FileScan, _) => f
+            case BosonBatchScanExec(BatchScanExec(_, f: FileScan, _)) => f
           }
           assert(fileScan.nonEmpty)
           assert(fileScan.get.partitionFilters.nonEmpty)
@@ -800,6 +802,7 @@ class FileBasedDataSourceSuite extends QueryTest
 
           val fileScan = df.queryExecution.executedPlan collectFirst {
             case BatchScanExec(_, f: FileScan, _) => f
+            case BosonBatchScanExec(BatchScanExec(_, f: FileScan, _)) => f
           }
           assert(fileScan.nonEmpty)
           assert(fileScan.get.partitionFilters.isEmpty)

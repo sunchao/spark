@@ -5,6 +5,8 @@
 -- INT4
 -- https://github.com/postgres/postgres/blob/REL_12_BETA2/src/test/regress/sql/int4.sql
 --
+-- Disable BosonExec as overflow error is different
+--SET spark.boson.exec.enabled = false
 
 CREATE TABLE INT4_TBL(f1 int) USING parquet;
 
