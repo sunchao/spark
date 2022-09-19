@@ -200,7 +200,7 @@
     <commons-cli.version>1.2</commons-cli.version>
     <bouncycastle.version>1.60</bouncycastle.version>
     <tink.version>1.6.0</tink.version>
-    <boson.version>alpha-0.1.8</boson.version>
+    <boson.version>0.2.2-beta</boson.version>
     <!--
     If you are changing Arrow version specification, please check
     ./python/pyspark/sql/pandas/utils.py, and ./python/setup.py too.
