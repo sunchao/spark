@@ -117,6 +117,11 @@ SPARK-40315     Add hashCode() for Literal of ArrayBasedMapData
 SPARK-40149     Propagate metadata columns through Project
 SPARK-40280     Add support for parquet push down for annotated int and long
 SPARK-40280     FOLLOWUP Fix 'ParquetFilterSuite' issue
+SPARK-40292     Fix column names in "arrays_zip" function when arrays are referenced from nested structs
+SPARK-40459     `recoverDiskStore` should not stop by existing recomputed files
+SPARK-40461     Set upperbound for pyzmq 24.0.0 for Python linter
+SPARK-40470     Handle GetArrayStructFields and GetMapValue in "arrays_zip" function
+SPARK-40169     Don't pushdown Parquet filters with no reference to data schema
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -213,3 +218,5 @@ rdar://97757065 Upgrade Hive version to 2.3.9.2-apple
 rdar://86637857 Create ACS Runtime Queue in ACS Spark 2.4.8, 3.1.1 3.1.2 and 3.2.0
 rdar://99464446 change executor memory message level to minutely instead of 5s
 MINOR:          fix CI failure (fix in parquet test and revert SPARK-40149) after cherry pick the upstream changes
+rdar://99838866 [Boson] Merge back changes from Boson Spark branch to Apple Spark 3.2
+rdar://99992167 [Boson] Bump version to 0.2.2-beta for Apple Spark
