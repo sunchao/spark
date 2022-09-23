@@ -109,7 +109,6 @@ SPARK-39887     RemoveRedundantAliases should keep aliases that make the output 
 SPARK-40089     Fix sorting for some Decimal types
 SPARK-40172     Temporarily disable flaky test cases in ImageFileFormatSuite
 SPARK-40213     Support ASCII value conversion for Latin-1 characters
-SPARK-40218     GROUPING SETS should preserve the grouping columns
 SPARK-40241     Correct the link of GenericUDTF
 SPARK-40124     Update TPCDS v1.4 q32 for Plan Stability tests
 SPARK-40270     Make 'compute.max_rows' as None working in DataFrame.style
