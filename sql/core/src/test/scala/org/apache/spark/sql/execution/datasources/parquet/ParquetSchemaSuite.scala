@@ -24,7 +24,6 @@ import org.apache.parquet.io.ParquetDecodingException
 import org.apache.parquet.schema.{MessageType, MessageTypeParser}
 
 import org.apache.spark.SparkException
-import org.apache.spark.sql.DisableBoson
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.execution.QueryExecutionException
 import org.apache.spark.sql.execution.datasources.SchemaColumnConvertNotSupportedException
@@ -424,8 +423,7 @@ class ParquetSchemaSuite extends ParquetSchemaTest {
     e
   }
 
-  test("schema mismatch failure error message for parquet reader",
-      DisableBoson("Boson doesn't work with vectorizedReaderEnabled = false")) {
+  test("schema mismatch failure error message for parquet reader") {
     withTempPath { dir =>
       val e = testSchemaMismatch(dir.getCanonicalPath, vectorizedReaderEnabled = false)
       val expectedMessage = "Encounter error while reading parquet files. " +

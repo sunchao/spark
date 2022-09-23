@@ -8,9 +8,6 @@
 -- avoid bit-exact output here because operations may not be bit-exact.
 -- SET extra_float_digits = 0;
 
--- Disable Boson exec due to floating point precision difference
---SET spark.boson.exec.enabled = false
-
 -- This test file was converted from postgreSQL/aggregates_part1.sql.
 
 SELECT avg(udf(four)) AS avg_1 FROM onek;

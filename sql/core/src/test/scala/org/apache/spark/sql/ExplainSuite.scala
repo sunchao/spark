@@ -452,8 +452,7 @@ class ExplainSuite extends ExplainSuiteHelper with DisableAdaptiveExecutionSuite
     }
   }
 
-  test("Explain formatted output for scan operator for datasource V2",
-      DisableBoson("Boson explain output is different")) {
+  test("Explain formatted output for scan operator for datasource V2") {
     withTempDir { dir =>
       Seq("parquet", "orc", "csv", "json").foreach { fmt =>
         val basePath = dir.getCanonicalPath + "/" + fmt

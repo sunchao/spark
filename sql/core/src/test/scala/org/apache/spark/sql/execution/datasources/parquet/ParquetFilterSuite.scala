@@ -1020,11 +1020,7 @@ abstract class ParquetFilterSuite extends QueryTest with ParquetTest with Shared
           // When a filter is pushed to Parquet, Parquet can apply it to every row.
           // So, we can check the number of rows returned from the Parquet
           // to make sure our filter pushdown work.
-          // Similar to Spark's vectorized reader, Boson doesn't do row-level filtering but relies
-          // on Spark to apply the data filters after columnar batches are returned
-          if (!isBosonEnabled) {
-            assert(stripSparkFilter(df).count == 1)
-          }
+          assert(stripSparkFilter(df).count == 1)
         }
       }
     }
@@ -1494,11 +1490,7 @@ abstract class ParquetFilterSuite extends QueryTest with ParquetTest with Shared
           // than the total length but should not be a single record.
           // Note that, if record level filtering is enabled, it should be a single record.
           // If no filter is pushed down to Parquet, it should be the total length of data.
-          // Only enable Boson test iff it's scan only, since with native execution
-          // `stripSparkFilter` can't remove the native filter
-          if (!isBosonEnabled || isBosonScanOnly) {
-            assert(actual > 1 && actual < data.length)
-          }
+          assert(actual > 1 && actual < data.length)
         }
       }
     }
@@ -1525,11 +1517,7 @@ abstract class ParquetFilterSuite extends QueryTest with ParquetTest with Shared
         // than the total length but should not be a single record.
         // Note that, if record level filtering is enabled, it should be a single record.
         // If no filter is pushed down to Parquet, it should be the total length of data.
-        // Only enable Boson test iff it's scan only, since with native execution
-        // `stripSparkFilter` can't remove the native filter
-        if (!isBosonEnabled || isBosonScanOnly) {
-          assert(actual > 1 && actual < data.length)
-        }
+        assert(actual > 1 && actual < data.length)
       }
     }
   }
@@ -1849,8 +1837,7 @@ abstract class ParquetFilterSuite extends QueryTest with ParquetTest with Shared
     }
   }
 
-  test("Support Parquet column index",
-      DisableBoson("Boson doesn't support Parquet column index yet")) {
+  test("Support Parquet column index") {
     // block 1:
     //                      null count  min                                       max
     // page-0                         0  0                                         99
@@ -2032,11 +2019,7 @@ class ParquetV1FilterSuite extends ParquetFilterSuite {
           assert(pushedParquetFilters.exists(_.getClass === filterClass),
             s"${pushedParquetFilters.map(_.getClass).toList} did not contain ${filterClass}.")
 
-          // Similar to Spark's vectorized reader, Boson doesn't do row-level filtering but relies
-          // on Spark to apply the data filters after columnar batches are returned
-          if (!isBosonEnabled) {
-            checker(stripSparkFilter(query), expected)
-          }
+          checker(stripSparkFilter(query), expected)
         } else {
           assert(selectedFilters.isEmpty, "There is filter pushed down")
         }
@@ -2096,11 +2079,7 @@ class ParquetV2FilterSuite extends ParquetFilterSuite {
           assert(pushedParquetFilters.exists(_.getClass === filterClass),
             s"${pushedParquetFilters.map(_.getClass).toList} did not contain ${filterClass}.")
 
-          // Similar to Spark's vectorized reader, Boson doesn't do row-level filtering but relies
-          // on Spark to apply the data filters after columnar batches are returned
-          if (!isBosonEnabled) {
-            checker(stripSparkFilter(query), expected)
-          }
+          checker(stripSparkFilter(query), expected)
 
         case _ =>
           throw new AnalysisException("Can not match ParquetTable in the query.")

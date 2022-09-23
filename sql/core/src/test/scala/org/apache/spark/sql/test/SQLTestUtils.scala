@@ -125,11 +125,7 @@ private[sql] trait SQLTestUtils extends SparkFunSuite with SQLTestUtilsBase with
         }
       }
     } else {
-      if (isBosonEnabled && testTags.exists(_.isInstanceOf[DisableBoson])) {
-        ignore(testName + " (disabled when Boson is on)", testTags: _*)(testFun)
-      } else {
-        super.test(testName, testTags: _*)(testFun)
-      }
+      super.test(testName, testTags: _*)(testFun)
     }
   }
 
@@ -243,23 +239,6 @@ private[sql] trait SQLTestUtilsBase
    */
   protected object testImplicits extends SQLImplicits {
     protected override def _sqlContext: SQLContext = self.spark.sqlContext
-  }
-
-  /**
-   * Whether Boson extension is enabled
-   */
-  protected def isBosonEnabled: Boolean = {
-    val v = System.getenv("BOSON")
-    v != null && v.toBoolean
-  }
-
-  /**
-   * Whether Spark should only apply Boson scan optimization. This is only effective when
-   * [[isBosonEnabled]] returns true.
-   */
-  protected def isBosonScanOnly: Boolean = {
-    val v = System.getenv("BOSON_SCAN_ONLY")
-    v != null && v.toBoolean
   }
 
   protected override def withSQLConf(pairs: (String, String)*)(f: => Unit): Unit = {

@@ -152,10 +152,6 @@
       <type>pom</type>
     </dependency>
     <dependency>
-      <groupId>com.apple.pie.boson</groupId>
-      <artifactId>boson-spark</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.scalacheck</groupId>
       <artifactId>scalacheck_${scala.binary.version}</artifactId>
       <scope>test</scope>

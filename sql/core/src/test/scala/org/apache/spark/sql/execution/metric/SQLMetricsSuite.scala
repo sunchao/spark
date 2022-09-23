@@ -723,8 +723,7 @@ class SQLMetricsSuite extends SharedSparkSession with SQLMetricsTestUtils
     }
   }
 
-  test("SPARK-26327: FileSourceScanExec metrics",
-      DisableBoson("Spark uses row-based Parquet reader while Boson is vectorized")) {
+  test("SPARK-26327: FileSourceScanExec metrics") {
     withTable("testDataForScan") {
       spark.range(10).selectExpr("id", "id % 3 as p")
         .write.partitionBy("p").saveAsTable("testDataForScan")

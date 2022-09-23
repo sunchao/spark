@@ -355,9 +355,7 @@ class DataFrameJoinSuite extends QueryTest
 
     withTempDatabase { dbName =>
       withTable(table1Name, table2Name) {
-        // Disabled Boson because this checks table identifier in FileSourceScanExec.
-        withSQLConf(SQLConf.AUTO_BROADCASTJOIN_THRESHOLD.key -> "-1",
-            "spark.boson.enabled" -> "false") {
+        withSQLConf(SQLConf.AUTO_BROADCASTJOIN_THRESHOLD.key -> "-1") {
           spark.range(50).write.saveAsTable(s"$dbName.$table1Name")
           spark.range(100).write.saveAsTable(s"$dbName.$table2Name")
 
