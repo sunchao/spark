@@ -21,7 +21,7 @@ import java.sql.{Connection, DriverManager}
 import java.util.Properties
 
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.{DisableBoson, ExplainSuiteHelper, QueryTest, Row}
+import org.apache.spark.sql.{ExplainSuiteHelper, QueryTest, Row}
 import org.apache.spark.sql.catalyst.analysis.CannotReplaceMissingTableException
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -513,7 +513,7 @@ class JDBCV2Suite extends QueryTest with SharedSparkSession with ExplainSuiteHel
     checkAnswer(df3, Seq(Row(1, 1), Row(2, 1)))
   }
 
-  test("column name with non-ascii", DisableBoson("Boson scan relation different")) {
+  test("column name with non-ascii") {
     // scalastyle:off
     checkAnswer(sql("SELECT `名` FROM h2.test.person"), Seq(Row(1), Row(2)))
     val df = sql("SELECT COUNT(`名`) FROM h2.test.person")
