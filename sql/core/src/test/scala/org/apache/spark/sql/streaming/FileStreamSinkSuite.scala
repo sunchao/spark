@@ -31,7 +31,8 @@ import org.apache.spark.SparkConf
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.internal.io.FileCommitProtocol
 import org.apache.spark.scheduler.{SparkListener, SparkListenerTaskEnd}
-import org.apache.spark.sql.{AnalysisException, DataFrame, DisableBosonSuite}
+import org.apache.spark.sql.{AnalysisException, DataFrame}
+import org.apache.spark.sql.boson.BosonBatchScanExec
 import org.apache.spark.sql.catalyst.util.stringToFile
 import org.apache.spark.sql.execution.DataSourceScanExec
 import org.apache.spark.sql.execution.datasources._
@@ -42,7 +43,7 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType}
 import org.apache.spark.util.Utils
 
-abstract class FileStreamSinkSuite extends StreamTest with DisableBosonSuite {
+abstract class FileStreamSinkSuite extends StreamTest {
   import testImplicits._
 
   override def beforeAll(): Unit = {
@@ -741,6 +742,8 @@ class FileStreamSinkV2Suite extends FileStreamSinkSuite {
     def checkFileScanPartitions(df: DataFrame)(func: Seq[FilePartition] => Unit): Unit = {
       val fileScan = df.queryExecution.executedPlan.collect {
         case batch: BatchScanExec if batch.scan.isInstanceOf[FileScan] =>
+          batch.scan.asInstanceOf[FileScan]
+        case batch: BosonBatchScanExec if batch.scan.isInstanceOf[FileScan] =>
           batch.scan.asInstanceOf[FileScan]
       }.headOption.getOrElse {
         fail(s"No FileScan in query\n${df.queryExecution}")
