@@ -1597,6 +1597,13 @@ object SQLConf {
       .stringConf
       .createWithDefault("lz4")
 
+  val CHECKPOINT_RENAMEDFILE_CHECK_ENABLED =
+    buildConf("spark.sql.streaming.checkpoint.renamedFileCheck")
+      .doc("When true, Spark will validate if renamed checkpoint file exists.")
+      .internal()
+      .booleanConf
+      .createWithDefault(false)
+
   /**
    * Note: this is defined in `RocksDBConf.FORMAT_VERSION`. These two places should be updated
    * together.
@@ -3754,6 +3761,8 @@ class SQLConf extends Serializable with Logging {
   def streamingMaintenanceInterval: Long = getConf(STREAMING_MAINTENANCE_INTERVAL)
 
   def stateStoreCompressionCodec: String = getConf(STATE_STORE_COMPRESSION_CODEC)
+
+  def checkpointRenamedFileCheck: Boolean = getConf(CHECKPOINT_RENAMEDFILE_CHECK_ENABLED)
 
   def parquetFilterPushDown: Boolean = getConf(PARQUET_FILTER_PUSHDOWN_ENABLED)
 
