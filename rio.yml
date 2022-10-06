@@ -239,6 +239,34 @@ builds:
         - sed -i "s/org\.apache\.hive:\* = \(.*\)/org\.apache\.hive:\* = $(sed -n 's/<hive\.version>\(.*\)<\/hive\.version>/\1/p' ../pom.xml | xargs)/g" versions.props
         - ./gradlew test
 
+  - name: apple-spark-2.12_3.2.0-snapshot-iceberg-spark-test-jars
+    branchName: branch-3.2.0-apple
+    build:
+      template: freestyle:v4:build
+      steps:
+        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/*" -DwildcardSuites=none test
+
+  - name: apple-spark-2.12_3.2.0-snapshot-iceberg-spark-test-jars-pr
+    branchName: branch-3.2.0-apple
+    build:
+      template: freestyle:v4:prb
+      steps:
+        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/*" -DwildcardSuites=none test
+
+  - name: apple-spark-2.12_3.2.0-snapshot-iceberg-hive-test-jars
+    branchName: branch-3.2.0-apple
+    build:
+      template: freestyle:v4:build
+      steps:
+        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/hive/*" -DwildcardSuites=none test
+
+  - name: apple-spark-2.12_3.2.0-snapshot-iceberg-hive-test-jars-pr
+    branchName: branch-3.2.0-apple
+    build:
+      template: freestyle:v4:prb
+      steps:
+        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/hive/*" -DwildcardSuites=none test
+
   - name: apple-spark-2.12_3.2.0-snapshot-launcher-repl-tools
     branchName: branch-3.2.0-apple
     build:

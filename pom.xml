@@ -97,6 +97,7 @@
     <module>sql/catalyst</module>
     <module>sql/core</module>
     <module>sql/hive</module>
+    <module>sql/iceberg</module>
     <module>assembly</module>
     <module>examples</module>
     <module>repl</module>
@@ -201,6 +202,7 @@
     <bouncycastle.version>1.60</bouncycastle.version>
     <tink.version>1.6.0</tink.version>
     <boson.version>0.2.2-beta</boson.version>
+    <iceberg.version>0.13.0.7-apple</iceberg.version>
     <!--
     If you are changing Arrow version specification, please check
     ./python/pyspark/sql/pandas/utils.py, and ./python/setup.py too.
@@ -1010,7 +1012,7 @@
       <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-core</artifactId>
-        <version>3.4.6</version>
+        <version>3.7.7</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -2658,6 +2660,22 @@
           </exclusion>
         </exclusions>
       </dependency>
+
+      <!-- Run Iceberg unit tests -->
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-spark-3.2</artifactId>
+        <version>${iceberg.version}</version>
+        <classifier>shadow-tests</classifier>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-hive-metastore</artifactId>
+        <version>${iceberg.version}</version>
+        <classifier>shadow-tests</classifier>
+        <scope>test</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -2839,6 +2857,10 @@
               <include>**/*TestCase.java</include>
               <include>**/*Suite.java</include>
             </includes>
+            <dependenciesToScan>
+                <dependency>org.apache.iceberg:iceberg-spark-3.2:jar:shadow-tests</dependency>
+                <dependency>org.apache.iceberg:iceberg-hive-metastore:jar:shadow-tests</dependency>
+            </dependenciesToScan>
             <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
             <argLine>-ea -Xmx4g -Xss4m -XX:MaxMetaspaceSize=2g -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dio.netty.tryReflectionSetAccessible=true</argLine>
             <environmentVariables>
