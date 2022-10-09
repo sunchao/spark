@@ -121,6 +121,17 @@ SPARK-40459     `recoverDiskStore` should not stop by existing recomputed files
 SPARK-40461     Set upperbound for pyzmq 24.0.0 for Python linter
 SPARK-40470     Handle GetArrayStructFields and GetMapValue in "arrays_zip" function
 SPARK-40169     Don't pushdown Parquet filters with no reference to data schema
+SPARK-40660     Switch to XORShiftRandom to distribute elements
+SPARK-40617     Fix race condition at the handling of ExecutorMetricsPoller's stageTCMP entries
+SPARK-40636     Fix wrong remained shuffles log in BlockManagerDecommissioner
+SPARK-40612     Fixing the principal used for delegation token renewal on non-YARN resource managers
+SPARK-40574     Enhance DROP TABLE documentation
+SPARK-40583     Fixing artifactId name in `cloud-integration.md`
+SPARK-39200     Make Fallback Storage readFully on content
+SPARK-40407     Fix the potential data skew caused by df.repartition
+SPARK-40218     GROUPING SETS should preserve the grouping columns
+SPARK-40562     Add `spark.sql.legacy.groupingIdWithAppendedUserGroupBy`
+SPARK-40490     Ensure YarnShuffleIntegrationSuite tests registeredExecFile reload scenarios
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -219,3 +230,11 @@ rdar://99464446 change executor memory message level to minutely instead of 5s
 MINOR:          fix CI failure (fix in parquet test and revert SPARK-40149) after cherry pick the upstream changes
 rdar://99838866 [Boson] Merge back changes from Boson Spark branch to Apple Spark 3.2
 rdar://99992167 [Boson] Bump version to 0.2.2-beta for Apple Spark
+MINOR            Remove DisableBoson from HiveDDLSuite and DDLSuite
+MINOR            Remove DisableBoson from JDBCV2Suite
+MINOR            enable FileStreamSinkSuite
+MINOR            Bump ADT to 1.1.11
+rdar://100580258 Upgrade Hive to 2.3.9.4-apple
+rdar://100721323 Enable spark.sql.legacy.groupingIdWithAppendedUserGroupBy by default
+rdar://100081966 Add Rio pipeline to run iceberg unit tests
+rdar://100784942 Add additional checkpoint rename file check
