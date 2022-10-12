@@ -26,6 +26,8 @@ import scala.collection.JavaConverters._
 import scala.reflect.runtime.universe.TypeTag
 import scala.util.control.NonFatal
 
+import com.apple.boson.BosonConf
+
 import org.apache.spark.{SPARK_VERSION, SparkConf, SparkContext, SparkException, TaskContext}
 import org.apache.spark.annotation.{DeveloperApi, Experimental, Stable, Unstable}
 import org.apache.spark.api.java.JavaRDD
@@ -101,7 +103,7 @@ class SparkSession private(
   private[sql] def this(sc: SparkContext) = {
     this(sc, None, None,
       SparkSession.applyExtensions(
-        sc.getConf.get(StaticSQLConf.SPARK_SESSION_EXTENSIONS).getOrElse(Seq.empty),
+        sc,
         new SparkSessionExtensions), Map.empty)
   }
 
@@ -963,7 +965,7 @@ object SparkSession extends Logging {
 
         loadExtensions(extensions)
         applyExtensions(
-          sparkContext.getConf.get(StaticSQLConf.SPARK_SESSION_EXTENSIONS).getOrElse(Seq.empty),
+          sparkContext,
           extensions)
 
         session = new SparkSession(sparkContext, None, None, extensions, options.toMap)
@@ -1206,13 +1208,23 @@ object SparkSession extends Logging {
     }
   }
 
+  private def loadBosonExtension(sparkContext: SparkContext): Seq[String] = {
+    if (sparkContext.getConf.getBoolean(BosonConf.BOSON_ENABLED.key, false)) {
+      Seq("com.apple.boson.BosonSparkSessionExtensions")
+    } else {
+      Seq.empty
+    }
+  }
+
   /**
    * Initialize extensions for given extension classnames. The classes will be applied to the
    * extensions passed into this function.
    */
   private def applyExtensions(
-      extensionConfClassNames: Seq[String],
+      sparkContext: SparkContext,
       extensions: SparkSessionExtensions): SparkSessionExtensions = {
+    val extensionConfClassNames = sparkContext.getConf.get(StaticSQLConf.SPARK_SESSION_EXTENSIONS)
+      .getOrElse(Seq.empty) ++ loadBosonExtension(sparkContext)
     extensionConfClassNames.foreach { extensionConfClassName =>
       try {
         val extensionConfClass = Utils.classForName(extensionConfClassName)
