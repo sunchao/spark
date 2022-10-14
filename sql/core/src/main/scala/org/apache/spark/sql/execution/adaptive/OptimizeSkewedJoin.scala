@@ -59,7 +59,7 @@ object OptimizeSkewedJoin extends AQEShuffleReadRule {
    */
   def getSkewThreshold(medianSize: Long): Long = {
     conf.getConf(SQLConf.SKEW_JOIN_SKEWED_PARTITION_THRESHOLD).max(
-      medianSize * conf.getConf(SQLConf.SKEW_JOIN_SKEWED_PARTITION_FACTOR))
+      (medianSize * conf.getConf(SQLConf.SKEW_JOIN_SKEWED_PARTITION_FACTOR)).toLong)
   }
 
   private def medianSize(sizes: Array[Long]): Long = {
