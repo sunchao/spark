@@ -43,7 +43,7 @@ class ParquetEncryptionSuite extends QueryTest with TestHiveSingleton {
         "parquet.crypto.factory.class" ->
           "org.apache.parquet.crypto.keytools.PropertiesDrivenCryptoFactory",
         "parquet.encryption.kms.client.class" ->
-          "org.apache.parquet.crypto.keytools.mocks.InMemoryKMS",
+          "com.apple.parquet.crypto.keytools.CustomerKmsBridge",
         "parquet.encryption.key.list" ->
           s"footerKey: ${footerKey}, key1: ${key1}, key2: ${key2}") {
 
@@ -70,7 +70,7 @@ class ParquetEncryptionSuite extends QueryTest with TestHiveSingleton {
         "parquet.crypto.factory.class" ->
           "org.apache.parquet.crypto.keytools.PropertiesDrivenCryptoFactory",
         "parquet.encryption.kms.client.class" ->
-          "org.apache.parquet.crypto.keytools.mocks.InMemoryKMS",
+          "com.apple.parquet.crypto.keytools.CustomerKmsBridge",
         "parquet.encryption.key.material.store.internally" ->
           "false",
         "parquet.encryption.key.list" ->
