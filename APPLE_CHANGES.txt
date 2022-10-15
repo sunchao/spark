@@ -20,6 +20,7 @@ SPARK-40110     Add JDBCWithAQESuite
 SPARK-39846     Enable `spark.dynamicAllocation.shuffleTracking.enabled` by default
 SPARK-40198     Enable `spark.storage.decommission.(rdd|shuffle)Blocks.enabled` by default
 SPARK-40234     Clean only MDC items set by Spark
+SPARK-40772     Improve `spark.sql.adaptive.skewJoin.skewedPartitionFactor` to support `Double` values
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -132,6 +133,7 @@ SPARK-40407     Fix the potential data skew caused by df.repartition
 SPARK-40218     GROUPING SETS should preserve the grouping columns
 SPARK-40562     Add `spark.sql.legacy.groupingIdWithAppendedUserGroupBy`
 SPARK-40490     Ensure YarnShuffleIntegrationSuite tests registeredExecFile reload scenarios
+SPARK-8731      Beeline doesn't work with -e option when started in background
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -238,3 +240,10 @@ rdar://100580258 Upgrade Hive to 2.3.9.4-apple
 rdar://100721323 Enable spark.sql.legacy.groupingIdWithAppendedUserGroupBy by default
 rdar://100081966 Add Rio pipeline to run iceberg unit tests
 rdar://100784942 Add additional checkpoint rename file check
+rdar://99714991 Support configuring version of the PME Key to use for writing
+rdar://101058205 Add BosonSparkSessionExtensions if BOSON_ENABLED is true
+rdar://101112227 [Boson] Boson should be enabled for TestHiveSingleton
+rdar://101149150 [Boson] Fix Spark test failures related to Boson
+rdar://101176607 [Boson] Upgrade version to 0.2.3-beta
+rdar://100789814 [Boson] Remove DisableBoson from unsigned integer and enum tests
+rdar://101191415 [Boson] Bump version to 0.2.4-beta
