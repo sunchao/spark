@@ -23,7 +23,7 @@ import java.net.URI
 import scala.util.Random
 
 import org.apache.spark.sql._
-import org.apache.spark.sql.boson.BosonScanExec
+import org.apache.spark.sql.boson.{BosonExec, BosonScanExec}
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions._
@@ -481,10 +481,18 @@ abstract class BucketedReadSuite extends QueryTest with SQLTestUtils with Adapti
 
         // check existence of sort
         assert(
-          joinOperator.left.find(_.isInstanceOf[SortExec]).isDefined == sortLeft,
+          joinOperator.left.find { op =>
+            op.isInstanceOf[SortExec] ||
+              (op.isInstanceOf[BosonExec] &&
+                op.asInstanceOf[BosonExec].originalPlan.find(_.isInstanceOf[SortExec]).isDefined)
+          }.isDefined == sortLeft,
           s"expected sort in the left child to be $sortLeft but found\n${joinOperator.left}")
         assert(
-          joinOperator.right.find(_.isInstanceOf[SortExec]).isDefined == sortRight,
+          joinOperator.right.find { op =>
+            op.isInstanceOf[SortExec] ||
+              (op.isInstanceOf[BosonExec] &&
+                op.asInstanceOf[BosonExec].originalPlan.find(_.isInstanceOf[SortExec]).isDefined)
+          }.isDefined == sortRight,
           s"expected sort in the right child to be $sortRight but found\n${joinOperator.right}")
 
         // check the output partitioning
