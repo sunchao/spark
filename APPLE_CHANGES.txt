@@ -134,6 +134,12 @@ SPARK-40218     GROUPING SETS should preserve the grouping columns
 SPARK-40562     Add `spark.sql.legacy.groupingIdWithAppendedUserGroupBy`
 SPARK-40490     Ensure YarnShuffleIntegrationSuite tests registeredExecFile reload scenarios
 SPARK-8731      Beeline doesn't work with -e option when started in background
+SPARK-40829     STORED AS serde in CREATE TABLE LIKE view does not work
+SPARK-40874     Fix broadcasts in Python UDFs when encryption enabled
+SPARK-40851     Make GA run successfully with the latest Java 8/11/17
+SPARK-40902     Fix issue with mesos tests failing due to quick submission of drivers
+SPARK-38697     Extend SparkSessionExtensions to inject rules into AQE Optimizer
+SPARK-40149     Propagate metadata columns through Project
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -247,3 +253,11 @@ rdar://101149150 [Boson] Fix Spark test failures related to Boson
 rdar://101176607 [Boson] Upgrade version to 0.2.3-beta
 rdar://100789814 [Boson] Remove DisableBoson from unsigned integer and enum tests
 rdar://101191415 [Boson] Bump version to 0.2.4-beta
+rdar://100906965 (S3 reader / race condition when performing S3 athentication when reading source with multiple partitions.) (#1597)
+MINOR            Update config name of CHECKPOINT_RENAMEDFILE_CHECK_ENABLED to match upstream
+rdar://101319418 [Boson] Bump version to 0.2.5-beta (#1598)
+rdar://101441078 Fix datetime test failures in Apple Spark (#1602)
+rdar://101429519 (Fix nullability propagation in MERGE) (#1600)
+rdar://101552271 (Call Home Client update with new memory metrics collection)
+rdar://101559311 [Boson] Fix BucketedReadWithoutHiveSupportSuite with BosonExec enabled (#1609)
+rdar://101721963 [Boson] Upgrade Boson to 0.2.6-beta (#1611)
