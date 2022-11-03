@@ -18,20 +18,18 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.ProjectingInternalRow
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, AttributeSet, Expression, IsNotNull, Literal, MonotonicallyIncreasingID, SubqueryExpression, V2ExpressionUtils}
 import org.apache.spark.sql.catalyst.expressions.Literal.{FalseLiteral, TrueLiteral}
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.plans.{FullOuter, Inner, LeftAnti, LeftOuter, RightOuter}
 import org.apache.spark.sql.catalyst.plans.logical.{AppendData, DeleteAction, Filter, HintInfo, InsertAction, Join, JoinHint, LogicalPlan, MergeAction, MergeIntoTable, MergeRows, NO_BROADCAST_HASH, NoStatsUnaryNode, Project, ReplaceData, UpdateAction, WriteDelta}
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils.{DELETE_OPERATION, INSERT_OPERATION, OPERATION_COLUMN, UPDATE_OPERATION}
-import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.expressions.{FieldReference, NamedReference}
 import org.apache.spark.sql.connector.write.{RowLevelOperationTable, SupportsDelta}
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.types.{IntegerType, StructField, StructType}
+import org.apache.spark.sql.types.IntegerType
 
 /**
  * Assigns a rewrite plan for v2 tables that support rewriting data to handle MERGE statements.
@@ -296,7 +294,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
     // build a plan to write the row delta to the table
     val writeRelation = relation.copy(table = operationTable)
-    val projections = buildMergeDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
+    val projections = buildWriteDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
     WriteDelta(writeRelation, mergeRows, relation, projections)
   }
 
@@ -359,7 +357,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     }.toMap
 
     attrs.zipWithIndex.map { case (attr, index) =>
-      AttributeReference(attr.name, attr.dataType, nullabilityMap(index), attr.metadata)()
+      AttributeReference(attr.name, attr.dataType, nullabilityMap(index))()
     }
   }
 
@@ -382,57 +380,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
   private def resolveAttrRef(ref: NamedReference, plan: LogicalPlan): AttributeReference = {
     V2ExpressionUtils.resolveRef[AttributeReference](ref, plan)
-  }
-
-  private def buildMergeDeltaProjections(
-      mergeRows: MergeRows,
-      rowAttrs: Seq[Attribute],
-      rowIdAttrs: Seq[Attribute],
-      metadataAttrs: Seq[Attribute]): WriteDeltaProjections = {
-
-    val outputAttrs = mergeRows.output
-
-    val outputs = mergeRows.matchedOutputs ++ mergeRows.notMatchedOutputs
-    val insertAndUpdateOutputs = outputs.filterNot(_.head == Literal(DELETE_OPERATION))
-    val updateAndDeleteOutputs = outputs.filterNot(_.head == Literal(INSERT_OPERATION))
-
-    val rowProjection = if (rowAttrs.nonEmpty) {
-      Some(newLazyProjection(insertAndUpdateOutputs, outputAttrs, rowAttrs))
-    } else {
-      None
-    }
-
-    val rowIdProjection = newLazyProjection(updateAndDeleteOutputs, outputAttrs, rowIdAttrs)
-
-    val metadataProjection = if (metadataAttrs.nonEmpty) {
-      Some(newLazyProjection(updateAndDeleteOutputs, outputAttrs, metadataAttrs))
-    } else {
-      None
-    }
-
-    WriteDeltaProjections(rowProjection, rowIdProjection, metadataProjection)
-  }
-
-  // the projection is done by name, ignoring expr IDs
-  private def newLazyProjection(
-      outputs: Seq[Seq[Expression]],
-      outputAttrs: Seq[Attribute],
-      projectedAttrs: Seq[Attribute]): ProjectingInternalRow = {
-
-    val projectedOrdinals = projectedAttrs.map(attr => outputAttrs.indexWhere(_.name == attr.name))
-
-    val structFields = projectedAttrs.zip(projectedOrdinals).map { case (attr, ordinal) =>
-      // output attr is nullable if at least one action may produce null for that attr
-      // but row ID and metadata attrs are projected only in update/delete actions and
-      // row attrs are projected only in insert/update actions
-      // that's why the projection schema must rely only on relevant action outputs
-      // instead of blindly inheriting the output attr nullability
-      val nullable = outputs.exists(output => output(ordinal).nullable)
-      StructField(attr.name, attr.dataType, nullable, attr.metadata)
-    }
-    val schema = StructType(structFields)
-
-    ProjectingInternalRow(schema, projectedOrdinals)
   }
 
   private def validateMergeIntoConditions(merge: MergeIntoTable): Unit = {

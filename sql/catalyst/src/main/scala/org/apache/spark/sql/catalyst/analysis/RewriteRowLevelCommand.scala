@@ -71,15 +71,20 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] with IcebergSupport {
       metadataAttrs: Seq[Attribute]): WriteDeltaProjections = {
 
     val rowProjection = if (rowAttrs.nonEmpty) {
-      Some(newLazyProjection(plan, rowAttrs))
+      Some(newLazyProjection(plan, rowAttrs, usePlanTypes = true))
     } else {
       None
     }
 
-    val rowIdProjection = newLazyProjection(plan, rowIdAttrs)
+    // in MERGE, the plan may contain both delete and insert records that may affect
+    // the nullability of metadata columns (e.g. metadata columns for new records are always null)
+    // since metadata columns are never passed with new records to insert,
+    // use the actual metadata column types instead of the ones present in the plan
+
+    val rowIdProjection = newLazyProjection(plan, rowIdAttrs, usePlanTypes = false)
 
     val metadataProjection = if (metadataAttrs.nonEmpty) {
-      Some(newLazyProjection(plan, metadataAttrs))
+      Some(newLazyProjection(plan, metadataAttrs, usePlanTypes = false))
     } else {
       None
     }
@@ -90,11 +95,17 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] with IcebergSupport {
   // the projection is done by name, ignoring expr IDs
   private def newLazyProjection(
       plan: LogicalPlan,
-      projectedAttrs: Seq[Attribute]): ProjectingInternalRow = {
+      attrs: Seq[Attribute],
+      usePlanTypes: Boolean): ProjectingInternalRow = {
 
-    val projectedOrdinals = projectedAttrs.map(attr => plan.output.indexWhere(_.name == attr.name))
-    val schema = StructType.fromAttributes(projectedOrdinals.map(plan.output(_)))
-    ProjectingInternalRow(schema, projectedOrdinals)
+    val colOrdinals = attrs.map(attr => plan.output.indexWhere(_.name == attr.name))
+    val schema = if (usePlanTypes) {
+      val planAttrs = colOrdinals.map(plan.output(_))
+      StructType.fromAttributes(planAttrs)
+    } else {
+      StructType.fromAttributes(attrs)
+    }
+    ProjectingInternalRow(schema, colOrdinals)
   }
 
   protected def resolveRequiredMetadataAttrs(
