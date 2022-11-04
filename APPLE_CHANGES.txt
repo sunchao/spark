@@ -139,7 +139,6 @@ SPARK-40874     Fix broadcasts in Python UDFs when encryption enabled
 SPARK-40851     Make GA run successfully with the latest Java 8/11/17
 SPARK-40902     Fix issue with mesos tests failing due to quick submission of drivers
 SPARK-38697     Extend SparkSessionExtensions to inject rules into AQE Optimizer
-SPARK-40149     Propagate metadata columns through Project
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -257,7 +256,7 @@ rdar://100906965 (S3 reader / race condition when performing S3 athentication wh
 MINOR            Update config name of CHECKPOINT_RENAMEDFILE_CHECK_ENABLED to match upstream
 rdar://101319418 [Boson] Bump version to 0.2.5-beta (#1598)
 rdar://101441078 Fix datetime test failures in Apple Spark (#1602)
-rdar://101429519 (Fix nullability propagation in MERGE) (#1600)
 rdar://101552271 (Call Home Client update with new memory metrics collection)
 rdar://101559311 [Boson] Fix BucketedReadWithoutHiveSupportSuite with BosonExec enabled (#1609)
 rdar://101721963 [Boson] Upgrade Boson to 0.2.6-beta (#1611)
+rdar://101933303 [Boson] Bump Boson to 0.2.7-beta in Spark (#1617)
