@@ -1649,7 +1649,7 @@ package object config {
     ConfigBuilder("spark.cleaner.periodicGC.interval")
       .version("1.6.0")
       .timeConf(TimeUnit.SECONDS)
-      .createWithDefaultString("30min")
+      .createWithDefaultString("20min")
 
   private[spark] val CLEANER_REFERENCE_TRACKING =
     ConfigBuilder("spark.cleaner.referenceTracking")
