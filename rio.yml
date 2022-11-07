@@ -22,6 +22,7 @@ builds:
       steps:
         - yum install -y python39
         - dev/test-dependencies.sh
+        - dev/mima
 
   - name: apple-spark-2.12_3.2.0-snapshot-dependency-pr
     branchName: branch-3.2.0-apple
@@ -30,6 +31,7 @@ builds:
       steps:
         - yum install -y python39
         - dev/test-dependencies.sh
+        - dev/mima
 
   - name: apple-spark-2.12_3.2.0-snapshot-common
     branchName: branch-3.2.0-apple
@@ -234,7 +236,7 @@ builds:
     build:
       template: freestyle:v4:build
       steps:
-        - build/mvn install -Phive -Phadoop-3.2 -DskipTests
+        - build/mvn install -Phive -Phadoop-3.2 -Piceberg -DskipTests
         - git clone git@github.pie.apple.com:IPR/apache-incubator-iceberg.git
         - cd apache-incubator-iceberg
         - git checkout -b apple-0.13.x origin/apple-0.13.x
@@ -247,7 +249,7 @@ builds:
     build:
       template: freestyle:v4:prb
       steps:
-        - build/mvn install -Phive -Phadoop-3.2 -DskipTests
+        - build/mvn install -Phive -Phadoop-3.2 -Piceberg -DskipTests
         - git clone git@github.pie.apple.com:IPR/apache-incubator-iceberg.git
         - cd apache-incubator-iceberg
         - git checkout -b apple-0.13.x origin/apple-0.13.x
@@ -260,28 +262,28 @@ builds:
     build:
       template: freestyle:v4:build
       steps:
-        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/*" -DwildcardSuites=none test
+        - build/mvn -Phive -Phadoop-3.2 -Piceberg -Dtest="org/apache/iceberg/*" -DwildcardSuites=none test
 
   - name: apple-spark-2.12_3.2.0-snapshot-iceberg-spark-test-jars-pr
     branchName: branch-3.2.0-apple
     build:
       template: freestyle:v4:prb
       steps:
-        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/*" -DwildcardSuites=none test
+        - build/mvn -Phive -Phadoop-3.2 -Piceberg -Dtest="org/apache/iceberg/*" -DwildcardSuites=none test
 
   - name: apple-spark-2.12_3.2.0-snapshot-iceberg-hive-test-jars
     branchName: branch-3.2.0-apple
     build:
       template: freestyle:v4:build
       steps:
-        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/hive/*" -DwildcardSuites=none test
+        - build/mvn -Phive -Phadoop-3.2 -Piceberg -Dtest="org/apache/iceberg/hive/*" -DwildcardSuites=none test
 
   - name: apple-spark-2.12_3.2.0-snapshot-iceberg-hive-test-jars-pr
     branchName: branch-3.2.0-apple
     build:
       template: freestyle:v4:prb
       steps:
-        - build/mvn -Phive -Phadoop-3.2 -Dtest="org/apache/iceberg/hive/*" -DwildcardSuites=none test
+        - build/mvn -Phive -Phadoop-3.2 -Piceberg -Dtest="org/apache/iceberg/hive/*" -DwildcardSuites=none test
 
   - name: apple-spark-2.12_3.2.0-snapshot-launcher-repl-tools
     branchName: branch-3.2.0-apple

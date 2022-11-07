@@ -97,7 +97,6 @@
     <module>sql/catalyst</module>
     <module>sql/core</module>
     <module>sql/hive</module>
-    <module>sql/iceberg</module>
     <module>assembly</module>
     <module>examples</module>
     <module>repl</module>
@@ -3515,6 +3514,13 @@
       <id>hive-thriftserver</id>
       <modules>
         <module>sql/hive-thriftserver</module>
+      </modules>
+    </profile>
+
+    <profile>
+      <id>iceberg</id>
+      <modules>
+        <module>sql/iceberg</module>
       </modules>
     </profile>
 
