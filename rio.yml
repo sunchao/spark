@@ -15,6 +15,22 @@ machine:
     SBT_OPTS: "-Xms6g -Xmx6g -Xss128M -XX:MaxMetaspaceSize=2048M -XX:+CMSClassUnloadingEnabled"
 
 builds:
+  - name: apple-spark-2.12_3.2.0-snapshot-dependency
+    branchName: branch-3.2.0-apple
+    build:
+      template: freestyle:v4:build
+      steps:
+        - yum install -y python39
+        - dev/test-dependencies.sh
+
+  - name: apple-spark-2.12_3.2.0-snapshot-dependency-pr
+    branchName: branch-3.2.0-apple
+    build:
+      template: freestyle:v4:prb
+      steps:
+        - yum install -y python39
+        - dev/test-dependencies.sh
+
   - name: apple-spark-2.12_3.2.0-snapshot-common
     branchName: branch-3.2.0-apple
     build:
