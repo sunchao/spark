@@ -21,6 +21,7 @@ SPARK-39846     Enable `spark.dynamicAllocation.shuffleTracking.enabled` by defa
 SPARK-40198     Enable `spark.storage.decommission.(rdd|shuffle)Blocks.enabled` by default
 SPARK-40234     Clean only MDC items set by Spark
 SPARK-40772     Improve `spark.sql.adaptive.skewJoin.skewedPartitionFactor` to support `Double` values
+SPARK-40778      Make HeartbeatReceiver as an IsolatedRpcEndpoint
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -139,6 +140,12 @@ SPARK-40874     Fix broadcasts in Python UDFs when encryption enabled
 SPARK-40851     Make GA run successfully with the latest Java 8/11/17
 SPARK-40902     Fix issue with mesos tests failing due to quick submission of drivers
 SPARK-38697     Extend SparkSessionExtensions to inject rules into AQE Optimizer
+SPARK-40963     Set nullable correctly in project created by `ExtractGenerator`
+SPARK-40983     Remove Hadoop requirements for zstd mentioned in Parquet compression codec
+MINOR           Correct the `files` contend in `checkstyle-suppressions.xml`
+SPARK-40869     Resource name prefix should not start with a hyphen
+SPARK-40801     Upgrade `Apache commons-text` to 1.10
+SPARK-32380     Fixing access of HBase table via Hive from Spark
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -260,3 +267,7 @@ rdar://101552271 (Call Home Client update with new memory metrics collection)
 rdar://101559311 [Boson] Fix BucketedReadWithoutHiveSupportSuite with BosonExec enabled (#1609)
 rdar://101721963 [Boson] Upgrade Boson to 0.2.6-beta (#1611)
 rdar://101933303 [Boson] Bump Boson to 0.2.7-beta in Spark (#1617)
+rdar://100981691 Set `spark.cleaner.periodicGC.interval` to `20min`
+rdar://101964650 Enable Dependency Test
+rdar://101972302 Enable MIMA Test
+rdar://102142347 Bump Boson version to 0.2.8-beta
