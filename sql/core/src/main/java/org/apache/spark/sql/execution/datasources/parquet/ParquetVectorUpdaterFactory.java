@@ -170,6 +170,8 @@ public class ParquetVectorUpdaterFactory {
           return new FixedLenByteArrayAsLongUpdater(arrayLen);
         } else if (canReadAsBinaryDecimal(descriptor, sparkType)) {
           return new FixedLenByteArrayUpdater(arrayLen);
+        } else if (sparkType == DataTypes.BinaryType) {
+          return new FixedLenByteArrayUpdater(arrayLen);
         }
         break;
       default:
