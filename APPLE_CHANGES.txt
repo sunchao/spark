@@ -146,6 +146,8 @@ MINOR           Correct the `files` contend in `checkstyle-suppressions.xml`
 SPARK-40869     Resource name prefix should not start with a hyphen
 SPARK-40801     Upgrade `Apache commons-text` to 1.10
 SPARK-32380     Fixing access of HBase table via Hive from Spark
+SPARK-41035     Don't patch foldable children of aggregate functions in `RewriteDistinctAggregates`
+SPARK-40588     FileFormatWriter materializes AQE plan before accessing outputOrdering
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -271,3 +273,5 @@ rdar://100981691 Set `spark.cleaner.periodicGC.interval` to `20min`
 rdar://101964650 Enable Dependency Test
 rdar://101972302 Enable MIMA Test
 rdar://102142347 Bump Boson version to 0.2.8-beta
+rdar://102226950 Release ADT 1.1.13
+rdar://102058124 Add PeakMem usage
