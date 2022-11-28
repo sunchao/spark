@@ -148,6 +148,7 @@ SPARK-40801     Upgrade `Apache commons-text` to 1.10
 SPARK-32380     Fixing access of HBase table via Hive from Spark
 SPARK-41035     Don't patch foldable children of aggregate functions in `RewriteDistinctAggregates`
 SPARK-40588     FileFormatWriter materializes AQE plan before accessing outputOrdering
+SPARK-41188     Set executorEnv OMP_NUM_THREADS to be spark.task.cpus by default for spark executor JVM processes
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
