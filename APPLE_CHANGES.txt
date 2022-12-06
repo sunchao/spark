@@ -151,6 +151,9 @@ SPARK-41035     Don't patch foldable children of aggregate functions in `Rewrite
 SPARK-40588     FileFormatWriter materializes AQE plan before accessing outputOrdering
 SPARK-41188     Set executorEnv OMP_NUM_THREADS to be spark.task.cpus by default for spark executor JVM processes
 SPARK-41091     Fix Docker release tool for branch-3.2
+SPARK-41254     YarnAllocator.rpIdToYarnResource map is not properly updated
+SPARK-40987     Avoid creating a directory when deleting a block, causing DAGScheduler to not work
+SPARK-41327     Fix SparkStatusTracker.getExecutorInfos by switch On/OffHeapStorageMemory info
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -279,3 +282,5 @@ rdar://102142347 Bump Boson version to 0.2.8-beta
 rdar://102226950 Release ADT 1.1.13
 rdar://102058124 Add PeakMem usage
 rdar://102332347 Bump Parquet version to 1.12.0.23
+rdar://102993150 [Boson] Upgrade Boson version to 0.2.11-beta
+rdar://103024698 Bumps ADT to 1.1.14
