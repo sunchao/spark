@@ -58,6 +58,9 @@ private case class DeactivateInstances(runId: UUID)
 private object StopCoordinator
   extends StateStoreCoordinatorMessage
 
+private object GetAllStateStoreProviders
+  extends StateStoreCoordinatorMessage
+
 /** Helper object used to create reference to [[StateStoreCoordinator]]. */
 object StateStoreCoordinatorRef extends Logging {
 
@@ -92,6 +95,10 @@ object StateStoreCoordinatorRef extends Logging {
  * [[StateStore]]s across all the executors, and get their locations for job scheduling.
  */
 class StateStoreCoordinatorRef private(rpcEndpointRef: RpcEndpointRef) {
+
+  private[sql] def getAllStateStoreProviders(): Seq[StateStoreProviderId] = {
+    rpcEndpointRef.askSync[Seq[StateStoreProviderId]](GetAllStateStoreProviders)
+  }
 
   private[sql] def reportActiveInstance(
       stateStoreProviderId: StateStoreProviderId,
@@ -134,6 +141,10 @@ private class StateStoreCoordinator(override val rpcEnv: RpcEnv)
   private val instances = new mutable.HashMap[StateStoreProviderId, ExecutorCacheTaskLocation]
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
+    case GetAllStateStoreProviders =>
+      val providers = instances.keys.toSeq
+      context.reply(providers)
+
     case ReportActiveInstance(id, host, executorId, providerIdsToCheck) =>
       logDebug(s"Reported state store $id is active at $executorId")
       val taskLocation = ExecutorCacheTaskLocation(host, executorId)

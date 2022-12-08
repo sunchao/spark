@@ -1605,6 +1605,16 @@ object SQLConf {
       .booleanConf
       .createWithDefault(false)
 
+  val STATE_STORE_CHECKPOINT_CHECK_ENABLED =
+    buildConf("spark.sql.streaming.stateStore.checkpoint.enabled")
+      .doc("When true, Spark will validate if checkpoint files of state stores exist " +
+        "before committing current batch. If any checkpoint file doesn't exist, Spark " +
+        "will fail the streaming execution. This is Apple internal feature and only " +
+        "work for HDFS StateStoreProvider.")
+      .internal()
+      .booleanConf
+      .createWithDefault(false)
+
   /**
    * Note: this is defined in `RocksDBConf.FORMAT_VERSION`. These two places should be updated
    * together.
@@ -3764,6 +3774,8 @@ class SQLConf extends Serializable with Logging {
   def stateStoreCompressionCodec: String = getConf(STATE_STORE_COMPRESSION_CODEC)
 
   def checkpointRenamedFileCheck: Boolean = getConf(CHECKPOINT_RENAMEDFILE_CHECK_ENABLED)
+
+  def stateStoreCheckpointCheck: Boolean = getConf(STATE_STORE_CHECKPOINT_CHECK_ENABLED)
 
   def parquetFilterPushDown: Boolean = getConf(PARQUET_FILTER_PUSHDOWN_ENABLED)
 

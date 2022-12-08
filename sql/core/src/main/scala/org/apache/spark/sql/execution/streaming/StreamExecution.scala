@@ -239,7 +239,7 @@ abstract class StreamExecution(
     new Path(new Path(resolvedCheckpointRoot), name).toString
 
   /** All checkpoint file operations should be performed through `CheckpointFileManager`. */
-  private val fileManager = CheckpointFileManager.create(new Path(resolvedCheckpointRoot),
+  protected val fileManager = CheckpointFileManager.create(new Path(resolvedCheckpointRoot),
       sparkSession.sessionState.newHadoopConf)
 
   /**

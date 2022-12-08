@@ -19,6 +19,9 @@ package org.apache.spark.sql.execution.streaming
 
 import scala.collection.mutable.{Map => MutableMap}
 
+import org.apache.hadoop.fs.Path
+
+import org.apache.spark.SparkException
 import org.apache.spark.sql.{Dataset, SparkSession}
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, CurrentBatchTimestamp, CurrentDate, CurrentTimestamp, LocalTimestamp}
@@ -55,6 +58,11 @@ class MicroBatchExecution(
   }
 
   private var watermarkTracker: WatermarkTracker = _
+
+  // Whether to do state store check before committing current batch
+  private val stateStoreCheckpointCheck = sparkSession.sqlContext.conf.stateStoreCheckpointCheck
+
+  private val stateStoreCoordinator = sparkSession.sqlContext.streams.stateStoreCoordinator
 
   override lazy val logicalPlan: LogicalPlan = {
     assert(queryExecutionThread eq Thread.currentThread,
@@ -480,6 +488,28 @@ class MicroBatchExecution(
     shouldConstructNextBatch
   }
 
+  // Checks if all state store checkpointed files exists before committing current batch.
+  // Returns the check point files which do not exist.
+  private def checkAllStateStoreProviders(): Seq[Path] = {
+    val stateStoreProviderIds = stateStoreCoordinator.getAllStateStoreProviders()
+    stateStoreProviderIds.flatMap { providerId =>
+      val checkpointPath = providerId.storeId.storeCheckpointLocation()
+      // State store id is 1-based.
+      val checkpointFile = new Path(checkpointPath, s"${currentBatchId + 1}.delta")
+
+      val fileExist = fileManager.exists(checkpointFile)
+
+      // A bit verbose, but this is for debugging only.
+      logInfo(s"$checkpointFile exists: $fileExist")
+
+      if (!fileExist) {
+        Some(checkpointFile)
+      } else {
+        None
+      }
+    }
+  }
+
   /**
    * Processes any data available between `availableOffsets` and `committedOffsets`.
    * @param sparkSessionToRunBatch Isolated [[SparkSession]] to run this batch with.
@@ -606,6 +636,15 @@ class MicroBatchExecution(
           case w: WriteToDataSourceV2Exec => w.commitProgress
           case _ => None
         }
+      }
+    }
+
+    if (stateStoreCheckpointCheck) {
+      val nonExistCheckpointFiles = checkAllStateStoreProviders()
+      if (nonExistCheckpointFiles.nonEmpty) {
+        val files = nonExistCheckpointFiles.map(_.toString).mkString(", ")
+        throw new SparkException("Not all state store files exist after batch execution " +
+          s"for batch $currentBatchId: $files")
       }
     }
 
