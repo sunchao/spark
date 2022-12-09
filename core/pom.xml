@@ -351,7 +351,7 @@
     </dependency>
     <dependency>
       <groupId>com.apple.pie.data</groupId>
-      <artifactId>spark-call-home-listener_${scala.binary.version}</artifactId>
+      <artifactId>spark-call-home-listener_${scala.binary.version}_spark3.2.0</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.derby</groupId>
