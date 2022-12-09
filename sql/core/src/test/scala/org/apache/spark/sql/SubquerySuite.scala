@@ -24,7 +24,8 @@ import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.{Join, LogicalPlan, Project, Sort}
 import org.apache.spark.sql.execution.{ColumnarToRowExec, ExecSubqueryExpression, FileSourceScanExec, InputAdapter, ReusedSubqueryExec, ScalarSubquery, SubqueryExec, WholeStageCodegenExec}
 import org.apache.spark.sql.execution.adaptive.{AdaptiveSparkPlanHelper, DisableAdaptiveExecution}
-import org.apache.spark.sql.execution.datasources.FileScanRDD
+import org.apache.spark.sql.execution.datasources.{FilePartition, FileScanRDD}
+import org.apache.spark.sql.execution.datasources.v2.{DataSourceRDD, DataSourceRDDPartition}
 import org.apache.spark.sql.execution.joins.{BaseJoinExec, BroadcastHashJoinExec, BroadcastNestedLoopJoinExec}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
@@ -1327,17 +1328,36 @@ class SubquerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
       // need to execute the query before we can examine fs.inputRDDs()
       assert(stripAQEPlan(df.queryExecution.executedPlan) match {
         case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
-            fs @ FileSourceScanExec(_, _, _, partitionFilters, _, _, _, _, _)))) =>
+            fs @ FileSourceScanExec(_, _, _, partitionFilters, _, _, _, _, _))))
+            if fs.inputRDDs().forall(_.isInstanceOf[FileScanRDD]) =>
           partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
             fs.inputRDDs().forall(
               _.asInstanceOf[FileScanRDD].filePartitions.forall(
                 _.files.forall(_.filePath.contains("p=0"))))
         case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
-            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _)))) =>
+            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _))))
+            if fs.inputRDDs().forall(_.isInstanceOf[FileScanRDD]) =>
           partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
             fs.inputRDDs().forall(
               _.asInstanceOf[FileScanRDD].filePartitions.forall(
                 _.files.forall(_.filePath.contains("p=0"))))
+        // The following two matches are for Boson (prefetch case)
+        case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
+            fs @ FileSourceScanExec(_, _, _, partitionFilters, _, _, _, _, _))))
+            if fs.inputRDDs().forall(_.isInstanceOf[DataSourceRDD]) =>
+          partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
+            fs.inputRDDs().forall(
+              _.asInstanceOf[DataSourceRDD].partitions.forall(
+                _.asInstanceOf[DataSourceRDDPartition].inputPartition.asInstanceOf[FilePartition]
+                  .files.forall(_.filePath.contains("p=0"))))
+        case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
+            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _))))
+            if fs.inputRDDs().forall(_.isInstanceOf[DataSourceRDD]) =>
+          partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
+            fs.inputRDDs().forall(
+              _.asInstanceOf[DataSourceRDD].partitions.forall(
+                _.asInstanceOf[DataSourceRDDPartition].inputPartition.asInstanceOf[FilePartition]
+                  .files.forall(_.filePath.contains("p=0"))))
         case _ => false
       })
     }

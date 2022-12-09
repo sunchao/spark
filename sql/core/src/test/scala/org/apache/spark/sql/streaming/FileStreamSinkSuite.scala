@@ -36,7 +36,7 @@ import org.apache.spark.sql.boson.BosonBatchScanExec
 import org.apache.spark.sql.catalyst.util.stringToFile
 import org.apache.spark.sql.execution.DataSourceScanExec
 import org.apache.spark.sql.execution.datasources._
-import org.apache.spark.sql.execution.datasources.v2.{BatchScanExec, DataSourceV2Relation, FileScan, FileTable}
+import org.apache.spark.sql.execution.datasources.v2.{BatchScanExec, DataSourceRDD, DataSourceRDDPartition, DataSourceV2Relation, FileScan, FileTable}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
@@ -693,10 +693,19 @@ class FileStreamSinkV1Suite extends FileStreamSinkSuite {
       val getFileScanRDD = df.queryExecution.executedPlan.collect {
         case scan: DataSourceScanExec if scan.inputRDDs().head.isInstanceOf[FileScanRDD] =>
           scan.inputRDDs().head.asInstanceOf[FileScanRDD]
-      }.headOption.getOrElse {
+      }.headOption.map(fileScanRDD => func(fileScanRDD.filePartitions))
+
+      // For Boson (prefetch case)
+      val getDataSourceRDD = df.queryExecution.executedPlan.collect {
+        case scan: DataSourceScanExec if scan.inputRDDs().head.isInstanceOf[DataSourceRDD] =>
+          scan.inputRDDs().head.asInstanceOf[DataSourceRDD]
+      }.headOption.map(fileScanRDD =>
+        func(fileScanRDD.partitions.map(_.asInstanceOf[DataSourceRDDPartition]
+          .inputPartition.asInstanceOf[FilePartition])))
+
+      if (getFileScanRDD.isEmpty && getDataSourceRDD.isEmpty) {
         fail(s"No FileScan in query\n${df.queryExecution}")
       }
-      func(getFileScanRDD.filePartitions)
     }
 
     // Read without pruning

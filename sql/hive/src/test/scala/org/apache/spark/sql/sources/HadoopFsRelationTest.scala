@@ -28,6 +28,7 @@ import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql._
 import org.apache.spark.sql.execution.DataSourceScanExec
 import org.apache.spark.sql.execution.datasources._
+import org.apache.spark.sql.execution.datasources.v2.DataSourceRDD
 import org.apache.spark.sql.hive.test.TestHiveSingleton
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf.LegacyBehaviorPolicy._
@@ -835,6 +836,9 @@ abstract class HadoopFsRelationTest extends QueryTest with SQLTestUtils with Tes
         val Some(fileScanRDD) = df2.queryExecution.executedPlan.collectFirst {
           case scan: DataSourceScanExec if scan.inputRDDs().head.isInstanceOf[FileScanRDD] =>
             scan.inputRDDs().head.asInstanceOf[FileScanRDD]
+          // This match is for Boson (prefetch case)
+          case scan: DataSourceScanExec if scan.inputRDDs().head.isInstanceOf[DataSourceRDD] =>
+            scan.inputRDDs().head.asInstanceOf[DataSourceRDD]
         }
 
         val partitions = fileScanRDD.partitions
