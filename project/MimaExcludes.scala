@@ -37,7 +37,13 @@ object MimaExcludes {
   // Exclude rules for Apple Spark 3.2 from Apache Spark 3.2.0
   lazy val appleExcludes = defaultExcludes ++ Seq(
     // [SPARK-37391][SQL] JdbcConnectionProvider tells if it modifies security context
-    ProblemFilters.exclude[ReversedMissingMethodProblem]("org.apache.spark.sql.jdbc.JdbcConnectionProvider.modifiesSecurityContext")
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("org.apache.spark.sql.jdbc.JdbcConnectionProvider.modifiesSecurityContext"),
+
+    // [SPARK-41360][CORE] Avoid BlockManager re-registration if the executor has been lost
+    ProblemFilters.exclude[DirectMissingMethodProblem]("org.apache.spark.storage.BlockManagerMessages#RegisterBlockManager.copy"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("org.apache.spark.storage.BlockManagerMessages#RegisterBlockManager.this"),
+    ProblemFilters.exclude[MissingTypesProblem]("org.apache.spark.storage.BlockManagerMessages$RegisterBlockManager$"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("org.apache.spark.storage.BlockManagerMessages#RegisterBlockManager.apply")
   )
 
   // Defulat exclude rules
