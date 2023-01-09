@@ -159,6 +159,20 @@ SPARK-41388     `getReusablePVCs` should ignore recently created PVCs in the pre
 SPARK-41395     `InterpretedMutableProjection` should use `setDecimal` to set null values for decimals in an unsafe row
 SPARK-40270     Skip test_style when pandas <1.3.0
 SPARK-41376     Correct the Netty preferDirectBufs check logic on executor start
+SPARK-41448     Make consistent MR job IDs in FileBatchWriter and FileFormatWriter
+SPARK-41360     Avoid BlockManager re-registration if the executor has been lost
+SPARK-41522     Pin `versions-maven-plugin` to 2.13.0 to recover  `test-dependencies.sh`
+SPARK-41541     Fix call to wrong child method in SQLShuffleWriteMetricsReporter.decRecordsWritten()
+SPARK-41535     Set null correctly for calendar interval fields in `InterpretedUnsafeProjection` and `InterpretedMutableProjection`
+SPARK-41668     DECODE function returns wrong results when passed NULL
+SPARK-41732     Apply tree-pattern based pruning for the rule SessionWindowing
+SPARK-41863     Skip `flake8` tests if the command is not available
+SPARK-41865     Use pycodestyle to 2.7.0 to fix pycodestyle errors
+SPARK-41030     Upgrade `Apache Ivy` to 2.5.1
+SPARK-36883     Upgrade R version to 4.1.1 in CI images
+SPARK-38261     Add missing R packages from base image
+SPARK-39596     Install `ggplot2` for GitHub Action linter job
+SPARK-41162     Fix anti- and semi-join for self-join with aggregations
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -292,3 +306,5 @@ rdar://103024698 Bumps ADT to 1.1.14
 rdar://103053996 Check all statestore files before committing (#1642)
 rdar://102231773 Fix a few unit tests for pre-fetching input files for BosonScan (#1644)
 rdar://102914843 Add executor diskUsed metric into callhome client (#1635)
+rdar://103420826 [Boson] Upgrade Boson version to 0.2.12-beta
+rdar://103524012 [Boson] Adding color from spark plan UI block depending on inner text
