@@ -173,6 +173,9 @@ SPARK-36883     Upgrade R version to 4.1.1 in CI images
 SPARK-38261     Add missing R packages from base image
 SPARK-39596     Install `ggplot2` for GitHub Action linter job
 SPARK-41162     Fix anti- and semi-join for self-join with aggregations
+SPARK-38173     Quoted column cannot be recognized correctly when quotedRegexColumnNames is true
+SPARK-41989     Avoid breaking logging config from pyspark.pandas
+SPARK-42071     Register scala.math.Ordering$Reverse to KyroSerializer
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
