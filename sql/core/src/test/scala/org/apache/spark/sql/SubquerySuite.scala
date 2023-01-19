@@ -1335,7 +1335,7 @@ class SubquerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
               _.asInstanceOf[FileScanRDD].filePartitions.forall(
                 _.files.forall(_.filePath.contains("p=0"))))
         case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
-            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _))))
+            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _, _))))
             if fs.inputRDDs().forall(_.isInstanceOf[FileScanRDD]) =>
           partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
             fs.inputRDDs().forall(
@@ -1351,7 +1351,7 @@ class SubquerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
                 _.asInstanceOf[DataSourceRDDPartition].inputPartition.asInstanceOf[FilePartition]
                   .files.forall(_.filePath.contains("p=0"))))
         case WholeStageCodegenExec(ColumnarToRowExec(InputAdapter(
-            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _))))
+            fs @ BosonScanExec(_, _, _, partitionFilters, _, _, _, _, _, _))))
             if fs.inputRDDs().forall(_.isInstanceOf[DataSourceRDD]) =>
           partitionFilters.exists(ExecSubqueryExpression.hasSubquery) &&
             fs.inputRDDs().forall(

@@ -153,7 +153,7 @@
     </dependency>
     <dependency>
       <groupId>com.apple.pie.boson</groupId>
-      <artifactId>boson-spark</artifactId>
+      <artifactId>boson-spark-spark${spark.version.short}_${scala.binary.version}</artifactId>
     </dependency>
     <dependency>
       <groupId>org.scalacheck</groupId>

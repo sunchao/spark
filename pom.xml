@@ -110,6 +110,7 @@
   </modules>
 
   <properties>
+    <spark.version.short>3.2</spark.version.short>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <java.version>1.8</java.version>
@@ -200,7 +201,7 @@
     <commons-cli.version>1.2</commons-cli.version>
     <bouncycastle.version>1.60</bouncycastle.version>
     <tink.version>1.6.0</tink.version>
-    <boson.version>0.2.12-beta</boson.version>
+    <boson.version>0.2.15-beta</boson.version>
     <iceberg.version>0.13.0.7-apple</iceberg.version>
     <!--
     If you are changing Arrow version specification, please check
@@ -2642,7 +2643,7 @@
       </dependency>
       <dependency>
         <groupId>com.apple.pie.boson</groupId>
-        <artifactId>boson-spark</artifactId>
+        <artifactId>boson-spark-spark${spark.version.short}_${scala.binary.version}</artifactId>
         <version>${boson.version}</version>
         <exclusions>
           <exclusion>

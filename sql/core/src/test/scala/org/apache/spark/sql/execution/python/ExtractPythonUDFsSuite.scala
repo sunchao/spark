@@ -17,8 +17,6 @@
 
 package org.apache.spark.sql.execution.python
 
-import com.apple.boson.parquet.BosonParquetScan
-
 import org.apache.spark.sql.boson.{BosonBatchScanExec, BosonScanExec}
 import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan, SparkPlanTest}
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
@@ -170,10 +168,7 @@ class ExtractPythonUDFsSuite extends SparkPlanTest with SharedSparkSession {
           }
           assert(scanNodes.length == 1)
           // 'a is not null and 'a > 1
-          val filters = scanNodes.head.scan match {
-            case s: ParquetScan => s.pushedFilters
-            case s: BosonParquetScan => s.pushedFilters
-          }
+          val filters = scanNodes.head.scan.asInstanceOf[ParquetScan].pushedFilters
           assert(filters.length == 2)
           assert(filters.flatMap(_.references).distinct === Array("a"))
         }
