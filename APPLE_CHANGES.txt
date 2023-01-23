@@ -176,6 +176,8 @@ SPARK-41162     Fix anti- and semi-join for self-join with aggregations
 SPARK-38173     Quoted column cannot be recognized correctly when quotedRegexColumnNames is true
 SPARK-41989     Avoid breaking logging config from pyspark.pandas
 SPARK-42071     Register scala.math.Ordering$Reverse to KyroSerializer
+SPARK-40817      spark.files should preserve remote files
+SPARK-41415      SASL Request Retries
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -311,3 +313,5 @@ rdar://102231773 Fix a few unit tests for pre-fetching input files for BosonScan
 rdar://102914843 Add executor diskUsed metric into callhome client (#1635)
 rdar://103420826 [Boson] Upgrade Boson version to 0.2.12-beta
 rdar://103524012 [Boson] Adding color from spark plan UI block depending on inner text
+rdar://104138570 Upgrade callhome service to 0.2.23
+rdar://104443075 [Boson] Bump Boson version to 0.2.15-beta in Spark
