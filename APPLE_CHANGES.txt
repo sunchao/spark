@@ -178,6 +178,12 @@ SPARK-41989     Avoid breaking logging config from pyspark.pandas
 SPARK-42071     Register scala.math.Ordering$Reverse to KyroSerializer
 SPARK-40817      spark.files should preserve remote files
 SPARK-41415      SASL Request Retries
+SPARK-42157     `spark.scheduler.mode=FAIR` should provide FAIR scheduler
+MINOR           Add all resource managers in `Scheduling Within an Application` section
+SPARK-42090     Introduce sasl retry count in RetryingBlockTransferor
+SPARK-42168     Fix required child distribution of FlatMapCoGroupsInPandas (as in CoGroup)
+SPARK-42188     Force SBT protobuf version to match Maven
+SPARK-42201     `build/sbt` should allow `SBT_OPTS` to override JVM memory setting
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -315,3 +321,4 @@ rdar://103420826 [Boson] Upgrade Boson version to 0.2.12-beta
 rdar://103524012 [Boson] Adding color from spark plan UI block depending on inner text
 rdar://104138570 Upgrade callhome service to 0.2.23
 rdar://104443075 [Boson] Bump Boson version to 0.2.15-beta in Spark
+rdar://104618153 [Boson] Bump Boson version to 0.2.16-beta in Spark (#1665)
