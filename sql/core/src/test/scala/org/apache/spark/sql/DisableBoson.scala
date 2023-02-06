@@ -30,6 +30,10 @@ case class DisableBoson(reason: String) extends Tag("DisableBoson")
 trait DisableBosonSuite extends SQLTestUtils {
   override protected def test(testName: String, testTags: Tag*)(testFun: => Any)
       (implicit pos: Position): Unit = {
-    ignore(testName + " (disabled when Boson is on)", testTags: _*)(testFun)
+    if (isBosonEnabled) {
+      ignore(testName + " (disabled when Boson is on)", testTags: _*)(testFun)
+    } else {
+      super.test(testName, testTags: _*)(testFun)
+    }
   }
 }
