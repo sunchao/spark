@@ -24,6 +24,9 @@ SPARK-40772     Improve `spark.sql.adaptive.skewJoin.skewedPartitionFactor` to s
 SPARK-40778     Make HeartbeatReceiver as an IsolatedRpcEndpoint
 SPARK-41096     Support reading parquet FIXED_LEN_BYTE_ARRAY type
 SPARK-41442     Only update SQLMetric value if merging with valid metric (#1643)
+[SPARK-42190][K8S] Support `local` mode in `spark.kubernetes.driver.master`
+[SPARK-42343][CORE] Ignore `IOException` in `handleBlockRemovalFailure` if SparkContext is stopped
+[SPARK-42357][CORE] Log `exitCode` when `SparkContext.stop` starts
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -184,6 +187,10 @@ SPARK-42090     Introduce sasl retry count in RetryingBlockTransferor
 SPARK-42168     Fix required child distribution of FlatMapCoGroupsInPandas (as in CoGroup)
 SPARK-42188     Force SBT protobuf version to match Maven
 SPARK-42201     `build/sbt` should allow `SBT_OPTS` to override JVM memory setting
+SPARK-41554     fix changing of Decimal scale when scale decreased by more than 18
+MINOR           Fix the `.groupby()` method docstring
+SPARK-42259     ResolveGroupingAnalytics should take care of Python UDAF
+SPARK-42201     `build/sbt` should allow `SBT_OPTS` to override JVM memory setting
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -322,3 +329,8 @@ rdar://103524012 [Boson] Adding color from spark plan UI block depending on inne
 rdar://104138570 Upgrade callhome service to 0.2.23
 rdar://104443075 [Boson] Bump Boson version to 0.2.15-beta in Spark
 rdar://104618153 [Boson] Bump Boson version to 0.2.16-beta in Spark (#1665)
+rdar://104835338 Add bump-version.sh (#1667)
+rdar://105287150 Update ADT to 1.1.15
+Disable assertProjectExec for boson exec
+rdar://105251151 [Boson] Fix tests for boson exec
+rdar://105094614 DisableBosonSuite should only be applied when Boson is enabled
