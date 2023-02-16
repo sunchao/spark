@@ -28,6 +28,12 @@
   stroke-width: 1px;
 }
 
+#plan-viz-graph svg g.cluster-boson rect {
+  fill: #FEE085;
+  stroke: #3EC0FF;
+  stroke-width: 1px;
+}
+
 #plan-viz-graph svg g.node rect {
   fill: #C3EBFF;
   stroke: #3EC0FF;

@@ -78,7 +78,7 @@ object SparkPlanGraph {
       subgraph: SparkPlanGraphCluster,
       exchanges: mutable.HashMap[SparkPlanInfo, SparkPlanGraphNode]): Unit = {
     planInfo.nodeName match {
-      case name if name.startsWith("WholeStageCodegen") =>
+      case name if name.startsWith("WholeStageCodegen") || name == "Boson" =>
         val metrics = planInfo.metrics.map { metric =>
           SQLPlanMetric(metric.name, metric.accumulatorId, metric.metricType)
         }

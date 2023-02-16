@@ -44,8 +44,12 @@ function renderPlanViz() {
   var nodeSize = parseInt($("#plan-viz-metadata-size").text());
   for (var i = 0; i < nodeSize; i++) {
     setupTooltipForSparkPlanNode(i);
-    setCssClassForSparkPlanNode(i, "boson");
   }
+
+  // Add boson CSS class for Boson related nodes
+  addFeaturedCssClassForSparkPlanNode("svg g .node", "node-", "boson");
+  // Add boson CSS class for Boson related cluster nodes
+  addFeaturedCssClassForSparkPlanNode("svg g .cluster", "cluster-", "boson");
 
   resizeSvg(svg);
   postprocessForAdditionalMetrics();
@@ -73,15 +77,16 @@ function setupTooltipForSparkPlanNode(nodeId) {
 }
 
 /*
- * Set up the CSS class for a SparkPlan node. Needed to set class conditionally to paint up nodes for specific feature
+ * Add the user defined CSS class for a SparkPlan node.
+ * It will add class conditionally to the existing classList to paint up nodes for specific feature
  */
-function setCssClassForSparkPlanNode(nodeId, featureName) {
-  d3.select("svg g .node_" + nodeId)
+function addFeaturedCssClassForSparkPlanNode(origClassName, newClassName, featureName) {
+  d3.selectAll(origClassName)
     .each(function(d) {
       var domNode = d3.select(this).node();
       var text = domNode.attributes.getNamedItem("name");
       if (text && text.textContent.toLowerCase().includes(featureName)) {
-        domNode.classList.add("node-" + featureName);
+        domNode.classList.add(newClassName + featureName);
       }
     })
 }
