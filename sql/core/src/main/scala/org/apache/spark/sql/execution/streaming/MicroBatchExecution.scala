@@ -640,11 +640,13 @@ class MicroBatchExecution(
     }
 
     if (stateStoreCheckpointCheck) {
-      val nonExistCheckpointFiles = checkAllStateStoreProviders()
-      if (nonExistCheckpointFiles.nonEmpty) {
-        val files = nonExistCheckpointFiles.map(_.toString).mkString(", ")
-        throw new SparkException("Not all state store files exist after batch execution " +
-          s"for batch $currentBatchId: $files")
+      reportTimeTaken("checkAllStateStores") {
+        val nonExistCheckpointFiles = checkAllStateStoreProviders()
+        if (nonExistCheckpointFiles.nonEmpty) {
+          val files = nonExistCheckpointFiles.map(_.toString).mkString(", ")
+          throw new SparkException("Not all state store files exist after batch execution " +
+            s"for batch $currentBatchId: $files")
+        }
       }
     }
 
