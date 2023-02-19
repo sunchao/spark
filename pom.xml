@@ -196,14 +196,14 @@
     <htmlunit.version>2.50.0</htmlunit.version>
     <aciparquet.kms.version>1.1.6-apple</aciparquet.kms.version>
     <acispark.callhome.version>0.2.24</acispark.callhome.version>
-    <adt.version>1.1.15</adt.version>
+    <adt.version>1.1.16</adt.version>
     <maven-antrun.version>1.8</maven-antrun.version>
     <commons-crypto.version>1.1.0</commons-crypto.version>
     <commons-cli.version>1.2</commons-cli.version>
     <bouncycastle.version>1.60</bouncycastle.version>
     <tink.version>1.6.0</tink.version>
     <boson.version>0.2.16-beta</boson.version>
-    <iceberg.version>0.13.0.11-apple</iceberg.version>
+    <iceberg.version>0.13.0.12-apple</iceberg.version>
     <!--
     If you are changing Arrow version specification, please check
     ./python/pyspark/sql/pandas/utils.py, and ./python/setup.py too.
