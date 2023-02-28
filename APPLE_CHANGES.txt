@@ -191,6 +191,11 @@ SPARK-41554     fix changing of Decimal scale when scale decreased by more than 
 MINOR           Fix the `.groupby()` method docstring
 SPARK-42259     ResolveGroupingAnalytics should take care of Python UDAF
 SPARK-42201     `build/sbt` should allow `SBT_OPTS` to override JVM memory setting
+MINOR           [TESTS] Avoid NPE in an anonym SparkListener in DataFrameReaderWriterSuite
+
+# From 3.2.4
+SPARK-41952     [SQL] Fix Parquet zstd off-heap memory leak as a workaround for PARQUET-2160
+SPARK-42462     [K8S] Prevent `docker-image-tool.sh` from publishing OCI manifests
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -334,3 +339,7 @@ rdar://105287150 Update ADT to 1.1.15
 Disable assertProjectExec for boson exec
 rdar://105251151 [Boson] Fix tests for boson exec
 rdar://105094614 DisableBosonSuite should only be applied when Boson is enabled
+rdar://105639979: Wrap reportTimeTaken on checkAllStateStoreProviders (#1689)
+Update ADT to 1.1.16 and Iceberg to 0.13.0.12 (#1691)
+rdar://105514920 [Boson] Add Spark plan UI  clustering support for Boson children (#1687)
+rdar://105418098 (Add  Cluster and Namespace info into Callhome Client) (#1685)
