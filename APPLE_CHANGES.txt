@@ -196,6 +196,15 @@ MINOR           [TESTS] Avoid NPE in an anonym SparkListener in DataFrameReaderW
 # From 3.2.4
 SPARK-41952     [SQL] Fix Parquet zstd off-heap memory leak as a workaround for PARQUET-2160
 SPARK-42462     [K8S] Prevent `docker-image-tool.sh` from publishing OCI manifests
+SPARK-40819     [SQL][3.2] Timestamp nanos behaviour regression
+SPARK-40819     [SQL][FOLLOWUP] Update SqlConf version for nanosAsLong configuration
+MINOR           [SS] Fix setTimeoutTimestamp doc
+SPARK-42596     [CORE][YARN] OMP_NUM_THREADS not set to number of executor cores by default
+SPARK-42649     [CORE] Remove the standard Apache License header from the top of third-party source files
+SPARK-42673     [BUILD] Make `build/mvn` build Spark only with the verified maven version
+SPARK-42478     [SQL][3.2] Make a serializable jobTrackerId instead of a non-serializable JobID in FileWriterFactory
+SPARK-39399     [CORE][K8S] Fix proxy-user authentication for Spark on k8s in cluster deploy mode
+SPARK-42697     [WEBUI] Fix /api/v1/applications to return total uptime instead of 0 for the duration field
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -343,3 +352,9 @@ rdar://105639979: Wrap reportTimeTaken on checkAllStateStoreProviders (#1689)
 Update ADT to 1.1.16 and Iceberg to 0.13.0.12 (#1691)
 rdar://105514920 [Boson] Add Spark plan UI  clustering support for Boson children (#1687)
 rdar://105418098 (Add  Cluster and Namespace info into Callhome Client) (#1685)
+
+rdar://106222577 SQLConf.LEGACY_PARQUET_NANOS_AS_LONG should be set in tests too (#1698)
+rdar://106553667 [Boson] Bump Boson version to 0.2.17-beta in Spark (#1703)
+Revert "rdar://106553667 [Boson] Bump Boson version to 0.2.17-beta in Spark (#1703)"
+rdar://106366544 - Update to ADT 1.1.17 and Iceberg 0.13.0.13-preview (#1706)
+rdar://106553667 [Boson] Bump version to 0.2.18-beta (#1709)
