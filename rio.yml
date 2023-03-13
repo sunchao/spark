@@ -242,6 +242,7 @@ builds:
         - git checkout -b apple-0.13.x origin/apple-0.13.x
         - sed -i "s/sparkVersion = \(.*\)/sparkVersion = '$(sed -n '29s/<version>\(.*\)<\/version>/\1/p' ../pom.xml | xargs)'/g" spark/v3.2/build.gradle
         - sed -i "s/org\.apache\.hive:\* = \(.*\)/org\.apache\.hive:\* = $(sed -n 's/<hive\.version>\(.*\)<\/hive\.version>/\1/p' ../pom.xml | xargs)/g" versions.props
+        - sed -i "s/com\.apple\.pie\.boson:boson-iceberg-spark3\.2_2\.12 = \(.*\)/com\.apple\.pie\.boson:boson-iceberg-spark3\.2_2\.12 = $(sed -n 's/<boson\.version>\(.*\)<\/boson\.version>/\1/p' ../pom.xml | xargs)/g" versions.props
         - ./gradlew test
 
   - name: apple-spark-2.12_3.2.0-snapshot-iceberg-pr
@@ -255,6 +256,7 @@ builds:
         - git checkout -b apple-0.13.x origin/apple-0.13.x
         - sed -i "s/sparkVersion = \(.*\)/sparkVersion = '$(sed -n '29s/<version>\(.*\)<\/version>/\1/p' ../pom.xml | xargs)'/g" spark/v3.2/build.gradle
         - sed -i "s/org\.apache\.hive:\* = \(.*\)/org\.apache\.hive:\* = $(sed -n 's/<hive\.version>\(.*\)<\/hive\.version>/\1/p' ../pom.xml | xargs)/g" versions.props
+        - sed -i "s/com\.apple\.pie\.boson:boson-iceberg-spark3\.2_2\.12 = \(.*\)/com\.apple\.pie\.boson:boson-iceberg-spark3\.2_2\.12 = $(sed -n 's/<boson\.version>\(.*\)<\/boson\.version>/\1/p' ../pom.xml | xargs)/g" versions.props
         - ./gradlew test
 
   - name: apple-spark-2.12_3.2.0-snapshot-iceberg-spark-test-jars
