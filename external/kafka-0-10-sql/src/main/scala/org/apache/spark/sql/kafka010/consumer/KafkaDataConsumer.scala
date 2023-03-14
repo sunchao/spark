@@ -20,7 +20,9 @@ package org.apache.spark.sql.kafka010.consumer
 import java.{util => ju}
 import java.io.Closeable
 import java.time.Duration
+import java.util.ConcurrentModificationException
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 
 import scala.collection.JavaConverters._
 
@@ -32,6 +34,7 @@ import org.apache.spark.{SparkEnv, TaskContext}
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
 import org.apache.spark.internal.Logging
 import org.apache.spark.kafka010.{KafkaConfigUpdater, KafkaTokenUtil}
+import org.apache.spark.sql.internal.SQLConf.INTERNAL_KAFKA_CONSUMER_ACQUIRE_ENABLED
 import org.apache.spark.sql.kafka010.KafkaSourceProvider._
 import org.apache.spark.sql.kafka010.consumer.KafkaDataConsumer.{AvailableOffsetRange, UNKNOWN_OFFSET}
 import org.apache.spark.util.{ShutdownHookManager, UninterruptibleThread}
@@ -47,6 +50,9 @@ private[kafka010] class InternalKafkaConsumer(
     val topicPartition: TopicPartition,
     val kafkaParams: ju.Map[String, Object]) extends Closeable with Logging {
 
+  private val currentThread: AtomicLong = new AtomicLong(-1)
+  private val refcount: AtomicInteger = new AtomicInteger(0)
+
   val groupId = kafkaParams.get(ConsumerConfig.GROUP_ID_CONFIG).asInstanceOf[String]
 
   // Exposed for testing
@@ -59,6 +65,40 @@ private[kafka010] class InternalKafkaConsumer(
   // Exposed for testing
   private[consumer] var kafkaParamsWithSecurity: ju.Map[String, Object] = _
   private val consumer = createConsumer()
+
+  /**
+   * Acquires this consumer for the current thread. If this consumer is already acquired by
+   * other threads, throw an exception.
+   */
+  def acquire(): Unit = {
+    if (SparkEnv.get.conf.get(INTERNAL_KAFKA_CONSUMER_ACQUIRE_ENABLED)) {
+      if (refcount.getAndIncrement() == 0) {
+        val threadId = Thread.currentThread().getId()
+        if (threadId != this.currentThread.get() &&
+          !this.currentThread.compareAndSet(-1L, threadId)) {
+          throw new ConcurrentModificationException(
+            "InternalKafkaConsumer is not safe for multi-threaded access")
+        }
+      } else {
+        throw new ConcurrentModificationException(
+          "InternalKafkaConsumer is not safe for multiple callers")
+      }
+    }
+  }
+
+  /**
+   * Releases this consumer from the current thread. If the consumer is referred by other callers,
+   * throw an exception.
+   */
+  def release(): Unit = {
+    if (SparkEnv.get.conf.get(INTERNAL_KAFKA_CONSUMER_ACQUIRE_ENABLED)) {
+      if (refcount.decrementAndGet() != 0) {
+        throw new ConcurrentModificationException(
+          "This InternalKafkaConsumer is referred by multiple callers")
+      }
+      this.currentThread.set(-1L)
+    }
+  }
 
   /**
    * Poll messages from Kafka starting from `offset` and returns a pair of "list of consumer record"

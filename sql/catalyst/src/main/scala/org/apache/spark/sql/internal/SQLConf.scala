@@ -1615,6 +1615,15 @@ object SQLConf {
       .booleanConf
       .createWithDefault(false)
 
+  val INTERNAL_KAFKA_CONSUMER_ACQUIRE_ENABLED =
+    buildConf("spark.sql.streaming.internal.kafka.consumer.acquire.enabled")
+    .doc("When true, Spark will acquire the internal Kafka consumer from the pool when " +
+      "starting a streaming query. This is an internal feature and only work for " +
+      "internal Kafka consumer.")
+    .internal()
+    .booleanConf
+    .createWithDefault(false)
+
   /**
    * Note: this is defined in `RocksDBConf.FORMAT_VERSION`. These two places should be updated
    * together.
@@ -3783,6 +3792,8 @@ class SQLConf extends Serializable with Logging {
   def checkpointRenamedFileCheck: Boolean = getConf(CHECKPOINT_RENAMEDFILE_CHECK_ENABLED)
 
   def stateStoreCheckpointCheck: Boolean = getConf(STATE_STORE_CHECKPOINT_CHECK_ENABLED)
+
+  def internalKafkaConsumerAcquire: Boolean = getConf(INTERNAL_KAFKA_CONSUMER_ACQUIRE_ENABLED)
 
   def parquetFilterPushDown: Boolean = getConf(PARQUET_FILTER_PUSHDOWN_ENABLED)
 

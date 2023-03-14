@@ -216,5 +216,13 @@ private[consumer] object InternalKafkaConsumerPool {
     override def destroyObject(key: CacheKey, p: PooledObject[InternalKafkaConsumer]): Unit = {
       p.getObject.close()
     }
+
+    override def activateObject(key: CacheKey, p: PooledObject[InternalKafkaConsumer]): Unit = {
+      p.getObject.acquire()
+    }
+
+    override def passivateObject(key: CacheKey, p: PooledObject[InternalKafkaConsumer]): Unit = {
+      p.getObject.release()
+    }
   }
 }
