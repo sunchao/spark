@@ -205,6 +205,9 @@ SPARK-42673     [BUILD] Make `build/mvn` build Spark only with the verified mave
 SPARK-42478     [SQL][3.2] Make a serializable jobTrackerId instead of a non-serializable JobID in FileWriterFactory
 SPARK-39399     [CORE][K8S] Fix proxy-user authentication for Spark on k8s in cluster deploy mode
 SPARK-42697     [WEBUI] Fix /api/v1/applications to return total uptime instead of 0 for the duration field
+SPARK-42747     [ML] Fix incorrect internal status of LoR and AFT
+SPARK-42785     [K8S][CORE] When spark submit without `--deploy-mode`, avoid facing NPE in Kubernetes Case
+SPARK-42799     [BUILD] Update SBT build `xercesImpl` version to match with `pom.xml`
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -358,3 +361,7 @@ rdar://106553667 [Boson] Bump Boson version to 0.2.17-beta in Spark (#1703)
 Revert "rdar://106553667 [Boson] Bump Boson version to 0.2.17-beta in Spark (#1703)"
 rdar://106366544 - Update to ADT 1.1.17 and Iceberg 0.13.0.13-preview (#1706)
 rdar://106553667 [Boson] Bump version to 0.2.18-beta (#1709)
+rdar://106603368 [Boson] build: replace Boson dep version in Iceberg test in Spark rio (#1707)
+rdar://106512938 Upgrade callhome service to 0.2.26 (#1712)
+rdar://106653922 Prevent multithread and multi-caller usage of InternalKafkaConsumer (#1711)
+rdar://106733049 Bump Hadoop version to 3.3.2.10-ea-apple (Prod spark job failing caused by SSLPeerUnverifiedException) (#1716)
