@@ -202,7 +202,7 @@
     <commons-cli.version>1.2</commons-cli.version>
     <bouncycastle.version>1.60</bouncycastle.version>
     <tink.version>1.6.0</tink.version>
-    <boson.version>0.2.18-beta</boson.version>
+    <boson.version>0.3.0</boson.version>
     <iceberg.version>0.13.0.14-apple</iceberg.version>
     <!--
     If you are changing Arrow version specification, please check
