@@ -1,4 +1,4 @@
-This contains the changes after branching `v3.2.2-rc1`
+This contains the changes after branching `v3.2.4-rc1`
 
 # From 3.4.0
 SPARK-39134     Add custom metric of skipped null values for stream join operator
@@ -24,9 +24,9 @@ SPARK-40772     Improve `spark.sql.adaptive.skewJoin.skewedPartitionFactor` to s
 SPARK-40778     Make HeartbeatReceiver as an IsolatedRpcEndpoint
 SPARK-41096     Support reading parquet FIXED_LEN_BYTE_ARRAY type
 SPARK-41442     Only update SQLMetric value if merging with valid metric (#1643)
-[SPARK-42190][K8S] Support `local` mode in `spark.kubernetes.driver.master`
-[SPARK-42343][CORE] Ignore `IOException` in `handleBlockRemovalFailure` if SparkContext is stopped
-[SPARK-42357][CORE] Log `exitCode` when `SparkContext.stop` starts
+SPARK-42190     Support `local` mode in `spark.kubernetes.driver.master`
+SPARK-42343     Ignore `IOException` in `handleBlockRemovalFailure` if SparkContext is stopped
+SPARK-42357     Log `exitCode` when `SparkContext.stop` starts
 
 # From 3.3.0
 SPARK-36110     Upgrade SBT to 1.5.5
@@ -94,123 +94,7 @@ SPARK-35542     Fix: Bucketizer created for multiple columns with parameters spl
 SPARK-40065     Mount ConfigMap on executors with non-default profile as well
 SPARK-39833     Disable Parquet column index in DSv1 to fix a correctness issue in the case of overlapping partition and data columns
 
-# From 3.2.3
-SPARK-39672     Fix removing project before filter with correlated subquery
-SPARK-39758     Fix NPE from the regexp functions on invalid patterns
-SPARK-39647     Register the executor with ESS before registering the BlockManager
-SPARK-39879     Reduce local-cluster maximum memory size in `BroadcastJoinSuite*` and `HiveSparkSubmitSuite`
-SPARK-39839     Handle special case of null variable-length Decimal with non-zero offsetAndSize in UnsafeRow structural integrity check
-SPARK-39932     WindowExec should clear the final partition buffer
-SPARK-39835     Fix EliminateSorts remove global sort below the local sort
-SPARK-39962     Apply projection when group attributes are empty
-SPARK-39900     Address partial or negated condition in binary format's predicate pushdown
-SPARK-39952     SaveIntoDataSourceCommand should recache result relation
-SPARK-39775     Disable validate default values when parsing Avro schemas
-SPARK-39867     Global limit should not inherit OrderPreservingUnaryNode
-SPARK-38034     Optimize TransposeWindow rule
-SPARK-39965     Skip PVC cleanup when driver doesn't own PVCs
-SPARK-40002     Don't push down limit through window using ntile
-SPARK-40022     Ignore pyspark suites in `YarnClusterSuite` when python3 is unavailable
-SPARK-40043     Document DataStreamWriter.toTable and DataStreamReader.table
-SPARK-39887     RemoveRedundantAliases should keep aliases that make the output of projection nodes unique
-SPARK-40089     Fix sorting for some Decimal types
-SPARK-40172     Temporarily disable flaky test cases in ImageFileFormatSuite
-SPARK-40213     Support ASCII value conversion for Latin-1 characters
-SPARK-40241     Correct the link of GenericUDTF
-SPARK-40124     Update TPCDS v1.4 q32 for Plan Stability tests
-SPARK-40270     Make 'compute.max_rows' as None working in DataFrame.style
-SPARK-40315     Add hashCode() for Literal of ArrayBasedMapData
-SPARK-40149     Propagate metadata columns through Project
-SPARK-40280     Add support for parquet push down for annotated int and long
-SPARK-40280     FOLLOWUP Fix 'ParquetFilterSuite' issue
-SPARK-40292     Fix column names in "arrays_zip" function when arrays are referenced from nested structs
-SPARK-40459     `recoverDiskStore` should not stop by existing recomputed files
-SPARK-40461     Set upperbound for pyzmq 24.0.0 for Python linter
-SPARK-40470     Handle GetArrayStructFields and GetMapValue in "arrays_zip" function
-SPARK-40169     Don't pushdown Parquet filters with no reference to data schema
-SPARK-40660     Switch to XORShiftRandom to distribute elements
-SPARK-40617     Fix race condition at the handling of ExecutorMetricsPoller's stageTCMP entries
-SPARK-40636     Fix wrong remained shuffles log in BlockManagerDecommissioner
-SPARK-40612     Fixing the principal used for delegation token renewal on non-YARN resource managers
-SPARK-40574     Enhance DROP TABLE documentation
-SPARK-40583     Fixing artifactId name in `cloud-integration.md`
-SPARK-39200     Make Fallback Storage readFully on content
-SPARK-40407     Fix the potential data skew caused by df.repartition
-SPARK-40218     GROUPING SETS should preserve the grouping columns
-SPARK-40562     Add `spark.sql.legacy.groupingIdWithAppendedUserGroupBy`
-SPARK-40490     Ensure YarnShuffleIntegrationSuite tests registeredExecFile reload scenarios
-SPARK-8731      Beeline doesn't work with -e option when started in background
-SPARK-40829     STORED AS serde in CREATE TABLE LIKE view does not work
-SPARK-40874     Fix broadcasts in Python UDFs when encryption enabled
-SPARK-40851     Make GA run successfully with the latest Java 8/11/17
-SPARK-40902     Fix issue with mesos tests failing due to quick submission of drivers
-SPARK-38697     Extend SparkSessionExtensions to inject rules into AQE Optimizer
-SPARK-40963     Set nullable correctly in project created by `ExtractGenerator`
-SPARK-40983     Remove Hadoop requirements for zstd mentioned in Parquet compression codec
-MINOR           Correct the `files` contend in `checkstyle-suppressions.xml`
-SPARK-40869     Resource name prefix should not start with a hyphen
-SPARK-40801     Upgrade `Apache commons-text` to 1.10
-SPARK-32380     Fixing access of HBase table via Hive from Spark
-SPARK-41035     Don't patch foldable children of aggregate functions in `RewriteDistinctAggregates`
-SPARK-40588     FileFormatWriter materializes AQE plan before accessing outputOrdering
-SPARK-41188     Set executorEnv OMP_NUM_THREADS to be spark.task.cpus by default for spark executor JVM processes
-SPARK-41091     Fix Docker release tool for branch-3.2
-SPARK-41254     YarnAllocator.rpIdToYarnResource map is not properly updated
-SPARK-40987     Avoid creating a directory when deleting a block, causing DAGScheduler to not work
-SPARK-41327     Fix SparkStatusTracker.getExecutorInfos by switch On/OffHeapStorageMemory info
-SPARK-41388     `getReusablePVCs` should ignore recently created PVCs in the previous batch
-SPARK-41395     `InterpretedMutableProjection` should use `setDecimal` to set null values for decimals in an unsafe row
-SPARK-40270     Skip test_style when pandas <1.3.0
-SPARK-41376     Correct the Netty preferDirectBufs check logic on executor start
-SPARK-41448     Make consistent MR job IDs in FileBatchWriter and FileFormatWriter
-SPARK-41360     Avoid BlockManager re-registration if the executor has been lost
-SPARK-41522     Pin `versions-maven-plugin` to 2.13.0 to recover  `test-dependencies.sh`
-SPARK-41541     Fix call to wrong child method in SQLShuffleWriteMetricsReporter.decRecordsWritten()
-SPARK-41535     Set null correctly for calendar interval fields in `InterpretedUnsafeProjection` and `InterpretedMutableProjection`
-SPARK-41668     DECODE function returns wrong results when passed NULL
-SPARK-41732     Apply tree-pattern based pruning for the rule SessionWindowing
-SPARK-41863     Skip `flake8` tests if the command is not available
-SPARK-41865     Use pycodestyle to 2.7.0 to fix pycodestyle errors
-SPARK-41030     Upgrade `Apache Ivy` to 2.5.1
-SPARK-36883     Upgrade R version to 4.1.1 in CI images
-SPARK-38261     Add missing R packages from base image
-SPARK-39596     Install `ggplot2` for GitHub Action linter job
-SPARK-41162     Fix anti- and semi-join for self-join with aggregations
-SPARK-38173     Quoted column cannot be recognized correctly when quotedRegexColumnNames is true
-SPARK-41989     Avoid breaking logging config from pyspark.pandas
-SPARK-42071     Register scala.math.Ordering$Reverse to KyroSerializer
-SPARK-40817      spark.files should preserve remote files
-SPARK-41415      SASL Request Retries
-SPARK-42157     `spark.scheduler.mode=FAIR` should provide FAIR scheduler
-MINOR           Add all resource managers in `Scheduling Within an Application` section
-SPARK-42090     Introduce sasl retry count in RetryingBlockTransferor
-SPARK-42168     Fix required child distribution of FlatMapCoGroupsInPandas (as in CoGroup)
-SPARK-42188     Force SBT protobuf version to match Maven
-SPARK-42201     `build/sbt` should allow `SBT_OPTS` to override JVM memory setting
-SPARK-41554     fix changing of Decimal scale when scale decreased by more than 18
-MINOR           Fix the `.groupby()` method docstring
-SPARK-42259     ResolveGroupingAnalytics should take care of Python UDAF
-SPARK-42201     `build/sbt` should allow `SBT_OPTS` to override JVM memory setting
-MINOR           [TESTS] Avoid NPE in an anonym SparkListener in DataFrameReaderWriterSuite
-
-# From 3.2.4
-SPARK-41952     [SQL] Fix Parquet zstd off-heap memory leak as a workaround for PARQUET-2160
-SPARK-42462     [K8S] Prevent `docker-image-tool.sh` from publishing OCI manifests
-SPARK-40819     [SQL][3.2] Timestamp nanos behaviour regression
-SPARK-40819     [SQL][FOLLOWUP] Update SqlConf version for nanosAsLong configuration
-MINOR           [SS] Fix setTimeoutTimestamp doc
-SPARK-42596     [CORE][YARN] OMP_NUM_THREADS not set to number of executor cores by default
-SPARK-42649     [CORE] Remove the standard Apache License header from the top of third-party source files
-SPARK-42673     [BUILD] Make `build/mvn` build Spark only with the verified maven version
-SPARK-42478     [SQL][3.2] Make a serializable jobTrackerId instead of a non-serializable JobID in FileWriterFactory
-SPARK-39399     [CORE][K8S] Fix proxy-user authentication for Spark on k8s in cluster deploy mode
-SPARK-42697     [WEBUI] Fix /api/v1/applications to return total uptime instead of 0 for the duration field
-SPARK-42747     [ML] Fix incorrect internal status of LoR and AFT
-SPARK-42785     [K8S][CORE] When spark submit without `--deploy-mode`, avoid facing NPE in Kubernetes Case
-SPARK-42799     [BUILD] Update SBT build `xercesImpl` version to match with `pom.xml`
-SPARK-42967     [CORE][3.2][3.3][3.4] Fix SparkListenerTaskStart.stageAttemptId when a task is started after the stage is cancelled
-SPARK-42906     [K8S] Replace a starting digit with `x` in resource name prefix
-SPARK-42934     [BUILD] Add `spark.hadoop.hadoop.security.key.provider.path` to `scalatest-maven-plugin`
+# From 3.2.5
 
 # Internal Patches
 MINOR           Add rio.yml and dev scripts
@@ -307,8 +191,8 @@ rdar://97757065 Upgrade Hive version to 2.3.9.2-apple
 rdar://86637857 Create ACS Runtime Queue in ACS Spark 2.4.8, 3.1.1 3.1.2 and 3.2.0
 rdar://99464446 change executor memory message level to minutely instead of 5s
 MINOR:          fix CI failure (fix in parquet test and revert SPARK-40149) after cherry pick the upstream changes
-rdar://99838866 [Boson] Merge back changes from Boson Spark branch to Apple Spark 3.2
-rdar://99992167 [Boson] Bump version to 0.2.2-beta for Apple Spark
+rdar://99838866  Merge back changes from Boson Spark branch to Apple Spark 3.2
+rdar://99992167  Bump version to 0.2.2-beta for Apple Spark
 MINOR            Remove DisableBoson from HiveDDLSuite and DDLSuite
 MINOR            Remove DisableBoson from JDBCV2Suite
 MINOR            enable FileStreamSinkSuite
@@ -317,21 +201,21 @@ rdar://100580258 Upgrade Hive to 2.3.9.4-apple
 rdar://100721323 Enable spark.sql.legacy.groupingIdWithAppendedUserGroupBy by default
 rdar://100081966 Add Rio pipeline to run iceberg unit tests
 rdar://100784942 Add additional checkpoint rename file check
-rdar://99714991 Support configuring version of the PME Key to use for writing
+rdar://99714991  Support configuring version of the PME Key to use for writing
 rdar://101058205 Add BosonSparkSessionExtensions if BOSON_ENABLED is true
-rdar://101112227 [Boson] Boson should be enabled for TestHiveSingleton
-rdar://101149150 [Boson] Fix Spark test failures related to Boson
-rdar://101176607 [Boson] Upgrade version to 0.2.3-beta
-rdar://100789814 [Boson] Remove DisableBoson from unsigned integer and enum tests
-rdar://101191415 [Boson] Bump version to 0.2.4-beta
-rdar://100906965 (S3 reader / race condition when performing S3 athentication when reading source with multiple partitions.) (#1597)
+rdar://101112227 Boson should be enabled for TestHiveSingleton
+rdar://101149150 Fix Spark test failures related to Boson
+rdar://101176607 Upgrade version to 0.2.3-beta
+rdar://100789814 Remove DisableBoson from unsigned integer and enum tests
+rdar://101191415 Bump version to 0.2.4-beta
+rdar://100906965 S3 reader / race condition when performing S3 athentication when reading source with multiple partitions (#1597)
 MINOR            Update config name of CHECKPOINT_RENAMEDFILE_CHECK_ENABLED to match upstream
-rdar://101319418 [Boson] Bump version to 0.2.5-beta (#1598)
+rdar://101319418 Bump version to 0.2.5-beta (#1598)
 rdar://101441078 Fix datetime test failures in Apple Spark (#1602)
-rdar://101552271 (Call Home Client update with new memory metrics collection)
-rdar://101559311 [Boson] Fix BucketedReadWithoutHiveSupportSuite with BosonExec enabled (#1609)
-rdar://101721963 [Boson] Upgrade Boson to 0.2.6-beta (#1611)
-rdar://101933303 [Boson] Bump Boson to 0.2.7-beta in Spark (#1617)
+rdar://101552271 Call Home Client update with new memory metrics collection
+rdar://101559311 Fix BucketedReadWithoutHiveSupportSuite with BosonExec enabled (#1609)
+rdar://101721963 Upgrade Boson to 0.2.6-beta (#1611)
+rdar://101933303 Bump Boson to 0.2.7-beta in Spark (#1617)
 rdar://100981691 Set `spark.cleaner.periodicGC.interval` to `20min`
 rdar://101964650 Enable Dependency Test
 rdar://101972302 Enable MIMA Test
@@ -344,28 +228,30 @@ rdar://103024698 Bumps ADT to 1.1.14
 rdar://103053996 Check all statestore files before committing (#1642)
 rdar://102231773 Fix a few unit tests for pre-fetching input files for BosonScan (#1644)
 rdar://102914843 Add executor diskUsed metric into callhome client (#1635)
-rdar://103420826 [Boson] Upgrade Boson version to 0.2.12-beta
-rdar://103524012 [Boson] Adding color from spark plan UI block depending on inner text
+rdar://103420826 Upgrade Boson version to 0.2.12-beta
+rdar://103524012 Adding color from spark plan UI block depending on inner text
 rdar://104138570 Upgrade callhome service to 0.2.23
-rdar://104443075 [Boson] Bump Boson version to 0.2.15-beta in Spark
-rdar://104618153 [Boson] Bump Boson version to 0.2.16-beta in Spark (#1665)
+rdar://104443075 Bump Boson version to 0.2.15-beta in Spark
+rdar://104618153 Bump Boson version to 0.2.16-beta in Spark (#1665)
 rdar://104835338 Add bump-version.sh (#1667)
 rdar://105287150 Update ADT to 1.1.15
 Disable assertProjectExec for boson exec
-rdar://105251151 [Boson] Fix tests for boson exec
+rdar://105251151 Fix tests for boson exec
 rdar://105094614 DisableBosonSuite should only be applied when Boson is enabled
-rdar://105639979: Wrap reportTimeTaken on checkAllStateStoreProviders (#1689)
+rdar://105639979 Wrap reportTimeTaken on checkAllStateStoreProviders (#1689)
 Update ADT to 1.1.16 and Iceberg to 0.13.0.12 (#1691)
-rdar://105514920 [Boson] Add Spark plan UI  clustering support for Boson children (#1687)
-rdar://105418098 (Add  Cluster and Namespace info into Callhome Client) (#1685)
-
+rdar://105514920 Add Spark plan UI  clustering support for Boson children (#1687)
+rdar://105418098 Add Cluster and Namespace info into Callhome Client (#1685)
 rdar://106222577 SQLConf.LEGACY_PARQUET_NANOS_AS_LONG should be set in tests too (#1698)
-rdar://106553667 [Boson] Bump Boson version to 0.2.17-beta in Spark (#1703)
-Revert "rdar://106553667 [Boson] Bump Boson version to 0.2.17-beta in Spark (#1703)"
-rdar://106366544 - Update to ADT 1.1.17 and Iceberg 0.13.0.13-preview (#1706)
-rdar://106553667 [Boson] Bump version to 0.2.18-beta (#1709)
-rdar://106603368 [Boson] build: replace Boson dep version in Iceberg test in Spark rio (#1707)
+rdar://106553667 Bump Boson version to 0.2.17-beta in Spark (#1703)
+Revert "rdar://106553667 Bump Boson version to 0.2.17-beta in Spark (#1703)"
+rdar://106366544 Update to ADT 1.1.17 and Iceberg 0.13.0.13-preview (#1706)
+rdar://106553667 Bump version to 0.2.18-beta (#1709)
+rdar://106603368 Replace Boson dep version in Iceberg test in Spark rio (#1707)
 rdar://106512938 Upgrade callhome service to 0.2.26 (#1712)
 rdar://106653922 Prevent multithread and multi-caller usage of InternalKafkaConsumer (#1711)
 rdar://106733049 Bump Hadoop version to 3.3.2.10-ea-apple (Prod spark job failing caused by SSLPeerUnverifiedException) (#1716)
-rdar://107223070 : Upgrades ADT to 1.1.18 (#1719)
+rdar://107223070 Upgrades ADT to 1.1.18 (#1719)
+rdar://92996732  Use quoted identifier for column name 'date' before pushing filter to UC (#1412)
+rdar://107596423 Add BosonSort handling in JoinSuite (#1727)
+rdar://107452803 Bump version to 0.3.0 (#1721)
