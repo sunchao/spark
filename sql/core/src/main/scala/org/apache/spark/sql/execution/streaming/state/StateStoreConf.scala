@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql.execution.streaming.state
 
+import scala.util.Random
+
 import org.apache.spark.sql.internal.SQLConf
 
 /** A class that contains configuration parameters for [[StateStore]]s. */
@@ -66,8 +68,16 @@ class StateStoreConf(
   /** whether to validate state schema during query run. */
   val stateSchemaCheckEnabled = sqlConf.isStateSchemaCheckEnabled
 
+  /** The randomness added to the interval of maintenance tasks. */
+  val maintenanceIntervalRandomness = (sqlConf.streamingMaintenanceInterval *
+    sqlConf.streamingMaintenanceIntervalRandomFactor * Random.nextDouble()).toLong
+
   /** The interval of maintenance tasks. */
-  val maintenanceInterval = sqlConf.streamingMaintenanceInterval
+  val maintenanceInterval = if (sqlConf.streamingMaintenanceIntervalRandomnessEnabled) {
+    sqlConf.streamingMaintenanceInterval + maintenanceIntervalRandomness
+  } else {
+    sqlConf.streamingMaintenanceInterval
+  }
 
   /**
    * Additional configurations related to state store. This will capture all configs in

@@ -1587,6 +1587,24 @@ object SQLConf {
       .timeConf(TimeUnit.MILLISECONDS)
       .createWithDefault(TimeUnit.MINUTES.toMillis(1)) // 1 minute
 
+  val STREAMING_MAINTENANCE_INTERVAL_RANDOMNESS_ENABLED =
+    buildConf("spark.sql.streaming.stateStore.maintenanceInterval.randomnessEnabled")
+      .internal()
+      .doc("If enabled, the maintenance interval will be randomized to avoid all the instances " +
+        "of StateStoreProvider to be triggered at the same time.")
+      .version("3.2.0")
+      .booleanConf
+      .createWithDefault(false)
+
+  val STREAMING_MAINTENANCE_INTERVAL_RANDOM_FACTOR =
+    buildConf("spark.sql.streaming.stateStore.maintenanceInterval.randomFactor")
+      .internal()
+      .doc("The random factor to be added to the maintenance interval. This is to avoid " +
+        "all the instances of StateStoreProvider to be triggered at the same time.")
+      .version("3.2.0")
+      .doubleConf
+      .createWithDefault(0.2) // 20%
+
   val STATE_STORE_COMPRESSION_CODEC =
     buildConf("spark.sql.streaming.stateStore.compression.codec")
       .internal()
@@ -3786,6 +3804,12 @@ class SQLConf extends Serializable with Logging {
   def maxBatchesToRetainInMemory: Int = getConf(MAX_BATCHES_TO_RETAIN_IN_MEMORY)
 
   def streamingMaintenanceInterval: Long = getConf(STREAMING_MAINTENANCE_INTERVAL)
+
+  def streamingMaintenanceIntervalRandomnessEnabled: Boolean =
+    getConf(STREAMING_MAINTENANCE_INTERVAL_RANDOMNESS_ENABLED)
+
+  def streamingMaintenanceIntervalRandomFactor: Double =
+    getConf(STREAMING_MAINTENANCE_INTERVAL_RANDOM_FACTOR)
 
   def stateStoreCompressionCodec: String = getConf(STATE_STORE_COMPRESSION_CODEC)
 
